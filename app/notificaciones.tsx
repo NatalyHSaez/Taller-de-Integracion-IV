@@ -1,20 +1,38 @@
-import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { NOTIFICACIONES_INICIALES } from '@/constants/notifications-mock';
+import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getNotifications, markNotificationRead } from '@/services/notifications';
 
 export default function NotificacionesScreen() {
   const colorScheme = useColorScheme();
   const tint = Colors[colorScheme === 'dark' ? 'dark' : 'light'].tint;
-  const [notificaciones, setNotificaciones] = useState(NOTIFICACIONES_INICIALES);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    getNotifications().then((data) => {
+      setNotificaciones(data);
+      setCargando(false);
+    });
+  }, []);
 
   const marcarComoLeida = (id: string) => {
     setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+    markNotificationRead(id); // no bloquea la UI mientras responde
   };
+
+  if (cargando) {
+    return (
+      <ThemedView style={styles.emptyContainer}>
+        <ActivityIndicator color={tint} />
+      </ThemedView>
+    );
+  }
 
   if (notificaciones.length === 0) {
     return (
