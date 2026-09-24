@@ -2,12 +2,14 @@ import { NOTIFICACIONES_INICIALES, type Notificacion } from '@/constants/notific
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-// Reemplazar 'me' por el id real del paciente autenticado cuando exista
-// el contexto de sesión (viene de Identity, /api/v1/me).
+// Mientras no hay backend, esta variable en memoria hace de "servidor" mock.
+// Vive mientras la app esté abierta; se reinicia si recargas Metro.
+let notificacionesEnMemoria: Notificacion[] = [...NOTIFICACIONES_INICIALES];
+
 export async function getNotifications(): Promise<Notificacion[]> {
   if (!API_URL) {
     console.warn('[notifications] EXPO_PUBLIC_API_URL no configurada, usando datos mock.');
-    return NOTIFICACIONES_INICIALES;
+    return notificacionesEnMemoria;
   }
 
   try {
@@ -16,12 +18,22 @@ export async function getNotifications(): Promise<Notificacion[]> {
     return (await res.json()) as Notificacion[];
   } catch (err) {
     console.warn('[notifications] Backend no disponible todavía, usando datos mock.', err);
-    return NOTIFICACIONES_INICIALES;
+    return notificacionesEnMemoria;
   }
 }
 
+export async function getNotificationById(id: string): Promise<Notificacion | undefined> {
+  const lista = await getNotifications();
+  return lista.find((n) => n.id === id);
+}
+
 export async function markNotificationRead(id: string): Promise<void> {
-  if (!API_URL) return; // en modo mock no hay nada que persistir
+  // Actualiza el mock local (para que la lista lo refleje al volver)
+  notificacionesEnMemoria = notificacionesEnMemoria.map((n) =>
+    n.id === id ? { ...n, leida: true } : n
+  );
+
+  if (!API_URL) return;
 
   try {
     await fetch(`${API_URL}/api/v1/notifications/${id}/read`, { method: 'PATCH' });

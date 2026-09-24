@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router/react-navigation';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -6,25 +8,24 @@ import { ThemedView } from '@/components/themed-view';
 import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getNotifications, markNotificationRead } from '@/services/notifications';
+import { getNotifications } from '@/services/notifications';
 
 export default function NotificacionesScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const tint = Colors[colorScheme === 'dark' ? 'dark' : 'light'].tint;
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    getNotifications().then((data) => {
-      setNotificaciones(data);
-      setCargando(false);
-    });
-  }, []);
-
-  const marcarComoLeida = (id: string) => {
-    setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
-    markNotificationRead(id); // no bloquea la UI mientras responde
-  };
+  // Se ejecuta cada vez que la pantalla vuelve a tener foco (incluido "volver" desde el detalle)
+  useFocusEffect(
+    useCallback(() => {
+      getNotifications().then((data) => {
+        setNotificaciones(data);
+        setCargando(false);
+      });
+    }, [])
+  );
 
   if (cargando) {
     return (
@@ -50,7 +51,7 @@ export default function NotificacionesScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => marcarComoLeida(item.id)}>
+          <Pressable style={styles.row} onPress={() => router.push(`/notificacion/${item.id}`)}>
             <View style={[styles.dot, { backgroundColor: item.leida ? 'transparent' : tint }]} />
             <View style={styles.textGroup}>
               <ThemedText type={item.leida ? 'default' : 'defaultSemiBold'}>{item.titulo}</ThemedText>
