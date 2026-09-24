@@ -3649,3 +3649,57 @@
 {"_e":"metro:client_log","_t":1790220844134,"level":"info","data":["%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools","font-weight:bold"]}
 {"_e":"metro:client_log","_t":1790220844135,"level":"log","data":["Running application \"main\" with appParams:\n","{\"hydrate\": undefined, \"rootTag\": \"#root\"}","\nDevelopment-level warnings: ON.\nPerformance optimizations: OFF."]}
 {"_e":"metro:client_log","_t":1790220870323,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:server_log","_t":1790221274006,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","host.exp.exponent","moto g84 5G - 14 - API 34","60"]}
+{"_e":"metro:client_log","_t":1790221461125,"level":"warn","data":["props.pointerEvents is deprecated. Use style.pointerEvents"]}
+{"_e":"metro:bundling:started","_t":1790221489472,"id":"d","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:progress","_t":1790221489473,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:started","_t":1790221489475,"id":"e","platform":"web","environment":"node","entry":"node_modules\\expo\\node_modules\\@expo\\cli\\node_modules\\@expo\\router-server\\node\\render.js"}
+{"_e":"metro:bundling:progress","_t":1790221489475,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489475,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489502,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489502,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489605,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489605,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489797,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489797,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489936,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221489936,"id":"e","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221489998,"id":"e","total":1,"ms":523.6808}
+{"_e":"metro:bundling:progress","_t":1790221489999,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221491279,"id":"d","total":1,"ms":1813.2469}
+{"_e":"metro:bundling:started","_t":1790221491356,"id":"f","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:progress","_t":1790221491356,"id":"f","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221491499,"id":"f","total":1,"ms":142.7609}
+{"_e":"metro:client_log","_t":1790221491879,"level":"info","data":["%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools","font-weight:bold"]}
+{"_e":"metro:client_log","_t":1790221491887,"level":"log","data":["Running application \"main\" with appParams:\n","{\"hydrate\": undefined, \"rootTag\": \"#root\"}","\nDevelopment-level warnings: ON.\nPerformance optimizations: OFF."]}
+{"_e":"metro:client_log","_t":1790221491948,"level":"warn","data":["Image: style.resizeMode is deprecated. Please use props.resizeMode."]}
+{"_e":"metro:bundling:started","_t":1790221500626,"id":"i","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:progress","_t":1790221500627,"id":"i","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:started","_t":1790221500627,"id":"j","platform":"web","environment":"node","entry":"node_modules\\expo\\node_modules\\@expo\\cli\\node_modules\\@expo\\router-server\\node\\render.js"}
+{"_e":"metro:bundling:progress","_t":1790221500627,"id":"i","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221500627,"id":"j","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221500629,"id":"i","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221500630,"id":"j","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221500737,"id":"j","total":1,"ms":109.7547}
+{"_e":"metro:bundling:progress","_t":1790221500737,"id":"i","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221500844,"id":"i","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221501261,"id":"i","total":1,"ms":634.5025}
+{"_e":"metro:bundling:started","_t":1790221501313,"id":"k","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:progress","_t":1790221501313,"id":"k","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221501420,"id":"k","total":1,"ms":107.3193}
+{"_e":"metro:client_log","_t":1790221501699,"level":"info","data":["%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools","font-weight:bold"]}
+{"_e":"metro:client_log","_t":1790221501699,"level":"log","data":["Running application \"main\" with appParams:\n","{\"hydrate\": undefined, \"rootTag\": \"#root\"}","\nDevelopment-level warnings: ON.\nPerformance optimizations: OFF."]}
+{"_e":"metro:client_log","_t":1790221501747,"level":"warn","data":["Image: style.resizeMode is deprecated. Please use props.resizeMode."]}
+{"_e":"metro:bundling:started","_t":1790221505514,"id":"n","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:progress","_t":1790221505514,"id":"n","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:started","_t":1790221505514,"id":"o","platform":"web","environment":"node","entry":"node_modules\\expo\\node_modules\\@expo\\cli\\node_modules\\@expo\\router-server\\node\\render.js"}
+{"_e":"metro:bundling:progress","_t":1790221505514,"id":"n","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790221505514,"id":"o","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221505631,"id":"o","total":1,"ms":116.5226}
+{"_e":"metro:bundling:progress","_t":1790221505631,"id":"n","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221506169,"id":"n","total":1,"ms":655.2317}
+{"_e":"metro:bundling:started","_t":1790221506214,"id":"p","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:progress","_t":1790221506214,"id":"p","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790221506341,"id":"p","total":1,"ms":126.7818}
+{"_e":"metro:client_log","_t":1790221506589,"level":"info","data":["%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools","font-weight:bold"]}
+{"_e":"metro:client_log","_t":1790221506589,"level":"log","data":["Running application \"main\" with appParams:\n","{\"hydrate\": undefined, \"rootTag\": \"#root\"}","\nDevelopment-level warnings: ON.\nPerformance optimizations: OFF."]}
