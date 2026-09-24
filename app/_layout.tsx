@@ -5,9 +5,6 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-//Reemplazar por false, cuando este funcionando el login
-const isLoggedIn = false; 
-
 export const unstable_settings = {
   anchor: '(auth)',
 };
@@ -17,17 +14,13 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Protected guard={!isLoggedIn}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        </Stack.Protected>
-
-        <Stack.Protected guard={isLoggedIn}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="notificaciones" options={{ title: 'Notificaciones' }} />
-          <Stack.Screen name="perfil" options={{ title: 'Perfil' }} />
-          <Stack.Screen name="alertas" options={{ title: 'Alertas' }} />
-        </Stack.Protected>
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* Declaramos los grupos sin Stack.Protected para habilitar la navegación directa */}
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="notificaciones" options={{ headerShown: true, title: 'Notificaciones' }} />
+        <Stack.Screen name="perfil" options={{ headerShown: true, title: 'Perfil' }} />
+        <Stack.Screen name="alertas" options={{ headerShown: true, title: 'Alertas' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

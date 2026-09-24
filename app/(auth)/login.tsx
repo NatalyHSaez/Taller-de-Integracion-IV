@@ -1,6 +1,16 @@
+import { authService } from '@/services/authservice';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -8,10 +18,26 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [keepSession, setKeepSession] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Redirige al grupo (tabs), que por defecto renderiza app/(tabs)/index.tsx (tu Home)
-    router.replace('/(tabs)');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Atención', 'Por favor ingresa tu correo y contraseña.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Simula / ejecuta el inicio de sesión
+      await authService.login(email, password);
+      
+      // Como el usuario ya existe y tiene perfil, ingresa directo a las pestañas principales
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      Alert.alert('Error de acceso', error.message || 'Credenciales inválidas');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -23,7 +49,7 @@ export default function LoginScreen() {
           <Text style={styles.brandTitle}>Domicilia</Text>
         </View>
 
-        <Text style={styles.stepText}>PASO 1 DE 2</Text>
+        <Text style={styles.stepText}>INICIO DE SESIÓN</Text>
         <Text style={styles.title}>Acceso a la plataforma</Text>
         <Text style={styles.subtitle}>
           Ingresa con tus credenciales para acceder a tu seguimiento de salud.
@@ -69,11 +95,19 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-            <Text style={styles.primaryButtonText}>Continuar</Text>
+          <TouchableOpacity 
+            style={[styles.primaryButton, loading && styles.disabledButton]} 
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Continuar</Text>
+            )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.push('/register')} style={styles.registerLink}>
+          <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.registerLink}>
             <Text style={styles.footerQuestion}>
               ¿Aún no tienes cuenta? <Text style={styles.linkText}>Regístrate aquí</Text>
             </Text>
@@ -106,6 +140,7 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 13, color: '#374151' },
   linkText: { fontSize: 13, color: '#0F4C81', fontWeight: '600' },
   primaryButton: { backgroundColor: '#0F4C81', paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginBottom: 16 },
+  disabledButton: { backgroundColor: '#9CA3AF' },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   registerLink: { alignItems: 'center', marginTop: 12 },
   footerQuestion: { fontSize: 14, color: '#4B5563' },
