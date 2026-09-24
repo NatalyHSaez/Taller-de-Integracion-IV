@@ -26,7 +26,6 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="notificaciones" options={{ title: 'Notificaciones' }} />
           <Stack.Screen name="perfil" options={{ title: 'Perfil' }} />
-          <Stack.Screen name="alertas" options={{ title: 'Alertas' }} />
         </Stack.Protected>
       </Stack>
       <StatusBar style="auto" />
