@@ -1,4 +1,3 @@
-import { authService } from '@/services/authservice';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { authService } from '../../services/authservice';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -21,20 +21,19 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!email.trim() || !password.trim()) {
       Alert.alert('Atención', 'Por favor ingresa tu correo y contraseña.');
       return;
     }
 
     try {
       setLoading(true);
-      // Simula / ejecuta el inicio de sesión
       await authService.login(email, password);
       
-      // Como el usuario ya existe y tiene perfil, ingresa directo a las pestañas principales
-      router.replace('/(tabs)');
+      // Paso 1 completado -> Va a la selección de paciente
+      router.push('/(auth)/select-patient');
     } catch (error: any) {
-      Alert.alert('Error de acceso', error.message || 'Credenciales inválidas');
+      Alert.alert('Error de acceso', error.message || 'Ocurrió un error al iniciar sesión.');
     } finally {
       setLoading(false);
     }
@@ -65,6 +64,7 @@ export default function LoginScreen() {
             placeholder="usuario@ejemplo.com"
             keyboardType="email-address"
             autoCapitalize="none"
+            editable={!loading}
           />
 
           <Text style={styles.label}>CONTRASEÑA</Text>
@@ -75,6 +75,7 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               placeholder="••••••••••••"
+              editable={!loading}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Text style={styles.toggleText}>{showPassword ? 'Ocultar' : 'Mostrar'}</Text>
@@ -96,7 +97,7 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity 
-            style={[styles.primaryButton, loading && styles.disabledButton]} 
+            style={[styles.primaryButton, loading && styles.buttonDisabled]} 
             onPress={handleLogin}
             disabled={loading}
           >
@@ -107,7 +108,11 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.registerLink}>
+          <TouchableOpacity 
+            onPress={() => router.push('/(auth)/register')} 
+            style={styles.registerLink}
+            disabled={loading}
+          >
             <Text style={styles.footerQuestion}>
               ¿Aún no tienes cuenta? <Text style={styles.linkText}>Regístrate aquí</Text>
             </Text>
@@ -140,7 +145,7 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 13, color: '#374151' },
   linkText: { fontSize: 13, color: '#0F4C81', fontWeight: '600' },
   primaryButton: { backgroundColor: '#0F4C81', paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginBottom: 16 },
-  disabledButton: { backgroundColor: '#9CA3AF' },
+  buttonDisabled: { opacity: 0.7 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   registerLink: { alignItems: 'center', marginTop: 12 },
   footerQuestion: { fontSize: 14, color: '#4B5563' },

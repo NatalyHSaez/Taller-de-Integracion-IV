@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-naviga
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColorScheme } from 'react-native';
 
 export const unstable_settings = {
   anchor: '(auth)',
