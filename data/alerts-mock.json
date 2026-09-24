@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1",
+    "severidad": "ALERTA",
+    "parametro": "Presión arterial",
+    "mensaje": "Presión sistólica con tendencia al alza sostenida durante 12 días.",
+    "comparacion": "Promedio 140 mmHg frente a 121 mmHg del período anterior.",
+    "fecha": "28/08/2026",
+    "hora": "07:35",
+    "regla": "HTA v2.2"
+  },
+  {
+    "id": "2",
+    "severidad": "ADVERTENCIA",
+    "parametro": "Glucemia en ayunas",
+    "mensaje": "Glicemia en ayunas sobre el rango de referencia en 7 de las últimas 10 mediciones.",
+    "comparacion": null,
+    "fecha": "28/08/2026",
+    "hora": "07:34",
+    "regla": "DM2 v1.9"
+  },
+  {
+    "id": "3",
+    "severidad": "NORMAL",
+    "parametro": "Frecuencia cardíaca",
+    "mensaje": "Frecuencia cardíaca en reposo estable dentro del rango esperado.",
+    "comparacion": null,
+    "fecha": "28/08/2026",
+    "hora": "07:34",
+    "regla": "FC v2.2"
+  }
+]
