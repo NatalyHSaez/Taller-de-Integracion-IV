@@ -6,7 +6,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 //Reemplazar por false, cuando este funcionando el login
-const isLoggedIn = true; 
+const isLoggedIn = false; 
 
 export const unstable_settings = {
   anchor: '(auth)',
