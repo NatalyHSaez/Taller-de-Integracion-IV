@@ -3,6 +3,8 @@ import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // Reemplazar por datos reales cuando esté el endpoint de Relations
 // (GET /api/v1/patients/{id}/caregivers y /doctors).
@@ -20,6 +22,8 @@ const RELACIONES_INICIALES: Relacion[] = [
 
 export default function PerfilScreen() {
   const [relaciones, setRelaciones] = useState(RELACIONES_INICIALES);
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
   const confirmarRevocacion = (relacion: Relacion) => {
     Alert.alert(
@@ -55,13 +59,15 @@ export default function PerfilScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <View style={[styles.row, { borderColor: theme.border }]}>
               <View style={styles.textGroup}>
                 <ThemedText type="defaultSemiBold">{item.nombre}</ThemedText>
                 <ThemedText style={styles.detalle}>{item.rol} · {item.detalle}</ThemedText>
               </View>
-              <Pressable onPress={() => confirmarRevocacion(item)} style={styles.revokeButton}>
-                <ThemedText style={styles.revokeText}>Revocar</ThemedText>
+              <Pressable
+                onPress={() => confirmarRevocacion(item)}
+                style={[styles.revokeButton, { borderColor: theme.dangerBorder }]}>
+                <ThemedText style={[styles.revokeText, { color: theme.danger }]}>Revocar</ThemedText>
               </Pressable>
             </View>
           )}
@@ -82,7 +88,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ccc',
     borderRadius: 10,
     padding: 14,
   },
@@ -90,10 +95,9 @@ const styles = StyleSheet.create({
   detalle: { fontSize: 12, opacity: 0.6 },
   revokeButton: {
     borderWidth: 1,
-    borderColor: '#E9C4C0',
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 12,
   },
-  revokeText: { color: '#C1443A', fontSize: 12, fontWeight: '700' },
+  revokeText: { fontSize: 12, fontWeight: '700' },
 });

@@ -1,12 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Link, Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type ColorValue } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { NOTIFICACIONES_INICIALES } from '@/constants/notifications-mock';
-import { Colors } from '@/constants/theme';
+import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type TabIconName = ComponentProps<typeof Feather>['name'];
@@ -16,7 +16,7 @@ function TabBarIcon({
   focused,
   name,
 }: {
-  color: string;
+  color: ColorValue;
   focused: boolean;
   name: TabIconName;
 }) {
@@ -28,7 +28,7 @@ function TabBarIcon({
   );
 }
 
-function TabBarLabel({ color, focused, label }: { color: string; focused: boolean; label: string }) {
+function TabBarLabel({ color, focused, label }: { color: ColorValue; focused: boolean; label: string }) {
   return (
     <Text style={[styles.tabLabel, focused && styles.tabLabelFocused, { color }]}>{label}</Text>
   );
@@ -37,7 +37,7 @@ function TabBarLabel({ color, focused, label }: { color: string; focused: boolea
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-  const tint = theme.tint;
+  const tint = theme.primary;
   const noLeidas = NOTIFICACIONES_INICIALES.filter((n) => !n.leida).length;
 
   const headerRight = () => (
@@ -50,7 +50,7 @@ export default function TabLayout() {
               position: 'absolute',
               top: -4,
               right: -6,
-              backgroundColor: '#C1443A',
+              backgroundColor: theme.danger,
               borderRadius: 8,
               minWidth: 16,
               height: 16,
@@ -58,7 +58,7 @@ export default function TabLayout() {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{noLeidas}</Text>
+            <Text style={{ color: theme.onPrimary, fontSize: 10, fontWeight: '700' }}>{noLeidas}</Text>
           </View>
         )}
       </Link>
@@ -79,12 +79,12 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarItemStyle: styles.tabBarItem,
         tabBarStyle: {
-          backgroundColor: theme.background,
-          borderTopColor: colorScheme === 'dark' ? '#30383C' : '#E5EBEE',
+          backgroundColor: theme.tabBarBackground,
+          borderTopColor: theme.tabBarBorder,
           borderTopWidth: StyleSheet.hairlineWidth,
           elevation: 2,
           paddingTop: 7,
-          shadowColor: '#000000',
+          shadowColor: BrandColors.neutralShadow,
           shadowOffset: { width: 0, height: -1 },
           shadowOpacity: colorScheme === 'dark' ? 0.12 : 0.04,
           shadowRadius: 4,
@@ -142,7 +142,10 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="vinculos" options={{ href: null }} />
+      <Tabs.Screen
+        name="vinculos"
+        options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' }, title: 'Vínculos' }}
+      />
       <Tabs.Screen name="atencion" options={{ href: null }} />
       <Tabs.Screen name="graficos" options={{ href: null }} />
       <Tabs.Screen name="documentos" options={{ href: null, headerShown: false }} />
