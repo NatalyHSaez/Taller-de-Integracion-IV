@@ -1,5 +1,3 @@
-// Paleta compartida de severidad, para usar en cualquier pantalla que muestre
-// el resultado del motor de evaluación (Alertas, Resumen, Documentos, etc.).
 import { StatusColors } from '@/constants/theme';
 
 export type Severidad =
@@ -19,4 +17,17 @@ export const SEVERITY_COLORS: Record<Severidad, { bg: string; fg: string }> = {
   DATOS_INSUFICIENTES: { bg: StatusColors.neutral.background, fg: StatusColors.neutral.foreground },
   NO_APLICABLE: { bg: StatusColors.neutral.background, fg: StatusColors.neutral.foreground },
   ENTRADA_INVALIDA: { bg: StatusColors.invalid.background, fg: StatusColors.invalid.foreground },
+};
+
+export const SEVERITY_STYLE: Record<
+  Severidad,
+  { bg: string; fg: string; border: string; icon: string; label: string }
+> = {
+  NORMAL: { ...SEVERITY_COLORS.NORMAL, border: SEVERITY_COLORS.NORMAL.fg, icon: '✓', label: 'NORMAL' },
+  INFORMATIVA: { ...SEVERITY_COLORS.INFORMATIVA, border: SEVERITY_COLORS.INFORMATIVA.fg, icon: 'ℹ', label: 'INFORMATIVA' },
+  ADVERTENCIA: { ...SEVERITY_COLORS.ADVERTENCIA, border: SEVERITY_COLORS.ADVERTENCIA.fg, icon: '⚠', label: 'ADVERTENCIA' },
+  ALERTA: { ...SEVERITY_COLORS.ALERTA, border: SEVERITY_COLORS.ALERTA.fg, icon: '⚠', label: 'ALERTA' },
+  DATOS_INSUFICIENTES: { ...SEVERITY_COLORS.DATOS_INSUFICIENTES, border: SEVERITY_COLORS.DATOS_INSUFICIENTES.fg, icon: '•', label: 'DATOS INSUFICIENTES' },
+  NO_APLICABLE: { ...SEVERITY_COLORS.NO_APLICABLE, border: SEVERITY_COLORS.NO_APLICABLE.fg, icon: '•', label: 'NO APLICABLE' },
+  ENTRADA_INVALIDA: { ...SEVERITY_COLORS.ENTRADA_INVALIDA, border: SEVERITY_COLORS.ENTRADA_INVALIDA.fg, icon: '•', label: 'ENTRADA INVÁLIDA' },
 };

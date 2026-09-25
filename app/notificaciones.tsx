@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router/react-navigation';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -6,31 +8,28 @@ import { ThemedView } from '@/components/themed-view';
 import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getNotifications, markNotificationRead } from '@/services/notifications';
+import { getNotifications } from '@/services/notifications';
 
 export default function NotificacionesScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-  const tint = theme.primary;
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    getNotifications().then((data) => {
-      setNotificaciones(data);
-      setCargando(false);
-    });
-  }, []);
-
-  const marcarComoLeida = (id: string) => {
-    setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
-    markNotificationRead(id); // no bloquea la UI mientras responde
-  };
+  useFocusEffect(
+    useCallback(() => {
+      getNotifications().then((data) => {
+        setNotificaciones(data);
+        setCargando(false);
+      });
+    }, [])
+  );
 
   if (cargando) {
     return (
       <ThemedView style={styles.emptyContainer}>
-        <ActivityIndicator color={tint} />
+        <ActivityIndicator color={theme.primary} />
       </ThemedView>
     );
   }
@@ -53,8 +52,10 @@ export default function NotificacionesScreen() {
         renderItem={({ item }) => (
           <Pressable
             style={[styles.row, { borderBottomColor: theme.border }]}
-            onPress={() => marcarComoLeida(item.id)}>
-            <View style={[styles.dot, !item.leida && { backgroundColor: tint }]} />
+            onPress={() =>
+              router.push({ pathname: '/notificacion/[id]', params: { id: item.id } })
+            }>
+            <View style={[styles.dot, !item.leida && { backgroundColor: theme.primary }]} />
             <View style={styles.textGroup}>
               <ThemedText type={item.leida ? 'default' : 'defaultSemiBold'}>{item.titulo}</ThemedText>
               <ThemedText style={styles.descripcion}>{item.descripcion}</ThemedText>
