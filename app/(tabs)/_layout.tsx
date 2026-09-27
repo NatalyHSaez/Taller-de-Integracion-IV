@@ -1,11 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Link, Tabs } from 'expo-router';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { NOTIFICACIONES_INICIALES } from '@/constants/notifications-mock';
+import { useDemo } from '@/hooks/use-demo';
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -34,39 +35,59 @@ function TabBarLabel({ color, focused, label }: { color: ColorValue; focused: bo
   );
 }
 
+function SharedHeader() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const { user, patient, relations } = useDemo();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const pendingCount = relations.filter((relation) =>
+    relation.status === 'pending' && relation.patientId === user?.patientId
+  ).length;
+  const date = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'long' }).format(new Date());
+  const isCaregiver = user?.role === 'caregiver';
+  const patientName = patient?.name;
+  let heading = `Hola, ${user?.name.split(' ')[0] ?? ''}`;
+  let subtitle = isCaregiver && patientName ? `Acompañas a ${patientName}` : 'Resumen de salud';
+  if (pathname === '/seguimiento') {
+    heading = 'Seguimiento';
+    subtitle = isCaregiver && patientName ? `Mediciones de ${patientName}` : 'Tus mediciones';
+  } else if (pathname === '/alertas') {
+    heading = 'Alertas';
+    subtitle = isCaregiver && patientName ? `Avisos de ${patientName}` : 'Avisos importantes';
+  } else if (pathname === '/menu') {
+    heading = 'Menú';
+    subtitle = 'Opciones de tu cuenta';
+  }
+
+  return (
+    <View style={[styles.sharedHeader, { backgroundColor: theme.background, paddingTop: insets.top + 12 }]}>
+      <View style={styles.headerCopy}>
+        <Text style={[styles.headerDate, { color: theme.primary }]}>{date}</Text>
+        <Text style={[styles.headerGreeting, { color: theme.text }]}>{heading}</Text>
+        <Text style={[styles.headerSubtitle, { color: theme.mutedText }]} numberOfLines={1}>{subtitle}</Text>
+      </View>
+      <View style={styles.headerActions}>
+        <Pressable accessibilityLabel="Abrir notificaciones" accessibilityRole="button"
+          onPress={() => router.push('/notificaciones')} style={styles.notificationButton}>
+          <MaterialCommunityIcons name="bell-outline" size={23} color={theme.primary} />
+          {pendingCount > 0 && <View style={[styles.notificationDot, { backgroundColor: theme.danger }]} />}
+        </Pressable>
+        <Pressable accessibilityLabel="Abrir perfil" accessibilityRole="button"
+          onPress={() => router.push('/perfil')}
+          style={[styles.avatar, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
+          <Text style={[styles.avatarText, { color: theme.primary }]}>{user?.name.slice(0, 2).toUpperCase()}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const tint = theme.primary;
-  const noLeidas = NOTIFICACIONES_INICIALES.filter((n) => !n.leida).length;
-
-  const headerRight = () => (
-    <View style={{ flexDirection: 'row', gap: 16, marginRight: 16 }}>
-      <Link href="/notificaciones" style={{ position: 'relative' }}>
-        <IconSymbol size={22} name="bell.fill" color={tint} />
-        {noLeidas > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              top: -4,
-              right: -6,
-              backgroundColor: theme.danger,
-              borderRadius: 8,
-              minWidth: 16,
-              height: 16,
-              paddingHorizontal: 3,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Text style={{ color: theme.onPrimary, fontSize: 10, fontWeight: '700' }}>{noLeidas}</Text>
-          </View>
-        )}
-      </Link>
-      <Link href="/perfil">
-        <IconSymbol size={22} name="person.fill" color={tint} />
-      </Link>
-    </View>
-  );
 
   return (
     <Tabs
@@ -75,7 +96,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarHideOnKeyboard: true,
         headerShown: true,
-        headerRight,
+        header: () => <SharedHeader />,
         tabBarButton: HapticTab,
         tabBarItemStyle: styles.tabBarItem,
         tabBarStyle: {
@@ -154,6 +175,16 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  sharedHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 16, paddingHorizontal: 20 },
+  headerCopy: { flex: 1, paddingRight: 8 },
+  headerDate: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4, textTransform: 'uppercase' },
+  headerGreeting: { fontSize: 29, fontWeight: '800', letterSpacing: -0.6, lineHeight: 36 },
+  headerSubtitle: { fontSize: 14, lineHeight: 20 },
+  headerActions: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  notificationButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 40 },
+  notificationDot: { borderRadius: 5, height: 8, position: 'absolute', right: 5, top: 7, width: 8 },
+  avatar: { alignItems: 'center', borderRadius: 23, borderWidth: StyleSheet.hairlineWidth, height: 46, justifyContent: 'center', width: 46 },
+  avatarText: { fontSize: 14, fontWeight: '800' },
   tabBarItem: {
     paddingVertical: 1,
   },

@@ -7,7 +7,7 @@ import { MeasurementCard } from '@/components/measurement-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BrandColors, Colors } from '@/constants/theme';
-import { MEASUREMENTS_MOCK } from '@/data/measurements-mock';
+import { useDemo } from '@/hooks/use-demo';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { Measurement, MeasurementFilter } from '@/types/measurement';
 
@@ -82,6 +82,7 @@ function buildSections(measurements: Measurement[]): MeasurementSection[] {
 }
 
 export default function MeasurementHistoryScreen() {
+  const { measurements } = useDemo();
   const [activeFilter, setActiveFilter] = useState<MeasurementFilter>('all');
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -94,11 +95,11 @@ export default function MeasurementHistoryScreen() {
   const sections = useMemo(() => {
     const filtered =
       activeFilter === 'all'
-        ? MEASUREMENTS_MOCK
-        : MEASUREMENTS_MOCK.filter((measurement) => measurement.type === activeFilter);
+        ? measurements
+        : measurements.filter((measurement) => measurement.type === activeFilter);
 
     return buildSections(filtered);
-  }, [activeFilter]);
+  }, [activeFilter, measurements]);
 
   return (
     <ThemedView style={styles.screen}>

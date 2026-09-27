@@ -75,6 +75,7 @@ export function MeasurementCard({ measurement }: { measurement: Measurement }) {
     presentation.spokenValue,
     presentation.spokenSupportingText,
     `Hora ${time}`,
+    measurement.recordedBy ? `Registrado por ${measurement.recordedBy}` : undefined,
   ]
     .filter(Boolean)
     .join('. ');
@@ -90,6 +91,8 @@ export function MeasurementCard({ measurement }: { measurement: Measurement }) {
           borderColor: theme.border,
         },
       ]}>
+      {measurement.recordedBy && <ThemedText>Registrado por {measurement.recordedBy}</ThemedText>}
+      {measurement.context && <ThemedText>{measurement.context}</ThemedText>}
       <View style={styles.topRow}>
         <View style={styles.identity}>
           <View

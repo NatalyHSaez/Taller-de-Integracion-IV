@@ -1,0 +1,13 @@
+import type { PropsWithChildren } from 'react';
+import { Pressable, ScrollView, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+export function FlowPage({ title, subtitle, children }: PropsWithChildren<{ title: string; subtitle?: string }>) {
+  const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  return <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, gap: 16, width: '100%', maxWidth: 620, alignSelf: 'center' }}><Text style={{ color: theme.primary, fontWeight: '800', fontSize: 20 }}>Domicilia</Text><Text accessibilityRole="header" style={{ color: theme.text, fontWeight: '800', fontSize: 28 }}>{title}</Text>{subtitle && <Copy>{subtitle}</Copy>}{children}</ScrollView></SafeAreaView>;
+}
+export function Copy({ children }: PropsWithChildren) { const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light']; return <Text style={{ color: theme.text, fontSize: 16, lineHeight: 24 }} selectable>{children}</Text>; }
+export function Card({ children }: PropsWithChildren) { const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light']; return <View style={{ padding: 18, borderRadius: 18, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, gap: 12 }}>{children}</View>; }
+export function Action({ label, onPress, secondary = false, disabled = false }: { label: string; onPress: () => void; secondary?: boolean; disabled?: boolean }) { const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light']; return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ padding: 16, borderRadius: 12, borderWidth: 1, borderColor: theme.primary, backgroundColor: secondary ? theme.surface : theme.primary, opacity: disabled || pressed ? 0.5 : 1 })}><Text style={{ textAlign: 'center', color: secondary ? theme.primary : theme.onPrimary, fontWeight: '700', fontSize: 16 }}>{label}</Text></Pressable>; }
+export function Field({ label, ...props }: TextInputProps & { label: string }) { const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light']; return <View style={{ gap: 6 }}><Copy>{label}</Copy><TextInput {...props} accessibilityLabel={label} placeholderTextColor={theme.mutedText} style={{ padding: 14, borderRadius: 10, borderWidth: 1, borderColor: theme.border, color: theme.text, backgroundColor: theme.surface, fontSize: 16 }} /></View>; }

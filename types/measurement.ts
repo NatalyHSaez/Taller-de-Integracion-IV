@@ -1,6 +1,10 @@
 export type MeasurementType = 'blood_pressure' | 'glucose' | 'weight';
 
 type BaseMeasurement = {
+  patientId?: string;
+  recordedBy?: string;
+  recordedById?: string;
+  context?: string;
   id: string;
   measuredAt: string;
 };

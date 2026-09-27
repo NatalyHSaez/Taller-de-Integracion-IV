@@ -16,6 +16,9 @@ import { ThemedView } from '@/components/themed-view';
 import { BrandColors, Colors, MeasurementColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MeasurementType } from '@/types/measurement';
+import { useRouter } from 'expo-router';
+import { demo } from '@/services/demo-store';
+import { useDemo } from '@/hooks/use-demo';
 
 type GlucoseContext = 'fasting' | 'before_meal' | 'after_meal';
 
@@ -71,6 +74,9 @@ function isPositiveNumber(value: string) {
 }
 
 export default function RegisterMeasurementScreen() {
+  const router = useRouter();
+  const { patient, user } = useDemo();
+  const [saveError, setSaveError] = useState('');
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const themeName = isDark ? 'dark' : 'light';
@@ -120,6 +126,19 @@ export default function RegisterMeasurementScreen() {
   }
 
   const contextLabel = GLUCOSE_CONTEXTS.find((item) => item.value === glucoseContext)?.label;
+  function save() {
+    if (!showReview) { setShowReview(true); return; }
+    try {
+      const [day, month, year] = date.split(/[/-]/).map(Number);
+      const [hour, minute] = time.split(':').map(Number);
+      const measured = new Date(year, month - 1, day, hour, minute);
+      if (!/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(date) || !/^\d{2}:\d{2}$/.test(time) || measured.getFullYear() !== year || measured.getMonth() !== month - 1 || measured.getDate() !== day || hour > 23 || minute > 59 || !Number.isFinite(measured.getTime()) || measured.getTime() > Date.now()) throw new Error('Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.');
+      const number = (value: string) => Number(value.replace(',', '.'));
+      const base = { id: '', measuredAt: measured.toISOString() };
+      demo.save(measurementType === 'blood_pressure' ? { ...base, type: 'blood_pressure', systolic: number(systolic), diastolic: number(diastolic), heartRate: number(heartRate) } : measurementType === 'glucose' ? { ...base, type: 'glucose', value: number(glucose), unit: 'mg/dL', context: contextLabel } : { ...base, type: 'weight', value: number(weight), unit: 'kg' });
+      router.replace(demo.permissions().read ? '/historial' : '/(tabs)');
+    } catch (e) { setSaveError((e as Error).message); }
+  }
 
   return (
     <ThemedView style={styles.screen}>
@@ -133,6 +152,8 @@ export default function RegisterMeasurementScreen() {
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          <ThemedText>Paciente: {patient?.name} · Registra: {user?.name}</ThemedText>
+          {!!saveError && <ThemedText>{saveError}</ThemedText>}
           <View style={styles.hero}>
             <View style={styles.heroDecorationTop} />
             <View style={styles.heroDecorationBottom} />
@@ -383,14 +404,14 @@ export default function RegisterMeasurementScreen() {
             accessibilityRole="button"
             accessibilityState={{ disabled: !formIsValid }}
             disabled={!formIsValid}
-            onPress={() => setShowReview(true)}
+            onPress={save}
             style={({ pressed }) => [
               styles.submitButton,
               { backgroundColor: formIsValid ? accentColor : theme.disabled },
               pressed && formIsValid && styles.pressed,
             ]}>
             <ThemedText lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary} style={styles.submitLabel}>
-              {showReview ? 'Datos revisados' : 'Revisar medición'}
+              {showReview ? 'Guardar medición' : 'Revisar medición'}
             </ThemedText>
             <MaterialCommunityIcons
               name={showReview ? 'check-circle-outline' : 'arrow-right'}

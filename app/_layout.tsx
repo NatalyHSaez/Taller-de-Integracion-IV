@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { AccessBoundary } from '@/components/access-boundary';
 
 export const unstable_settings = {
   anchor: '(auth)',
@@ -29,7 +30,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={navigationTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenLayout={({ children }) => <AccessBoundary>{children}</AccessBoundary>} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
@@ -42,7 +43,6 @@ export default function RootLayout() {
           options={{ headerShown: true, title: 'Notificaciones' }}
         />
         <Stack.Screen name="perfil" options={{ headerShown: true, title: 'Perfil' }} />
-        <Stack.Screen name="alertas" options={{ headerShown: true, title: 'Alertas' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

@@ -1,4 +1,5 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Action } from '@/components/flow-ui';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
 
@@ -10,6 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getNotificationById, markNotificationRead } from '@/services/notifications';
 
 export default function NotificacionDetalleScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const tint = Colors[colorScheme === 'dark' ? 'dark' : 'light'].tint;
@@ -47,6 +49,7 @@ export default function NotificacionDetalleScreen() {
       <ThemedText type="title">{notificacion.titulo}</ThemedText>
       <ThemedText style={styles.hora}>{notificacion.hora}</ThemedText>
       <ThemedText style={styles.descripcion}>{notificacion.descripcion}</ThemedText>
+      <Action label="Revisar vínculos" onPress={() => router.push('/vinculos')} />
     </ThemedView>
   );
 }

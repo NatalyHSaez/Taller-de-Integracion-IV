@@ -5,6 +5,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { demo } from '@/services/demo-store';
+import { useDemo } from '@/hooks/use-demo';
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
@@ -27,6 +29,7 @@ const ACCOUNT_OPTIONS: MenuOption[] = [
 ];
 
 export default function MenuScreen() {
+  const { user } = useDemo();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -42,14 +45,8 @@ export default function MenuScreen() {
   };
 
   const confirmLogout = () => {
-    Alert.alert('Cerrar sesión', '¿Quieres cerrar tu sesión en este dispositivo?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Cerrar sesión',
-        style: 'destructive',
-        onPress: () => Alert.alert('Sesión de demostración', 'El cierre de sesión se habilitará cuando se conecte el sistema de acceso.'),
-      },
-    ]);
+    demo.logout();
+    router.replace('/(auth)/login');
   };
 
   const renderOption = (option: MenuOption, index: number, options: MenuOption[]) => (
@@ -81,11 +78,11 @@ export default function MenuScreen() {
       showsVerticalScrollIndicator={false}>
       <View style={[styles.profileCard, { backgroundColor: BrandColors.primary, borderColor: BrandColors.primary }]}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>JP</Text>
+          <Text style={styles.avatarText}>{user?.name.slice(0, 2).toUpperCase()}</Text>
         </View>
         <View style={styles.profileCopy}>
           <Text style={styles.greeting}>Tu espacio de salud</Text>
-          <Text style={styles.patientName}>Paciente</Text>
+          <Text style={styles.patientName}>{user?.name}</Text>
           <Text style={styles.status}>Cuenta activa</Text>
         </View>
         <View style={styles.shield}>
