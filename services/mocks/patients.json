@@ -1,0 +1,25 @@
+{
+  "patients": [
+    {
+      "id": "pat_001",
+      "fullName": "Juan Pérez (Propio)",
+      "type": "autonomous",
+      "age": 45,
+      "relationship": "Titular"
+    },
+    {
+      "id": "pat_002",
+      "fullName": "María Pérez (Hija)",
+      "type": "assisted",
+      "age": 8,
+      "relationship": "Hijo/a"
+    },
+    {
+      "id": "pat_003",
+      "fullName": "Roberto Pérez (Padre)",
+      "type": "assisted",
+      "age": 78,
+      "relationship": "Padre/Madre"
+    }
+  ]
+}

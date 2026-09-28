@@ -3,6 +3,8 @@ import { FlatList, Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // TODO: reemplazar por datos reales cuando esté el endpoint de documentos
 const DOCUMENTOS = [
@@ -12,6 +14,8 @@ const DOCUMENTOS = [
 
 export default function DocumentosScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
   return (
     <ThemedView style={styles.container}>
@@ -21,7 +25,7 @@ export default function DocumentosScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <Pressable
-            style={styles.row}
+            style={[styles.row, { borderBottomColor: theme.border }]}
             onPress={() => router.push(`/documentos/${item.id}`)}>
             <ThemedText>{item.nombre}</ThemedText>
             <ThemedText type="link">Ver documento</ThemedText>
@@ -41,6 +45,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
   },
 });

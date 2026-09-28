@@ -1,4 +1,3 @@
-// app/(tabs)/documentos/[id].tsx
 import { useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 

@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test:onboarding": "tsc --ignoreConfig --module commonjs --target es2020 --skipLibCheck --outDir tmp/onboarding-tests services/demo-store.ts types/measurement.ts && node scripts/test-onboarding.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -21,6 +21,9 @@ const MAPPING = {
   'person.fill': 'person',
   'doc.text.fill': 'description',
   'chart.line.uptrend.xyaxis': 'show-chart',
+  'waveform.path.ecg': 'monitor-heart',
+  'person.2.fill': 'group',
+  'cross.case.fill': 'medical-services',
 } as IconMapping;
 
 /**
