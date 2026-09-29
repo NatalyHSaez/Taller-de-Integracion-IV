@@ -3,6 +3,7 @@ import type { Notificacion } from '@/constants/notifications-mock';
 import type { NotificationResponse } from '@/types/api';
 import { demo } from './demo-store';
 import { mockApi } from './mocks/api-mock';
+import { apiErrorFromResponse, normalizeApiError } from './errors';
 
 const read = new Set<string>();
 
@@ -71,14 +72,14 @@ export async function getNotifications(): Promise<Notificacion[]> {
     const response = await fetch(`${API_V1_URL}/notifications`);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw await apiErrorFromResponse(response);
     }
 
     return (await response.json()) as Notificacion[];
   } catch (error) {
     console.warn(
       '[notifications] Backend no disponible todavía, usando datos mock.',
-      error,
+      normalizeApiError(error),
     );
 
     const mockNotifications = (await mockApi.notifications.list()).map(toNotification);
@@ -106,9 +107,12 @@ export async function markNotificationRead(id: string): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw await apiErrorFromResponse(response);
     }
   } catch (error) {
-    console.warn('[notifications] No se pudo marcar como leída en el servidor.', error);
+    console.warn(
+      '[notifications] No se pudo marcar como leída en el servidor.',
+      normalizeApiError(error),
+    );
   }
 }

@@ -28,6 +28,7 @@ import {
   MOCK_PATIENTS,
   MOCK_READINGS,
 } from './api-data';
+import { ApiError } from '../errors';
 import { mockLogin, mockLogout, mockMe } from './auth-mock';
 
 /** Retardo pequeño para que el mock se comporte parecido a una llamada HTTP real. */
@@ -55,8 +56,12 @@ function findOrThrow<T>(
   const item = items.find(predicate);
 
   if (!item) {
-    // La tarea 9 centralizará el formato común de errores de la API.
-    throw new Error(`[mock-api] ${resource} no encontrado.`);
+    throw new ApiError({
+      code: 'RESOURCE_NOT_FOUND',
+      message: `${resource} no encontrado.`,
+      details: { resource },
+      status: 404,
+    });
   }
 
   return item;

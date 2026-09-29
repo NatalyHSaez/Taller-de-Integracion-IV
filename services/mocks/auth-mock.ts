@@ -1,4 +1,5 @@
 import type { AuthTokensResponse, CurrentUserResponse } from '../../types/api';
+import { ApiError } from '../errors';
 import {
   MOCK_ACCOUNTS,
   MOCK_AUTH_TOKENS,
@@ -29,7 +30,12 @@ export async function mockLogin(
   const account = findMockAccount(email, password);
 
   if (!account) {
-    throw new Error('Correo o contraseña incorrectos.');
+    throw new ApiError({
+      code: 'INVALID_CREDENTIALS',
+      message: 'Correo o contraseña incorrectos.',
+      details: {},
+      status: 401,
+    });
   }
 
   currentAccount = account;
@@ -44,7 +50,12 @@ export async function mockLogin(
 /** Simula GET /api/v1/me para la cuenta que inició sesión. */
 export async function mockMe(): Promise<CurrentUserResponse> {
   if (!currentAccount) {
-    throw new Error('No existe una sesión mock activa.');
+    throw new ApiError({
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'No existe una sesión mock activa.',
+      details: {},
+      status: 401,
+    });
   }
 
   return {
