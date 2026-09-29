@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -16,15 +16,25 @@ export default function NotificacionesScreen() {
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
+
+  const cargar = useCallback(() => {
+    return getNotifications().then((data) => {
+      setNotificaciones(data);
+      setCargando(false);
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      getNotifications().then((data) => {
-        setNotificaciones(data);
-        setCargando(false);
-      });
-    }, [])
+      cargar();
+    }, [cargar])
   );
+
+  const onRefresh = useCallback(() => {
+    setRefrescando(true);
+    cargar().finally(() => setRefrescando(false));
+  }, [cargar]);
 
   if (cargando) {
     return (
@@ -34,21 +44,21 @@ export default function NotificacionesScreen() {
     );
   }
 
-  if (notificaciones.length === 0) {
-    return (
-      <ThemedView style={styles.emptyContainer}>
-        <ThemedText type="title">Notificaciones</ThemedText>
-        <ThemedText>No tienes notificaciones por ahora.</ThemedText>
-      </ThemedView>
-    );
-  }
-
   return (
     <ThemedView style={styles.container}>
       <FlatList
         data={notificaciones}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={notificaciones.length === 0 ? styles.emptyList : styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={theme.primary} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContent}>
+            <ThemedText type="title">Notificaciones</ThemedText>
+            <ThemedText>No tienes notificaciones por ahora.</ThemedText>
+          </View>
+        }
         renderItem={({ item }) => (
           <Pressable
             style={[styles.row, { borderBottomColor: theme.border }]}
@@ -71,6 +81,8 @@ export default function NotificacionesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
+  emptyList: { flexGrow: 1 },
+  emptyContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
   list: { padding: 16 },
   row: { flexDirection: 'row', gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },

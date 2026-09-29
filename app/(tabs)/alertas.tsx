@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,13 +14,23 @@ export default function AlertasScreen() {
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const [alertas, setAlertas] = useState<AlertaItem[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
 
-  useEffect(() => {
-    getAlerts().then((data) => {
+  const cargar = useCallback(() => {
+    return getAlerts().then((data) => {
       setAlertas(data);
       setCargando(false);
     });
   }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const onRefresh = useCallback(() => {
+    setRefrescando(true);
+    cargar().finally(() => setRefrescando(false));
+  }, [cargar]);
 
   if (cargando) {
     return (
@@ -30,22 +40,20 @@ export default function AlertasScreen() {
     );
   }
 
-  if (alertas.length === 0) {
-    return (
-      <ThemedView style={styles.emptyContainer}>
-        <ThemedText type="title">Alertas activas</ThemedText>
-        <ThemedText>No tienes alertas activas por ahora.</ThemedText>
-      </ThemedView>
-    );
-  }
-
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>Alertas activas</ThemedText>
       <FlatList
         data={alertas}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={alertas.length === 0 ? styles.emptyList : styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={theme.primary} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContent}>
+            <ThemedText>No tienes alertas activas por ahora.</ThemedText>
+          </View>
+        }
         renderItem={({ item }) => {
           const severity = SEVERITY_STYLE[item.severidad];
           return (
@@ -82,7 +90,8 @@ export default function AlertasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 12 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
-  title: { paddingHorizontal: 16, marginBottom: 4 },
+  emptyList: { flexGrow: 1 },
+  emptyContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
   list: { padding: 16, gap: 12 },
   card: {
     borderLeftWidth: 4,
