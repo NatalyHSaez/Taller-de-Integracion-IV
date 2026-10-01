@@ -1,25 +1,26 @@
 import { API_V1_URL } from '@/config/api';
 import type { Notificacion } from '@/constants/notifications-mock';
-import type { NotificationResponse } from '@/types/api';
+import type { NotificationListResponse, NotificationResponse } from '@/types/api';
+import { apiClient } from './api';
 import { demo } from './demo-store';
+import { normalizeApiError } from './errors';
 import { mockApi } from './mocks/api-mock';
-import { apiErrorFromResponse, normalizeApiError } from './errors';
 
 const read = new Set<string>();
 
 function toNotification(item: NotificationResponse): Notificacion {
-  const date = new Date(item.createdAt);
+  const date = new Date(item.creada_en);
 
   return {
-    id: item.notificationId,
-    titulo: item.title,
-    descripcion: item.body,
+    id: item.id,
+    titulo: item.titulo,
+    descripcion: item.cuerpo,
     hora: new Intl.DateTimeFormat('es-CL', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     }).format(date),
-    leida: item.status === 'READ' || read.has(item.notificationId),
+    leida: item.estado === 'read' || read.has(item.id),
   };
 }
 
@@ -58,32 +59,38 @@ export function getDemoRelationNotifications(): Notificacion[] {
     }));
 }
 
+async function getMockNotifications(): Promise<Notificacion[]> {
+  const mockNotifications = (await mockApi.notifications.list()).map(toNotification);
+  return [...mockNotifications, ...getDemoRelationNotifications()];
+}
+
 /**
- * Mientras no exista backend, usa la API mock de la tarea 8.
- * Cuando API_V1_URL exista, mantiene el intento contra el backend real.
+ * La ruta real ya se consulta exclusivamente mediante apiClient.
+ *
+ * Mientras la autenticación de la app continúe usando tokens mock, una respuesta 401 o un
+ * backend no disponible hace que la aplicación conserve el comportamiento de la Tarea 8.
+ * Cuando el proveedor de access token quede conectado al token real, este mismo código
+ * comenzará a consumir GET /api/v1/notificaciones sin cambiar las pantallas.
  */
 export async function getNotifications(): Promise<Notificacion[]> {
   if (!API_V1_URL) {
-    const mockNotifications = (await mockApi.notifications.list()).map(toNotification);
-    return [...mockNotifications, ...getDemoRelationNotifications()];
+    return getMockNotifications();
   }
 
   try {
-    const response = await fetch(`${API_V1_URL}/notifications`);
+    const response = await apiClient.get<NotificationListResponse>('/notificaciones', {
+      query: { page: 1, size: 100 },
+    });
 
-    if (!response.ok) {
-      throw await apiErrorFromResponse(response);
-    }
-
-    return (await response.json()) as Notificacion[];
+    const backendNotifications = response.items.map(toNotification);
+    return [...backendNotifications, ...getDemoRelationNotifications()];
   } catch (error) {
     console.warn(
-      '[notifications] Backend no disponible todavía, usando datos mock.',
+      '[notifications] API real no disponible para la sesión actual; usando mocks.',
       normalizeApiError(error),
     );
 
-    const mockNotifications = (await mockApi.notifications.list()).map(toNotification);
-    return [...mockNotifications, ...getDemoRelationNotifications()];
+    return getMockNotifications();
   }
 }
 
@@ -94,25 +101,10 @@ export async function getNotificationById(
   return notifications.find((notification) => notification.id === id);
 }
 
+/**
+ * El backend actual todavía no publica un endpoint para marcar notificaciones como leídas.
+ * Por ahora el cambio permanece local para no llamar a una ruta inexistente.
+ */
 export async function markNotificationRead(id: string): Promise<void> {
   read.add(id);
-
-  if (!API_V1_URL) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_V1_URL}/notifications/${id}/read`, {
-      method: 'POST',
-    });
-
-    if (!response.ok) {
-      throw await apiErrorFromResponse(response);
-    }
-  } catch (error) {
-    console.warn(
-      '[notifications] No se pudo marcar como leída en el servidor.',
-      normalizeApiError(error),
-    );
-  }
 }

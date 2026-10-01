@@ -1,3 +1,4 @@
+import type { CurrentUserResponse } from '../types/api';
 import type { Measurement } from '../types/measurement';
 import {
   MOCK_ACCOUNTS,
@@ -115,6 +116,147 @@ function credentials(email: string, password: string) {
   }
 }
 
+function backendRole(user: CurrentUserResponse): Account['role'] | null {
+  if (user.roles.includes('paciente')) return 'patient';
+  if (user.roles.includes('cuidador')) return 'caregiver';
+  return null;
+}
+
+/**
+ * Proyecta un usuario autenticado por el backend sobre los datos mock que todavía
+ * usa la interfaz. No guarda la contraseña real y no reemplaza los datos clínicos
+ * ficticios: solo crea el contexto local necesario para navegar mientras esos
+ * endpoints todavía no están implementados.
+ */
+function openBackendDemoSession(user: CurrentUserResponse) {
+  const role = backendRole(user);
+  if (!role) {
+    fail('La aplicación móvil actual solo admite pacientes y cuidadores.');
+  }
+
+  const existingAccount = state.accounts.find((account) => account.id === user.id);
+
+  if (role === 'patient') {
+    const patientId = `backend-patient-${user.id}`;
+    const templatePatientId = initialProfiles[0]?.id;
+
+    const account: Account = existingAccount ?? {
+      id: user.id,
+      name: user.nombre_completo,
+      email: user.correo.toLowerCase(),
+      password: '',
+      role: 'patient',
+      patientId,
+    };
+
+    const profileExists = state.profiles.some((profile) => profile.id === patientId);
+    const profile: Profile = {
+      id: patientId,
+      name: user.nombre_completo,
+      email: user.correo.toLowerCase(),
+      code: 'BACKEND-SESSION',
+      expires: 0,
+      activated: true,
+    };
+
+    const hasMeasurements = state.measurements.some(
+      (measurement) => measurement.patientId === patientId,
+    );
+
+    const clonedMeasurements =
+      !hasMeasurements && templatePatientId
+        ? state.measurements
+            .filter((measurement) => measurement.patientId === templatePatientId)
+            .map((measurement) => ({
+              ...measurement,
+              id: `backend-${user.id}-${measurement.id}`,
+              patientId,
+            }))
+        : [];
+
+    update({
+      accounts: existingAccount
+        ? state.accounts.map((item) =>
+            item.id === user.id
+              ? {
+                  ...item,
+                  name: user.nombre_completo,
+                  email: user.correo.toLowerCase(),
+                  role: 'patient',
+                  patientId,
+                }
+              : item,
+          )
+        : [...state.accounts, account],
+      profiles: profileExists
+        ? state.profiles.map((item) => (item.id === patientId ? profile : item))
+        : [...state.profiles, profile],
+      measurements:
+        clonedMeasurements.length > 0
+          ? [...state.measurements, ...clonedMeasurements]
+          : state.measurements,
+      userId: user.id,
+      selectedId: patientId,
+    });
+    return;
+  }
+
+  // Cuidador real + pacientes ficticios mientras Relaciones todavía siga mockeado.
+  const account: Account = existingAccount ?? {
+    id: user.id,
+    name: user.nombre_completo,
+    email: user.correo.toLowerCase(),
+    password: '',
+    role: 'caregiver',
+  };
+
+  const templateRelations = initialRelations.filter((relation) => relation.status === 'approved');
+  const relationsToCreate = templateRelations
+    .filter(
+      (template) =>
+        !state.relations.some(
+          (relation) =>
+            relation.caregiverId === user.id && relation.patientId === template.patientId,
+        ),
+    )
+    .map((template) => ({
+      ...template,
+      id: `backend-${user.id}-${template.id}`,
+      caregiverId: user.id,
+      permissions: { ...template.permissions },
+    }));
+
+  const nextAccounts = existingAccount
+    ? state.accounts.map((item) =>
+        item.id === user.id
+          ? {
+              ...item,
+              name: user.nombre_completo,
+              email: user.correo.toLowerCase(),
+              role: 'caregiver' as const,
+              patientId: undefined,
+            }
+          : item,
+      )
+    : [...state.accounts, account];
+
+  const nextRelations =
+    relationsToCreate.length > 0
+      ? [...state.relations, ...relationsToCreate]
+      : state.relations;
+
+  const availablePatientIds = nextRelations
+    .filter((relation) => relation.caregiverId === user.id && relation.status === 'approved')
+    .map((relation) => relation.patientId);
+
+  update({
+    accounts: nextAccounts,
+    relations: nextRelations,
+    userId: user.id,
+    selectedId: availablePatientIds.length === 1 ? availablePatientIds[0] : undefined,
+  });
+}
+
 export const demo = {
   snapshot: () => state,
   subscribe: (fn: () => void) => {
@@ -123,6 +265,7 @@ export const demo = {
       listeners.delete(fn);
     };
   },
+  startBackendSession: (user: CurrentUserResponse) => openBackendDemoSession(user),
   user: () => state.accounts.find((a) => a.id === state.userId),
   patients: () => {
     const user = demo.user();

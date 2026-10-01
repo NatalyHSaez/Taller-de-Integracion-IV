@@ -1,24 +1,49 @@
-# Contrato provisional de datos del API
+# Tipos del API móvil
 
-Estos tipos representan la forma que la aplicación móvil espera recibir desde el API Gateway mientras el backend aún no dispone de un contrato OpenAPI/Swagger definitivo.
+Esta carpeta separa el **contrato del backend** de los modelos internos usados por la interfaz.
 
-## Regla principal
+## Contrato ya contrastado con Integración II
 
-- Los nombres JSON siguen `camelCase`.
-- Los identificadores se representan como `string` y corresponden a UUID.
-- Las fechas y horas se representan como `string` ISO 8601 UTC.
-- Los tipos de esta carpeta representan DTO del API y no reemplazan los modelos de presentación que ya usa la interfaz, por ejemplo `types/measurement.ts`.
-- Cuando Integración II publique OpenAPI, estos archivos deben compararse con dicho contrato y ajustarse si cambian nombres, campos obligatorios, envoltorios de listas o paginación.
+Los siguientes tipos fueron actualizados contra el backend actual de `domicilia`:
 
-## Archivos
+- `auth.ts`: registro, login, refresh, logout y `/auth/me`.
+- `notification.ts`: listado paginado de `/notificaciones`.
+- `health.ts`: estado del API Gateway y microservicios.
+- `common.ts`: roles devueltos por Identidad y estados actuales de Notificaciones.
 
-- `common.ts`: identificadores, fechas, roles y estados compartidos.
-- `auth.ts`: sesión y usuario actual.
-- `patient.ts` / `doctor.ts`: perfiles.
-- `relation.ts`: vínculos, permisos y códigos QR.
-- `condition.ts`: condiciones y parámetros clínicos.
-- `reading.ts`: lecturas y mediciones.
-- `evaluation.ts` / `alert.ts`: evaluación clínica y alertas.
-- `clinical.ts`: consultas, prescripciones, documentos y addenda.
-- `notification.ts`: notificaciones.
-- `error.ts`: formato común de error.
+Ejemplos relevantes del contrato real actual:
+
+```ts
+// POST /api/v1/auth/login
+{
+  correo: string;
+  password: string;
+}
+
+// Respuesta login / refresh
+{
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+```
+
+```ts
+// GET /api/v1/auth/me
+{
+  id: string;
+  nombre_completo: string;
+  correo: string;
+  roles: ('paciente' | 'cuidador' | 'medico' | 'administrador')[];
+}
+```
+
+## Tipos que siguen provisionales
+
+Los DTO de pacientes, lecturas, evaluaciones, alertas, atención médica y otras áreas se mantienen
+por ahora porque sus endpoints todavía no están todos implementados o estabilizados. Los mocks
+siguen siendo válidos para continuar desarrollando esas pantallas.
+
+No se debe eliminar `types/measurement.ts`: sigue siendo el modelo interno de la interfaz y puede
+coexistir con los DTO recibidos desde la API.

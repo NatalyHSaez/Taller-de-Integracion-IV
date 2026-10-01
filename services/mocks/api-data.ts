@@ -76,8 +76,10 @@ export const MOCK_ACCOUNTS = [
 ] satisfies MockAccount[];
 
 export const MOCK_AUTH_TOKENS = {
-  accessToken: 'mock-access-token',
-  refreshToken: 'mock-refresh-token',
+  access_token: 'mock-access-token',
+  refresh_token: 'mock-refresh-token',
+  token_type: 'bearer',
+  expires_in: 900,
 } satisfies AuthTokensResponse;
 
 export const MOCK_PATIENTS = [
@@ -299,14 +301,13 @@ export const MOCK_ALERTS = [
 
 export const MOCK_NOTIFICATIONS = [
   {
-    notificationId: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
-    notificationType: 'ALERT_CREATED',
-    title: 'Nueva alerta clínica',
-    body: 'Se generó una alerta para una lectura reciente.',
-    status: 'UNREAD',
-    createdAt: '2026-09-27T18:00:10Z',
-    updatedAt: '2026-09-27T18:00:10Z',
-    readAt: null,
+    id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+    tipo: 'alerta_clinica',
+    titulo: 'Nueva alerta clínica',
+    cuerpo: 'Se generó una alerta para una lectura reciente.',
+    estado: 'pending',
+    leida_en: null,
+    creada_en: '2026-09-27T18:00:10Z',
   },
 ] satisfies NotificationResponse[];
 

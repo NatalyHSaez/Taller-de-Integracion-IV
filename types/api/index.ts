@@ -6,6 +6,7 @@ export * from './condition';
 export * from './doctor';
 export * from './error';
 export * from './evaluation';
+export * from './health';
 export * from './notification';
 export * from './patient';
 export * from './reading';

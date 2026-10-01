@@ -1,12 +1,20 @@
 import type { ISODateTime, NotificationStatus, UUID } from './common';
 
+/** Item real devuelto por GET /api/v1/notificaciones. */
 export type NotificationResponse = {
-  notificationId: UUID;
-  notificationType: string;
-  title: string;
-  body: string;
-  status: NotificationStatus;
-  createdAt: ISODateTime;
-  updatedAt: ISODateTime;
-  readAt: ISODateTime | null;
+  id: UUID;
+  tipo: string;
+  titulo: string;
+  cuerpo: string;
+  estado: NotificationStatus;
+  leida_en: ISODateTime | null;
+  creada_en: ISODateTime;
+};
+
+/** Respuesta paginada real de GET /api/v1/notificaciones. */
+export type NotificationListResponse = {
+  total: number;
+  page: number;
+  size: number;
+  items: NotificationResponse[];
 };

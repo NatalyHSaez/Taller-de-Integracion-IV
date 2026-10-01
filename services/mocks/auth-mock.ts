@@ -1,4 +1,8 @@
-import type { AuthTokensResponse, CurrentUserResponse } from '../../types/api';
+import type {
+  AuthTokensResponse,
+  CurrentUserResponse,
+  UserRole,
+} from '../../types/api';
 import { ApiError } from '../errors';
 import {
   MOCK_ACCOUNTS,
@@ -19,9 +23,20 @@ export function findMockAccount(email: string, password: string): MockAccount | 
   );
 }
 
+function mockRoleToApiRole(role: MockAccount['role']): UserRole {
+  switch (role) {
+    case 'PATIENT':
+      return 'paciente';
+    case 'CAREGIVER':
+      return 'cuidador';
+    case 'DOCTOR':
+      return 'medico';
+  }
+}
+
 /**
- * Simula POST /api/v1/auth/login.
- * Cuando exista el backend real, esta validación local se reemplazará por HTTP.
+ * Simula POST /api/v1/auth/login utilizando la misma forma de respuesta
+ * que el backend real de Integración II.
  */
 export async function mockLogin(
   email: string,
@@ -42,12 +57,12 @@ export async function mockLogin(
 
   return {
     ...MOCK_AUTH_TOKENS,
-    accessToken: `${MOCK_AUTH_TOKENS.accessToken}-${account.userId}`,
-    refreshToken: `${MOCK_AUTH_TOKENS.refreshToken}-${account.userId}`,
+    access_token: `${MOCK_AUTH_TOKENS.access_token}-${account.userId}`,
+    refresh_token: `${MOCK_AUTH_TOKENS.refresh_token}-${account.userId}`,
   };
 }
 
-/** Simula GET /api/v1/me para la cuenta que inició sesión. */
+/** Simula GET /api/v1/auth/me con el contrato real actual. */
 export async function mockMe(): Promise<CurrentUserResponse> {
   if (!currentAccount) {
     throw new ApiError({
@@ -59,12 +74,10 @@ export async function mockMe(): Promise<CurrentUserResponse> {
   }
 
   return {
-    userId: currentAccount.userId,
-    email: currentAccount.email,
-    firstName: currentAccount.firstName,
-    lastName: currentAccount.lastName,
-    status: 'ACTIVE',
-    roles: [currentAccount.role],
+    id: currentAccount.userId,
+    nombre_completo: `${currentAccount.firstName} ${currentAccount.lastName}`,
+    correo: currentAccount.email,
+    roles: [mockRoleToApiRole(currentAccount.role)],
   };
 }
 

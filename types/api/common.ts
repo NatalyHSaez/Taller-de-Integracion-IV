@@ -1,15 +1,19 @@
 /**
  * Tipos compartidos del contrato móvil <-> API Gateway.
  *
- * NOTA: mientras Integración II no publique OpenAPI/Swagger, estos tipos
- * representan el contrato provisional del frontend basado en la propuesta final.
+ * Los tipos marcados como contrato backend reflejan el código actual de
+ * Integración II. Los tipos clínicos restantes siguen siendo provisionales
+ * mientras sus endpoints todavía no estén implementados de extremo a extremo.
  */
 
 export type UUID = string;
 export type ISODateTime = string;
 export type ISODate = string;
 
-export type UserRole = 'PATIENT' | 'CAREGIVER' | 'DOCTOR' | 'ADMIN';
+/** Roles que devuelve actualmente el backend de Integración II. */
+export type UserRole = 'paciente' | 'cuidador' | 'medico' | 'administrador';
+
+/** Se conserva para DTO provisionales que todavía lo requieran. */
 export type UserStatus = 'ACTIVE' | 'DISABLED';
 
 export type PatientManagementMode = 'AUTONOMOUS' | 'ASSISTED';
@@ -32,4 +36,5 @@ export type EvaluationStatus =
   | 'NO_APLICABLE'
   | 'ENTRADA_INVALIDA';
 
-export type NotificationStatus = 'UNREAD' | 'READ';
+/** Estados usados actualmente por notificaciones-service. */
+export type NotificationStatus = 'pending' | 'sent' | 'read';
