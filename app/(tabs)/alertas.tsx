@@ -58,6 +58,8 @@ export default function AlertasScreen() {
           const severity = SEVERITY_STYLE[item.severidad];
           return (
             <View
+              accessible
+              accessibilityLabel={`${severity.label}. ${item.parametro}. ${item.mensaje}`}
               style={[
                 styles.card,
                 { backgroundColor: theme.surface, borderLeftColor: severity.border },

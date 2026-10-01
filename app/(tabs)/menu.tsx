@@ -5,8 +5,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { demo } from '@/services/demo-store';
 import { useDemo } from '@/hooks/use-demo';
+import { demo } from '@/services/demo-store';
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
@@ -14,7 +14,7 @@ type MenuOption = {
   title: string;
   description: string;
   icon: FeatherName;
-  route?: '/atencion' | '/vinculos' | '/documentos' | '/perfil';
+  route?: '/atencion' | '/vinculos' | '/documentos' | '/perfil' | '/configuracion';
 };
 
 const MAIN_OPTIONS: MenuOption[] = [
@@ -25,7 +25,7 @@ const MAIN_OPTIONS: MenuOption[] = [
 
 const ACCOUNT_OPTIONS: MenuOption[] = [
   { title: 'Mi perfil', description: 'Datos personales y red de cuidado', icon: 'user', route: '/perfil' },
-  { title: 'Configuración', description: 'Preferencias y privacidad', icon: 'settings' },
+  { title: 'Configuración', description: 'Preferencias y privacidad', icon: 'settings', route: '/configuracion' },
 ];
 
 export default function MenuScreen() {

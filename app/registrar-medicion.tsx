@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Speech from 'expo-speech';
 import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -15,10 +16,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BrandColors, Colors, MeasurementColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDemo } from '@/hooks/use-demo';
+import { demo } from '@/services/demo-store';
 import type { MeasurementType } from '@/types/measurement';
 import { useRouter } from 'expo-router';
-import { demo } from '@/services/demo-store';
-import { useDemo } from '@/hooks/use-demo';
 
 type GlucoseContext = 'fasting' | 'before_meal' | 'after_meal';
 
@@ -136,6 +137,23 @@ export default function RegisterMeasurementScreen() {
       const number = (value: string) => Number(value.replace(',', '.'));
       const base = { id: '', measuredAt: measured.toISOString() };
       demo.save(measurementType === 'blood_pressure' ? { ...base, type: 'blood_pressure', systolic: number(systolic), diastolic: number(diastolic), heartRate: number(heartRate) } : measurementType === 'glucose' ? { ...base, type: 'glucose', value: number(glucose), unit: 'mg/dL', context: contextLabel } : { ...base, type: 'weight', value: number(weight), unit: 'kg' });
+
+      if (demo.snapshot().vozActiva) {
+        const detalle =
+          measurementType === 'blood_pressure'
+            ? `Presión arterial: ${systolic} sobre ${diastolic}, frecuencia cardíaca ${heartRate}`
+            : measurementType === 'glucose'
+              ? `Glucosa: ${glucose} miligramos por decilitro`
+              : `Peso: ${weight.replace('.', ',')} kilos`;
+        const diaSemana = measured.toLocaleDateString('es-CL', { weekday: 'long' });
+        const fecha = measured.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' });
+        const hora = measured.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+        Speech.speak(
+          `Datos registrados correctamente. ${detalle}. ${diaSemana} ${fecha}, a las ${hora}.`,
+          { language: 'es-CL', volume: demo.snapshot().vozVolumen }
+        );
+      }
+
       router.replace(demo.permissions().read ? '/historial' : '/(tabs)');
     } catch (e) { setSaveError((e as Error).message); }
   }

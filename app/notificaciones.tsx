@@ -61,6 +61,9 @@ export default function NotificacionesScreen() {
         }
         renderItem={({ item }) => (
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${item.titulo}. ${item.leida ? 'Leída' : 'No leída'}. ${item.hora}.`}
+            accessibilityHint="Toca para ver el detalle"
             style={[styles.row, { borderBottomColor: theme.border }]}
             onPress={() =>
               router.push({ pathname: '/notificacion/[id]', params: { id: item.id } })

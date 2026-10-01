@@ -5,13 +5,17 @@ export type Account = { id: string; name: string; email: string; password: strin
 export type Profile = { id: string; name: string; email: string; code: string; expires: number; activated: boolean };
 export type Invitation = { token: string; patientId: string; expires: number };
 export type Relation = { id: string; patientId: string; caregiverId: string; status: 'pending' | 'approved' | 'rejected' | 'revoked'; permissions: Permissions };
-type State = { accounts: Account[]; profiles: Profile[]; invitations: Invitation[]; relations: Relation[]; measurements: Measurement[]; userId?: string; selectedId?: string; pendingToken?: string };
+export type NotificationPrefs = { mediciones: boolean; vinculos: boolean };
+type State = { accounts: Account[]; profiles: Profile[]; invitations: Invitation[]; relations: Relation[]; measurements: Measurement[]; notificationPrefs: NotificationPrefs; vozActiva: boolean; vozVolumen: number; userId?: string; selectedId?: string; pendingToken?: string };
 const emptyPermissions = (): Permissions => ({ alerts: false, read: false, write: false });
 // Cuenta ficticia del almacén demo: disponible nuevamente después de cada recarga.
 let state: State = {
   accounts: [{ id: 'demo-patient-user', name: 'Juan Pérez', email: 'paciente@ejemplo.com', password: 'Paciente123', role: 'patient', patientId: 'demo-patient' }],
   profiles: [{ id: 'demo-patient', name: 'Juan Pérez', email: 'paciente@ejemplo.com', code: 'DEMO-ACTIVATED', expires: 0, activated: true }],
   invitations: [], relations: [], measurements: [],
+  notificationPrefs: { mediciones: true, vinculos: true },
+  vozActiva: true,
+  vozVolumen: 0.6,
 };
 const listeners = new Set<() => void>();
 const id = () => Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -50,7 +54,6 @@ export const demo = {
   },
   registerCaregiver(name: string, email: string, password: string) {
     credentials(email, password);
-    if (state.profiles.some((p) => p.email === email.trim().toLowerCase())) fail('Este correo tiene una invitación de paciente. Activa esa cuenta con el código del centro.');
     if (!name.trim()) fail('Ingresa tu nombre.');
     const account: Account = { id: id(), name: name.trim(), email: email.trim().toLowerCase(), password, role: 'caregiver' };
     update({ accounts: [...state.accounts, account], userId: account.id, selectedId: undefined });
@@ -100,5 +103,29 @@ export const demo = {
     const patient = demo.patient(); const user = demo.user();
     if (!patient || !user || !demo.permissions().write) fail('No tienes permiso para registrar mediciones.');
     update({ measurements: [...state.measurements, { ...measurement, id: id(), patientId: patient!.id, recordedBy: user!.name, recordedById: user!.id }] });
+  },
+  setNotificationPrefs(prefs: Partial<NotificationPrefs>) {
+    update({ notificationPrefs: { ...state.notificationPrefs, ...prefs } });
+  },
+  setVozActiva(value: boolean) {
+    update({ vozActiva: value });
+  },
+  setVozVolumen(value: number) {
+    update({ vozVolumen: value });
+  },
+  updateEmail(email: string) {
+    const user = demo.user();
+    if (!user) fail('Debes iniciar sesión.');
+    email = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('Ingresa un correo válido.');
+    if (state.accounts.some((a) => a.id !== user!.id && a.email === email)) fail('Ese correo ya está en uso.');
+    update({ accounts: state.accounts.map((a) => (a.id === user!.id ? { ...a, email } : a)) });
+  },
+  updatePassword(currentPassword: string, newPassword: string) {
+    const user = demo.user();
+    if (!user) fail('Debes iniciar sesión.');
+    if (user!.password !== currentPassword) fail('La contraseña actual no coincide.');
+    if (newPassword.length < 8) fail('La nueva contraseña debe tener al menos 8 caracteres.');
+    update({ accounts: state.accounts.map((a) => (a.id === user!.id ? { ...a, password: newPassword } : a)) });
   },
 };
