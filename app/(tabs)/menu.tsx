@@ -474,13 +474,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 52,
   },
-<<<<<<< HEAD
   logoutText: { fontSize: 14, fontWeight: '700' },
-=======
-
-  logoutText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
->>>>>>> Martin
 });
