@@ -3,16 +3,9 @@ import type { AuthTokensResponse, CurrentUserResponse } from '@/types/api';
 import { apiClient } from './api';
 import { authSession } from './auth-session';
 import { demo } from './demo-store';
-import { ApiError, normalizeApiError } from './errors';
+import { ApiError } from './errors';
 import { mockApi } from './mocks/api-mock';
-import { findMockAccount } from './mocks/auth-mock';
-
-const FALLBACK_MOCK_ERRORS = new Set([
-  'API_NOT_CONFIGURED',
-  'NETWORK_ERROR',
-  'REQUEST_TIMEOUT',
-  'SERVICE_UNAVAILABLE',
-]);
+import { findMockAccount, isMockAccountEmail } from './mocks/auth-mock';
 
 function ensureMobileRole(user: CurrentUserResponse): void {
   if (user.roles.includes('paciente') || user.roles.includes('cuidador')) {
@@ -101,27 +94,24 @@ async function loginWithBackend(email: string, password: string): Promise<AuthTo
 
 export const authService = {
   /**
-   * Si EXPO_PUBLIC_API_URL está configurada, la autenticación se realiza contra
-   * el API Gateway real. Solo se vuelve al login mock cuando el servidor no puede
-   * alcanzarse y las credenciales pertenecen explícitamente a una cuenta mock.
+   * Durante el desarrollo se mantienen dos fuentes de autenticación claramente
+   * separadas:
+   * - si el correo pertenece a MOCK_ACCOUNTS, se usa siempre el login mock;
+   * - cualquier otro correo usa el API Gateway cuando está configurado.
+   *
+   * Así los usuarios mock y los usuarios reales pueden probarse al mismo tiempo
+   * aunque Docker y el backend estén funcionando.
    */
   login: async (email: string, password: string) => {
+    if (isMockAccountEmail(email)) {
+      return loginWithMock(email, password);
+    }
+
     if (!IS_API_CONFIGURED) {
       return loginWithMock(email, password);
     }
 
-    try {
-      return await loginWithBackend(email, password);
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      const mockAccount = findMockAccount(email, password);
-
-      if (mockAccount && FALLBACK_MOCK_ERRORS.has(normalized.code)) {
-        return loginWithMock(email, password);
-      }
-
-      throw error;
-    }
+    return loginWithBackend(email, password);
   },
 
   /** Obtiene /auth/me real cuando la sesión proviene del backend. */

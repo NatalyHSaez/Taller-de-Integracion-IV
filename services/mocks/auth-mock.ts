@@ -23,6 +23,15 @@ export function findMockAccount(email: string, password: string): MockAccount | 
   );
 }
 
+/** Indica si el correo pertenece al conjunto explícito de cuentas mock. */
+export function isMockAccountEmail(email: string): boolean {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  return MOCK_ACCOUNTS.some(
+    (account) => account.email.toLowerCase() === normalizedEmail,
+  );
+}
+
 function mockRoleToApiRole(role: MockAccount['role']): UserRole {
   switch (role) {
     case 'PATIENT':
