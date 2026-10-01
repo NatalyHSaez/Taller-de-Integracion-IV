@@ -6,9 +6,9 @@ import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { useDemo } from '@/hooks/use-demo';
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDemo } from '@/hooks/use-demo';
 
 type TabIconName = ComponentProps<typeof Feather>['name'];
 
@@ -80,6 +80,45 @@ function SharedHeader() {
           <Text style={[styles.avatarText, { color: theme.primary }]}>{user?.name.slice(0, 2).toUpperCase()}</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function GraphicsHeader() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+
+  return (
+    <View
+      style={[
+        styles.graphicsHeader,
+        {
+          backgroundColor: theme.background,
+          paddingTop: insets.top,
+          borderBottomColor: theme.border,
+        },
+      ]}>
+      <Pressable
+        accessibilityLabel="Volver"
+        accessibilityRole="button"
+        onPress={() => router.replace('/seguimiento')}
+        hitSlop={10}
+        style={({ pressed }) => [
+          styles.graphicsBackButton,
+          pressed && { opacity: 0.5 },
+        ]}>
+        <MaterialCommunityIcons
+          name="arrow-left"
+          size={26}
+          color={theme.text}
+        />
+      </Pressable>
+
+      <Text style={[styles.graphicsHeaderTitle, { color: theme.text }]}>
+        Gráficos
+      </Text>
     </View>
   );
 }
@@ -168,7 +207,16 @@ export default function TabLayout() {
         options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' }, title: 'Vínculos' }}
       />
       <Tabs.Screen name="atencion" options={{ href: null }} />
-      <Tabs.Screen name="graficos" options={{ href: null }} />
+      <Tabs.Screen
+        name="graficos"
+        options={{
+          href: null,
+          title: 'Gráficos',
+          headerShown: true,
+          header: () => <GraphicsHeader />,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
       <Tabs.Screen name="documentos" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
@@ -210,5 +258,25 @@ const styles = StyleSheet.create({
   },
   tabLabelFocused: {
     fontWeight: '600',
+  },
+  graphicsHeader: {
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 56,
+    paddingHorizontal: 12,
+  },
+
+  graphicsBackButton: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+
+  graphicsHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });
