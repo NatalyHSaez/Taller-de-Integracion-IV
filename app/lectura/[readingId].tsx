@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useLocalSearchParams } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -25,6 +25,12 @@ type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 type ParameterPresentation = {
   icon: IconName;
   label: string;
+};
+
+type ReadingLoadResult = {
+  requestKey: string;
+  reading: ReadingResponse | null;
+  error: string | null;
 };
 
 const PARAMETER_PRESENTATION: Record<MeasurementResponse['parameterCode'], ParameterPresentation> = {
@@ -122,35 +128,48 @@ export default function ReadingDetailScreen() {
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
 
-  const [reading, setReading] = useState<ReadingResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const [loadResult, setLoadResult] = useState<ReadingLoadResult | null>(null);
+  const patientId = selectedPatient?.id;
+  const requestKey = patientId && readingId
+    ? `${patientId}:${readingId}:${requestVersion}`
+    : null;
 
-  const loadReading = useCallback(async () => {
-    if (!selectedPatient || !readingId) {
-      setReading(null);
-      setError('No fue posible identificar la lectura o el paciente seleccionado.');
-      setLoading(false);
+  useEffect(() => {
+    if (!patientId || !readingId || !requestKey) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    let active = true;
 
-    try {
-      const detail = await readingsService.detail(selectedPatient.id, readingId);
-      setReading(detail);
-    } catch (cause) {
-      setReading(null);
-      setError(getApiErrorMessage(cause, 'No fue posible cargar el detalle de la lectura.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [readingId, selectedPatient]);
+    void readingsService
+      .detail(patientId, readingId)
+      .then((detail) => {
+        if (active) {
+          setLoadResult({ requestKey, reading: detail, error: null });
+        }
+      })
+      .catch((cause) => {
+        if (active) {
+          setLoadResult({
+            requestKey,
+            reading: null,
+            error: getApiErrorMessage(cause, 'No fue posible cargar el detalle de la lectura.'),
+          });
+        }
+      });
 
-  useEffect(() => {
-    void loadReading();
-  }, [loadReading]);
+    return () => {
+      active = false;
+    };
+  }, [patientId, readingId, requestKey]);
+
+  const activeResult = loadResult?.requestKey === requestKey ? loadResult : null;
+  const reading = activeResult?.reading ?? null;
+  const error = requestKey
+    ? activeResult?.error ?? null
+    : 'No fue posible identificar la lectura o el paciente seleccionado.';
+  const loading = Boolean(requestKey && !activeResult);
 
   if (loading) {
     return (
@@ -176,7 +195,7 @@ export default function ReadingDetailScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Reintentar carga de lectura"
-          onPress={() => void loadReading()}
+          onPress={() => setRequestVersion((version) => version + 1)}
           style={({ pressed }) => [
             styles.retryButton,
             { backgroundColor: theme.primary },
