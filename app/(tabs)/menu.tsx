@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -48,7 +49,8 @@ const MAIN_OPTIONS: MenuOption[] = [
 
 const ACCOUNT_OPTIONS: MenuOption[] = [
   { title: 'Mi perfil', description: 'Datos personales y red de cuidado', icon: 'user', route: '/perfil' },
-  { title: 'Configuración', description: 'Preferencias y privacidad', icon: 'settings', route: '/configuracion' },];
+  { title: 'Configuración', description: 'Preferencias y privacidad', icon: 'settings', route: '/configuracion' },
+];
 
 export default function MenuScreen() {
   const { user: demoUser } = useDemo();
@@ -94,49 +96,49 @@ export default function MenuScreen() {
     );
   };
 
+  const performLogout = async () => {
+    try {
+      /*
+       * Limpiamos el recorrido demo, si existiera.
+       */
+      demo.logout();
+
+      /*
+       * Limpiamos la sesión REAL:
+       *
+       * - elimina tokens de SecureStore (o localStorage en web)
+       * - establece authUser = null
+       */
+      await signOut();
+
+      /*
+       * Volvemos al Login.
+       */
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.log('Error cerrando sesión:', error);
+
+      if (Platform.OS === 'web') {
+        window.alert('No se pudo cerrar la sesión correctamente.');
+      } else {
+        Alert.alert('Error', 'No se pudo cerrar la sesión correctamente.');
+      }
+    }
+  };
+
   const confirmLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Quieres cerrar tu sesión?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              /*
-               * Limpiamos el recorrido demo, si existiera.
-               */
-              demo.logout();
+    if (Platform.OS === 'web') {
+      // Alert.alert con varios botones no funciona en react-native-web.
+      if (window.confirm('¿Quieres cerrar tu sesión?')) {
+        void performLogout();
+      }
+      return;
+    }
 
-              /*
-               * Limpiamos la sesión REAL:
-               *
-               * - elimina tokens de SecureStore
-               * - establece authUser = null
-               */
-              await signOut();
-
-              /*
-               * Volvemos al Login.
-               */
-              router.replace('/(auth)/login');
-            } catch (error) {
-              console.log('Error cerrando sesión:', error);
-
-              Alert.alert(
-                'Error',
-                'No se pudo cerrar la sesión correctamente.'
-              );
-            }
-          },
-        },
-      ]
-    );
+    Alert.alert('Cerrar sesión', '¿Quieres cerrar tu sesión?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: () => void performLogout() },
+    ]);
   };
 
   const renderOption = (

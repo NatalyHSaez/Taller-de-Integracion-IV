@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandColors, Colors } from '@/constants/theme';
@@ -22,9 +22,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [focusedField, setFocusedField] = useState<
-    'email' | 'password' | null
-  >(null);
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,7 +50,7 @@ export default function LoginScreen() {
 
       // 1. Login real contra el Gateway.
       // login() también guarda access_token y refresh_token
-      // de forma segura mediante SecureStore.
+      // de forma segura mediante SecureStore (o localStorage en web).
       await login(cleanEmail, password);
 
       // 2. Verificamos inmediatamente que el token funcione
@@ -60,6 +58,7 @@ export default function LoginScreen() {
       const currentUser = await getMe();
 
       setUser(currentUser);
+      demo.syncRealSession(currentUser);
 
       console.log('Sesión iniciada correctamente:', currentUser);
 
@@ -80,8 +79,7 @@ export default function LoginScreen() {
           ? [currentUser.rol.toLowerCase()]
           : [];
 
-      const isCaregiver =
-        roles.includes('cuidador') || roles.includes('caregiver');
+      const isCaregiver = roles.includes('cuidador') || roles.includes('caregiver');
 
       if (demo.snapshot().pendingToken && isCaregiver) {
         router.replace('/invitacion');
@@ -115,10 +113,7 @@ export default function LoginScreen() {
        */
       router.replace('/(tabs)');
     } catch (cause) {
-      const message =
-        cause instanceof Error
-          ? cause.message
-          : 'No se pudo iniciar sesión.';
+      const message = cause instanceof Error ? cause.message : 'No se pudo iniciar sesión.';
 
       setError(message);
     } finally {
@@ -127,102 +122,51 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
-            <View
-              pointerEvents="none"
-              style={[
-                styles.decoration,
-                { backgroundColor: theme.primarySoft },
-              ]}
-            />
+            <View pointerEvents="none" style={[styles.decoration, { backgroundColor: theme.primarySoft }]} />
 
             <View style={styles.brand}>
-              <MaterialCommunityIcons
-                color={theme.primary}
-                name="home-heart"
-                size={27}
-              />
-              <Text style={[styles.brandName, { color: theme.primary }]}>
-                Domicilia
-              </Text>
+              <MaterialCommunityIcons color={theme.primary} name="home-heart" size={27} />
+              <Text style={[styles.brandName, { color: theme.primary }]}>Domicilia</Text>
             </View>
 
             <View style={styles.heading}>
-              <Text
-                accessibilityRole="header"
-                style={[styles.title, { color: theme.text }]}
-              >
+              <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
                 Bienvenido a{'\n'}Domicilia
               </Text>
 
-              <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-                Ingresa con tu correo y contraseña.
-              </Text>
+              <Text style={[styles.subtitle, { color: theme.mutedText }]}>Ingresa con tu correo y contraseña.</Text>
             </View>
 
             {pendingToken && (
-              <View
-                style={[
-                  styles.invitationNotice,
-                  {
-                    backgroundColor: theme.primarySoft,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  color={theme.primary}
-                  name="link-variant"
-                  size={19}
-                />
+              <View style={[styles.invitationNotice, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
+                <MaterialCommunityIcons color={theme.primary} name="link-variant" size={19} />
 
-                <Text
-                  style={[styles.invitationText, { color: theme.text }]}
-                >
-                  Tienes una invitación pendiente. La retomaremos al iniciar
-                  sesión como cuidador.
+                <Text style={[styles.invitationText, { color: theme.text }]}>
+                  Tienes una invitación pendiente. La retomaremos al iniciar sesión como cuidador.
                 </Text>
               </View>
             )}
 
             <View style={styles.form}>
               <View style={styles.field}>
-                <Text style={[styles.label, { color: theme.text }]}>
-                  Correo electrónico
-                </Text>
+                <Text style={[styles.label, { color: theme.text }]}>Correo electrónico</Text>
 
                 <View
                   style={[
                     styles.inputShell,
                     {
-                      backgroundColor:
-                        focusedField === 'email'
-                          ? theme.surface
-                          : theme.surfaceMuted,
-                      borderColor:
-                        focusedField === 'email'
-                          ? theme.primary
-                          : theme.border,
+                      backgroundColor: focusedField === 'email' ? theme.surface : theme.surfaceMuted,
+                      borderColor: focusedField === 'email' ? theme.primary : theme.border,
                     },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    color={theme.icon}
-                    name="email-outline"
-                    size={21}
-                  />
+                  ]}>
+                  <MaterialCommunityIcons color={theme.icon} name="email-outline" size={21} />
 
                   <TextInput
                     accessibilityLabel="Correo electrónico"
@@ -245,30 +189,17 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.field}>
-                <Text style={[styles.label, { color: theme.text }]}>
-                  Contraseña
-                </Text>
+                <Text style={[styles.label, { color: theme.text }]}>Contraseña</Text>
 
                 <View
                   style={[
                     styles.inputShell,
                     {
-                      backgroundColor:
-                        focusedField === 'password'
-                          ? theme.surface
-                          : theme.surfaceMuted,
-                      borderColor:
-                        focusedField === 'password'
-                          ? theme.primary
-                          : theme.border,
+                      backgroundColor: focusedField === 'password' ? theme.surface : theme.surfaceMuted,
+                      borderColor: focusedField === 'password' ? theme.primary : theme.border,
                     },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    color={theme.icon}
-                    name="lock-outline"
-                    size={21}
-                  />
+                  ]}>
+                  <MaterialCommunityIcons color={theme.icon} name="lock-outline" size={21} />
 
                   <TextInput
                     ref={passwordInput}
@@ -290,37 +221,22 @@ export default function LoginScreen() {
                   />
 
                   <Pressable
-                    accessibilityLabel={
-                      passwordVisible
-                        ? 'Ocultar contraseña'
-                        : 'Mostrar contraseña'
-                    }
+                    accessibilityLabel={passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     accessibilityRole="button"
                     disabled={loading}
                     hitSlop={8}
                     onPress={() => setPasswordVisible(!passwordVisible)}
-                    style={styles.eyeButton}
-                  >
+                    style={styles.eyeButton}>
                     <MaterialCommunityIcons
-                      color={
-                        passwordVisible ? theme.primary : theme.icon
-                      }
-                      name={
-                        passwordVisible
-                          ? 'eye-off-outline'
-                          : 'eye-outline'
-                      }
+                      color={passwordVisible ? theme.primary : theme.icon}
+                      name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
                       size={22}
                     />
                   </Pressable>
                 </View>
               </View>
 
-              {!!error && (
-                <Text style={[styles.error, { color: theme.danger }]}>
-                  {error}
-                </Text>
-              )}
+              {!!error && <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>}
 
               <Pressable
                 accessibilityRole="button"
@@ -328,102 +244,42 @@ export default function LoginScreen() {
                 onPress={submit}
                 style={({ pressed }) => [
                   styles.submitButton,
-                  {
-                    backgroundColor: theme.primary,
-                    shadowColor: BrandColors.shadow,
-                  },
+                  { backgroundColor: theme.primary, shadowColor: BrandColors.shadow },
                   pressed && !loading && styles.pressed,
                   loading && styles.disabled,
-                ]}
-              >
+                ]}>
                 {loading ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator color={theme.onPrimary} size="small" />
-                    <Text
-                      style={[
-                        styles.submitText,
-                        { color: theme.onPrimary },
-                      ]}
-                    >
-                      Iniciando sesión...
-                    </Text>
+                    <Text style={[styles.submitText, { color: theme.onPrimary }]}>Iniciando sesión...</Text>
                   </View>
                 ) : (
-                  <Text
-                    style={[
-                      styles.submitText,
-                      { color: theme.onPrimary },
-                    ]}
-                  >
-                    Iniciar sesión
-                  </Text>
+                  <Text style={[styles.submitText, { color: theme.onPrimary }]}>Iniciar sesión</Text>
                 )}
               </Pressable>
             </View>
 
             <View style={styles.newAccount}>
-              <Text
-                style={[
-                  styles.newAccountTitle,
-                  { color: theme.mutedText },
-                ]}
-              >
-                ¿Nuevo en Domicilia?
-              </Text>
+              <Text style={[styles.newAccountTitle, { color: theme.mutedText }]}>¿Nuevo en Domicilia?</Text>
 
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push('/(auth)/activate')}
-                style={({ pressed }) => [
-                  styles.accountLink,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  color={theme.primary}
-                  name="account-heart-outline"
-                  size={18}
-                />
+                style={({ pressed }) => [styles.accountLink, pressed && styles.pressed]}>
+                <MaterialCommunityIcons color={theme.primary} name="account-heart-outline" size={18} />
 
-                <Text
-                  style={[
-                    styles.accountLinkText,
-                    { color: theme.primary },
-                  ]}
-                >
-                  Activar cuenta de paciente
-                </Text>
+                <Text style={[styles.accountLinkText, { color: theme.primary }]}>Activar cuenta de paciente</Text>
               </Pressable>
 
-              <View
-                style={[
-                  styles.linkDivider,
-                  { backgroundColor: theme.border },
-                ]}
-              />
+              <View style={[styles.linkDivider, { backgroundColor: theme.border }]} />
 
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push('/(auth)/register')}
-                style={({ pressed }) => [
-                  styles.accountLink,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  color={theme.primary}
-                  name="account-plus-outline"
-                  size={18}
-                />
+                style={({ pressed }) => [styles.accountLink, pressed && styles.pressed]}>
+                <MaterialCommunityIcons color={theme.primary} name="account-plus-outline" size={18} />
 
-                <Text
-                  style={[
-                    styles.accountLinkText,
-                    { color: theme.primary },
-                  ]}
-                >
-                  Crear cuenta de cuidador
-                </Text>
+                <Text style={[styles.accountLinkText, { color: theme.primary }]}>Crear cuenta de cuidador</Text>
               </Pressable>
             </View>
 
@@ -433,52 +289,22 @@ export default function LoginScreen() {
                 onPress={() => router.push('/demo')}
                 style={({ pressed }) => [
                   styles.demoCard,
-                  {
-                    backgroundColor: theme.primarySoft,
-                    borderColor: theme.border,
-                  },
+                  { backgroundColor: theme.primarySoft, borderColor: theme.border },
                   pressed && styles.pressed,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.demoIcon,
-                    { backgroundColor: theme.surfaceMuted },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    color={theme.primary}
-                    name="play"
-                    size={19}
-                  />
+                ]}>
+                <View style={[styles.demoIcon, { backgroundColor: theme.surfaceMuted }]}>
+                  <MaterialCommunityIcons color={theme.primary} name="play" size={19} />
                 </View>
 
                 <View style={styles.demoCopy}>
                   <View style={styles.demoTitleRow}>
-                    <Text
-                      style={[
-                        styles.demoTitle,
-                        { color: theme.primary },
-                      ]}
-                    >
-                      Probar recorrido de demostración
-                    </Text>
+                    <Text style={[styles.demoTitle, { color: theme.primary }]}>Probar recorrido de demostración</Text>
 
-                    <MaterialCommunityIcons
-                      color={theme.primary}
-                      name="chevron-right"
-                      size={18}
-                    />
+                    <MaterialCommunityIcons color={theme.primary} name="chevron-right" size={18} />
                   </View>
 
-                  <Text
-                    style={[
-                      styles.demoDescription,
-                      { color: theme.mutedText },
-                    ]}
-                  >
-                    Demostración local con datos ficticios. Las cuentas y
-                    vínculos se reinician al recargar la app.
+                  <Text style={[styles.demoDescription, { color: theme.mutedText }]}>
+                    Demostración local con datos ficticios. Las cuentas y vínculos se reinician al recargar la app.
                   </Text>
                 </View>
               </Pressable>
@@ -491,18 +317,9 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-
-  screen: {
-    flex: 1,
-  },
-
-  scrollContent: {
-    flexGrow: 1,
-  },
-
+  flex: { flex: 1 },
+  screen: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   content: {
     alignSelf: 'center',
     flexGrow: 1,
@@ -513,7 +330,6 @@ const styles = StyleSheet.create({
     paddingTop: 26,
     width: '100%',
   },
-
   decoration: {
     borderRadius: 190,
     height: 280,
@@ -523,38 +339,11 @@ const styles = StyleSheet.create({
     top: -156,
     width: 280,
   },
-
-  brand: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 9,
-    marginBottom: 28,
-  },
-
-  brandName: {
-    fontSize: 21,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-
-  heading: {
-    marginBottom: 32,
-  },
-
-  title: {
-    fontSize: 31,
-    fontWeight: '800',
-    letterSpacing: -0.8,
-    lineHeight: 37,
-    marginBottom: 8,
-  },
-
-  subtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-
+  brand: { alignItems: 'center', flexDirection: 'row', gap: 9, marginBottom: 28 },
+  brandName: { fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  heading: { marginBottom: 32 },
+  title: { fontSize: 31, fontWeight: '800', letterSpacing: -0.8, lineHeight: 37, marginBottom: 8 },
+  subtitle: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
   invitationNotice: {
     alignItems: 'flex-start',
     borderRadius: 14,
@@ -564,27 +353,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     padding: 13,
   },
-
-  invitationText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-
-  form: {
-    gap: 19,
-  },
-
-  field: {
-    gap: 7,
-  },
-
-  label: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 3,
-  },
-
+  invitationText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  form: { gap: 19 },
+  field: { gap: 7 },
+  label: { fontSize: 14, fontWeight: '700', marginLeft: 3 },
   inputShell: {
     alignItems: 'center',
     borderRadius: 16,
@@ -594,27 +366,9 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 8,
   },
-
-  input: {
-    flex: 1,
-    fontSize: 16,
-    minWidth: 0,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-
-  eyeButton: {
-    alignItems: 'center',
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-
-  error: {
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
+  input: { flex: 1, fontSize: 16, minWidth: 0, paddingHorizontal: 12, paddingVertical: 12 },
+  eyeButton: { alignItems: 'center', height: 42, justifyContent: 'center', width: 42 },
+  error: { fontSize: 13, lineHeight: 19 },
   submitButton: {
     alignItems: 'center',
     borderRadius: 16,
@@ -622,106 +376,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 55,
     marginTop: 4,
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
+    shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
   },
-
-  submitText: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  loadingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  disabled: {
-    opacity: 0.7,
-  },
-
-  newAccount: {
-    alignItems: 'center',
-    gap: 11,
-    marginTop: 31,
-  },
-
-  newAccountTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-
-  accountLink: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    minHeight: 30,
-  },
-
-  accountLinkText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  linkDivider: {
-    height: 1,
-    marginVertical: 1,
-    width: 48,
-  },
-
-  demoArea: {
-    marginTop: 'auto',
-    paddingTop: 36,
-  },
-
-  demoCard: {
-    alignItems: 'flex-start',
-    borderRadius: 24,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
-    padding: 17,
-  },
-
-  demoIcon: {
-    alignItems: 'center',
-    borderRadius: 22,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-
-  demoCopy: {
-    flex: 1,
-    gap: 5,
-  },
-
-  demoTitleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  demoTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '800',
-    lineHeight: 19,
-  },
-
-  demoDescription: {
-    fontSize: 11,
-    fontWeight: '500',
-    lineHeight: 16,
-  },
-
-  pressed: {
-    opacity: 0.72,
-  },
+  submitText: { fontSize: 16, fontWeight: '800' },
+  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
+  disabled: { opacity: 0.7 },
+  newAccount: { alignItems: 'center', gap: 11, marginTop: 31 },
+  newAccountTitle: { fontSize: 14, fontWeight: '500', marginBottom: 2 },
+  accountLink: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 30 },
+  accountLinkText: { fontSize: 15, fontWeight: '700' },
+  linkDivider: { height: 1, marginVertical: 1, width: 48 },
+  demoArea: { marginTop: 'auto', paddingTop: 36 },
+  demoCard: { alignItems: 'flex-start', borderRadius: 24, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 17 },
+  demoIcon: { alignItems: 'center', borderRadius: 22, height: 42, justifyContent: 'center', width: 42 },
+  demoCopy: { flex: 1, gap: 5 },
+  demoTitleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  demoTitle: { flex: 1, fontSize: 14, fontWeight: '800', lineHeight: 19 },
+  demoDescription: { fontSize: 11, fontWeight: '500', lineHeight: 16 },
+  pressed: { opacity: 0.72 },
 });

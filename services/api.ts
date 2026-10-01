@@ -13,8 +13,7 @@ import {
  *
  * Si cambia la IP del notebook, habrá que actualizar esta dirección.
  */
-export const API_BASE_URL = 'http://192.168.1.24:8000/api/v1';
-
+export const API_BASE_URL = 'http://localhost:8000/api/v1';
 /**
  * Tokens entregados por el backend.
  */
