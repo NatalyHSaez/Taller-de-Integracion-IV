@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 
 import { useDemo } from '@/hooks/use-demo';
-import { register } from '@/services/api';
+import { register as registerWithBackend } from '@/services/api';
+import { authService } from '@/services/authservice';
 import { demo } from '@/services/demo-store';
 
 import {
@@ -135,7 +136,7 @@ export function AccountForm({
     try {
       /*
        * ============================
-       * REGISTRO REAL
+       * REGISTRO
        * ============================
        */
       if (mode === 'register') {
@@ -146,12 +147,20 @@ export function AccountForm({
 
         setSubmitting(true);
 
-        await register({
-          nombre_completo: cleanName,
-          correo: cleanEmail,
-          password,
-          rol: role,
-        });
+        if (role === 'cuidador') {
+          await authService.register({
+            name: cleanName,
+            email: cleanEmail,
+            password,
+          });
+        } else {
+          await registerWithBackend({
+            nombre_completo: cleanName,
+            correo: cleanEmail,
+            password,
+            rol: role,
+          });
+        }
 
         Alert.alert(
           'Cuenta creada',

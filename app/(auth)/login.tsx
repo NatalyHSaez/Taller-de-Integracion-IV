@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 import { getMe, login } from '@/services/api';
+import { authService } from '@/services/authservice';
 import { demo } from '@/services/demo-store';
 
 export default function LoginScreen() {
@@ -47,6 +48,26 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       setError('');
+
+      if (authService.hasLocalAccount(cleanEmail)) {
+        await authService.login(cleanEmail, password);
+        setUser(null);
+
+        if (
+          demo.snapshot().pendingToken &&
+          demo.user()?.role === 'caregiver'
+        ) {
+          router.replace('/invitacion');
+          return;
+        }
+
+        router.replace(
+          demo.patient()
+            ? '/(tabs)'
+            : '/(auth)/select-patient'
+        );
+        return;
+      }
 
       // 1. Login real contra el Gateway.
       // login() también guarda access_token y refresh_token

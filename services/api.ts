@@ -4,16 +4,17 @@ import {
   getRefreshToken,
   saveTokens,
 } from '@/services/token-storage';
+import { Platform } from 'react-native';
 
 /**
  * IMPORTANTE:
- * Esta es la IP local del notebook donde está corriendo Docker.
+ * En el emulador Android, 10.0.2.2 apunta al notebook donde corre Docker.
  *
- * El teléfono con Expo Go debe estar conectado a la misma red Wi-Fi.
- *
- * Si cambia la IP del notebook, habrá que actualizar esta dirección.
+ * En web usamos localhost porque el navegador corre en el notebook.
  */
-export const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+
+export const API_BASE_URL = `http://${API_HOST}:8000/api/v1`;
 /**
  * Tokens entregados por el backend.
  */

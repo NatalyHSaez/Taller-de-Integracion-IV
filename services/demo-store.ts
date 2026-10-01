@@ -10,8 +10,14 @@ type State = { accounts: Account[]; profiles: Profile[]; invitations: Invitation
 const emptyPermissions = (): Permissions => ({ alerts: false, read: false, write: false });
 // Cuenta ficticia del almacén demo: disponible nuevamente después de cada recarga.
 let state: State = {
-  accounts: [{ id: 'demo-patient-user', name: 'Juan Pérez', email: 'paciente@ejemplo.com', password: 'Paciente123', role: 'patient', patientId: 'demo-patient' }],
-  profiles: [{ id: 'demo-patient', name: 'Juan Pérez', email: 'paciente@ejemplo.com', code: 'DEMO-ACTIVATED', expires: 0, activated: true }],
+  accounts: [
+    { id: 'demo-patient-user', name: 'Juan Pérez', email: 'paciente@ejemplo.com', password: 'Paciente123', role: 'patient', patientId: 'demo-patient' },
+    { id: 'demo-patient-gmail-user', name: 'Paciente Demo', email: 'demopaciente@gmail.com', password: '123456', role: 'patient', patientId: 'demo-patient-gmail' },
+  ],
+  profiles: [
+    { id: 'demo-patient', name: 'Juan Pérez', email: 'paciente@ejemplo.com', code: 'DEMO-ACTIVATED', expires: 0, activated: true },
+    { id: 'demo-patient-gmail', name: 'Paciente Demo', email: 'demopaciente@gmail.com', code: 'DEMO-GMAIL-ACTIVATED', expires: 0, activated: true },
+  ],
   invitations: [], relations: [], measurements: [],
   notificationPrefs: { mediciones: true, vinculos: true },
   vozActiva: true,
