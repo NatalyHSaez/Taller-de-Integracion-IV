@@ -3,7 +3,8 @@ import type { Measurement } from '../../types/measurement';
 
 /**
  * Convierte las lecturas con forma de API al modelo que ya usa la interfaz.
- * Esto permite conservar types/measurement.ts sin mezclarlo con los DTO de la API.
+ * Se conserva readingId para poder navegar posteriormente al detalle de la
+ * lectura completa, incluso cuando una lectura contiene varias mediciones.
  */
 export function readingsToMeasurements(readings: ReadingResponse[]): Measurement[] {
   return readings.flatMap((reading) => {
@@ -23,6 +24,7 @@ export function readingsToMeasurements(readings: ReadingResponse[]): Measurement
     ) {
       result.push({
         id: reading.readingId,
+        readingId: reading.readingId,
         patientId: reading.patientId,
         recordedById: reading.recordedByUserId,
         recordedBy: 'Datos simulados',
@@ -39,6 +41,7 @@ export function readingsToMeasurements(readings: ReadingResponse[]): Measurement
     if (glucose?.valueNumeric != null) {
       result.push({
         id: glucose.measurementId,
+        readingId: reading.readingId,
         patientId: reading.patientId,
         recordedById: reading.recordedByUserId,
         recordedBy: 'Datos simulados',
@@ -54,6 +57,7 @@ export function readingsToMeasurements(readings: ReadingResponse[]): Measurement
     if (weight?.valueNumeric != null) {
       result.push({
         id: weight.measurementId,
+        readingId: reading.readingId,
         patientId: reading.patientId,
         recordedById: reading.recordedByUserId,
         recordedBy: 'Datos simulados',

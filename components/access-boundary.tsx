@@ -21,7 +21,9 @@ export function AccessBoundary({ children }: PropsWithChildren) {
   }
 
   if (user?.role === 'caregiver' && !publicPage) {
-    const readPage = ['/historial', '/graficos', '/seguimiento'].includes(path);
+    const readPage =
+      ['/historial', '/graficos', '/seguimiento'].includes(path) ||
+      path.startsWith('/lectura/');
     const alertPage = path.startsWith('/notificaci') || path === '/alertas';
     const unavailablePage = path.startsWith('/documentos') || path === '/atencion';
 

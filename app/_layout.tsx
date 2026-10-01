@@ -41,6 +41,10 @@ export default function RootLayout() {
         />
         <Stack.Screen name="historial" options={{ headerShown: true, title: 'Historial' }} />
         <Stack.Screen
+          name="lectura/[readingId]"
+          options={{ headerShown: true, title: 'Detalle de lectura' }}
+        />
+        <Stack.Screen
           name="notificaciones"
           options={{ headerShown: true, title: 'Notificaciones' }}
         />

@@ -476,12 +476,15 @@ export const demo = {
     if (!patient || !user || !demo.permissions().write) {
       fail('No tienes permiso para registrar mediciones.');
     }
+
+    const readingId = measurement.readingId ?? id();
     update({
       measurements: [
         ...state.measurements,
         {
           ...measurement,
           id: id(),
+          readingId,
           patientId: patient!.id,
           recordedBy: user!.name,
           recordedById: user!.id,
