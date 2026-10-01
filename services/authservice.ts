@@ -21,12 +21,62 @@ function ensureMobileRole(user: CurrentUserResponse): void {
   });
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Las cuentas creadas desde la app viven en demo-store y no forman parte de
+ * MOCK_ACCOUNTS. Se consideran cuentas mock de ejecución siempre que tengan
+ * contraseña local. Las cuentas proyectadas desde el backend usan password ''
+ * y no deben confundirse con una cuenta mock creada por el usuario.
+ */
+function isRuntimeMockAccountEmail(email: string): boolean {
+  const normalizedEmail = normalizeEmail(email);
+
+  return demo
+    .snapshot()
+    .accounts.some(
+      (account) =>
+        account.email.toLowerCase() === normalizedEmail && account.password.length > 0,
+    );
+}
+
+function localAccountToCurrentUser(): CurrentUserResponse {
+  const account = demo.user();
+
+  if (!account) {
+    throw new ApiError({
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'No fue posible iniciar la sesión mock.',
+      details: {},
+      status: 401,
+    });
+  }
+
+  return {
+    id: account.id,
+    nombre_completo: account.name,
+    correo: account.email,
+    roles: [account.role === 'patient' ? 'paciente' : 'cuidador'],
+  };
+}
+
+function createRuntimeMockTokens(userId: string): AuthTokensResponse {
+  return {
+    access_token: `mock-access-token-${userId}`,
+    refresh_token: `mock-refresh-token-${userId}`,
+    token_type: 'bearer',
+    expires_in: 900,
+  };
+}
+
 async function loginWithMock(email: string, password: string): Promise<AuthTokensResponse> {
   dataClient.clearCache();
 
-  const account = findMockAccount(email, password);
+  const predefinedAccount = findMockAccount(email, password);
 
-  if (account?.role === 'DOCTOR') {
+  if (predefinedAccount?.role === 'DOCTOR') {
     throw new ApiError({
       code: 'FLOW_NOT_AVAILABLE',
       message: 'El acceso médico se probará desde el flujo profesional.',
@@ -35,17 +85,15 @@ async function loginWithMock(email: string, password: string): Promise<AuthToken
     });
   }
 
-  const tokens = await mockApi.auth.login(email, password);
-  const user = await mockApi.auth.me();
+  /*
+   * demo.login conoce tanto las cuentas mock iniciales como las cuentas creadas
+   * durante la ejecución mediante registerCaregiver/activate.
+   */
+  demo.login(email, password);
 
-  try {
-    demo.login(email, password);
-    authSession.startMock(tokens, user);
-  } catch (error) {
-    await mockApi.auth.logout();
-    authSession.clear();
-    throw error;
-  }
+  const user = localAccountToCurrentUser();
+  const tokens = createRuntimeMockTokens(user.id);
+  authSession.startMock(tokens, user);
 
   return tokens;
 }
@@ -70,7 +118,7 @@ async function loginWithBackend(email: string, password: string): Promise<AuthTo
   const tokens = await apiClient.post<AuthTokensResponse>(
     '/auth/login',
     {
-      correo: email.trim().toLowerCase(),
+      correo: normalizeEmail(email),
       password,
     },
     { auth: false },
@@ -102,16 +150,16 @@ async function loginWithBackend(email: string, password: string): Promise<AuthTo
 
 export const authService = {
   /**
-   * Durante el desarrollo se mantienen dos fuentes de autenticación claramente
-   * separadas:
-   * - si el correo pertenece a MOCK_ACCOUNTS, se usa siempre el login mock;
+   * Durante el desarrollo se mantienen dos fuentes de autenticación:
+   * - cuentas mock predefinidas en MOCK_ACCOUNTS;
+   * - cuentas mock creadas/activadas desde la propia app en demo-store;
    * - cualquier otro correo usa el API Gateway cuando está configurado.
    *
-   * Así los usuarios mock y los usuarios reales pueden probarse al mismo tiempo
-   * aunque Docker y el backend estén funcionando.
+   * De esta forma una cuenta creada localmente puede cerrar sesión y volver a
+   * ingresar aunque el backend esté encendido.
    */
   login: async (email: string, password: string) => {
-    if (isMockAccountEmail(email)) {
+    if (isMockAccountEmail(email) || isRuntimeMockAccountEmail(email)) {
       return loginWithMock(email, password);
     }
 
@@ -133,6 +181,11 @@ export const authService = {
       authSession.setUser(user);
       demo.startBackendSession(user);
       return user;
+    }
+
+    const mockUser = authSession.user();
+    if (mockUser) {
+      return mockUser;
     }
 
     return mockApi.auth.me();
@@ -185,6 +238,7 @@ export const authService = {
     if (mode === 'backend') {
       await revokeBackendSession(refreshToken);
     } else if (mode === 'mock') {
+      // Limpia también cualquier sesión interna del mock predefinido.
       await mockApi.auth.logout();
     }
 
@@ -193,7 +247,7 @@ export const authService = {
     dataClient.clearCache();
   },
 
-  // Registro y datos de dominio siguen mock por ahora.
+  // El registro continúa siendo local/mock por ahora.
   register: async (data: { name: string; email: string; password: string }) =>
     demo.registerCaregiver(data.name, data.email, data.password),
 
