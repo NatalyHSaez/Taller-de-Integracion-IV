@@ -3,6 +3,7 @@ import type { AuthTokensResponse, CurrentUserResponse } from '@/types/api';
 import { apiClient } from './api';
 import { authSession } from './auth-session';
 import { demo } from './demo-store';
+import { dataClient } from './data';
 import { ApiError } from './errors';
 import { mockApi } from './mocks/api-mock';
 import { findMockAccount, isMockAccountEmail } from './mocks/auth-mock';
@@ -21,6 +22,8 @@ function ensureMobileRole(user: CurrentUserResponse): void {
 }
 
 async function loginWithMock(email: string, password: string): Promise<AuthTokensResponse> {
+  dataClient.clearCache();
+
   const account = findMockAccount(email, password);
 
   if (account?.role === 'DOCTOR') {
@@ -62,6 +65,8 @@ async function revokeBackendSession(refreshToken: string | null): Promise<void> 
 }
 
 async function loginWithBackend(email: string, password: string): Promise<AuthTokensResponse> {
+  dataClient.clearCache();
+
   const tokens = await apiClient.post<AuthTokensResponse>(
     '/auth/login',
     {
@@ -74,7 +79,10 @@ async function loginWithBackend(email: string, password: string): Promise<AuthTo
   authSession.startBackend(tokens);
 
   try {
-    const user = await apiClient.get<CurrentUserResponse>('/auth/me');
+    const user = await dataClient.get<CurrentUserResponse>('/auth/me', {
+      cache: false,
+      retry: { attempts: 2, initialDelayMs: 300, maxDelayMs: 600 },
+    });
     ensureMobileRole(user);
 
     authSession.setUser(user);
@@ -117,7 +125,10 @@ export const authService = {
   /** Obtiene /auth/me real cuando la sesión proviene del backend. */
   me: async (): Promise<CurrentUserResponse> => {
     if (authSession.mode() === 'backend') {
-      const user = await apiClient.get<CurrentUserResponse>('/auth/me');
+      const user = await dataClient.get<CurrentUserResponse>('/auth/me', {
+        cache: false,
+        retry: { attempts: 2, initialDelayMs: 300, maxDelayMs: 600 },
+      });
       authSession.setUser(user);
       return user;
     }
@@ -154,7 +165,10 @@ export const authService = {
 
     authSession.startBackend(tokens);
 
-    const user = await apiClient.get<CurrentUserResponse>('/auth/me');
+    const user = await dataClient.get<CurrentUserResponse>('/auth/me', {
+      cache: false,
+      retry: { attempts: 2, initialDelayMs: 300, maxDelayMs: 600 },
+    });
     ensureMobileRole(user);
     authSession.setUser(user);
 
@@ -172,6 +186,7 @@ export const authService = {
     }
 
     authSession.clear();
+    dataClient.clearCache();
     demo.logout();
   },
 

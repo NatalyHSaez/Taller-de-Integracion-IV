@@ -1,7 +1,7 @@
 import { API_V1_URL } from '@/config/api';
 import type { Notificacion } from '@/constants/notifications-mock';
 import type { NotificationListResponse, NotificationResponse } from '@/types/api';
-import { apiClient } from './api';
+import { dataClient } from './data';
 import { demo } from './demo-store';
 import { normalizeApiError } from './errors';
 import { mockApi } from './mocks/api-mock';
@@ -65,12 +65,10 @@ async function getMockNotifications(): Promise<Notificacion[]> {
 }
 
 /**
- * La ruta real ya se consulta exclusivamente mediante apiClient.
+ * Las notificaciones reales pasan por la capa de datos. Esta agrega caché temporal y
+ * reintentos para errores transitorios antes de recurrir al fallback mock.
  *
- * Mientras la autenticación de la app continúe usando tokens mock, una respuesta 401 o un
- * backend no disponible hace que la aplicación conserve el comportamiento de la Tarea 8.
- * Cuando el proveedor de access token quede conectado al token real, este mismo código
- * comenzará a consumir GET /api/v1/notificaciones sin cambiar las pantallas.
+ * Un 401/403 u otro error funcional no se reintenta automáticamente.
  */
 export async function getNotifications(): Promise<Notificacion[]> {
   if (!API_V1_URL) {
@@ -78,8 +76,17 @@ export async function getNotifications(): Promise<Notificacion[]> {
   }
 
   try {
-    const response = await apiClient.get<NotificationListResponse>('/notificaciones', {
+    const response = await dataClient.get<NotificationListResponse>('/notificaciones', {
       query: { page: 1, size: 100 },
+      cache: {
+        ttlMs: 30_000,
+        staleIfErrorMs: 5 * 60_000,
+      },
+      retry: {
+        attempts: 3,
+        initialDelayMs: 400,
+        maxDelayMs: 1_600,
+      },
     });
 
     const backendNotifications = response.items.map(toNotification);
