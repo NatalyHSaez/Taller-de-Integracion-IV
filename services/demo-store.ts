@@ -9,9 +9,12 @@ type State = { accounts: Account[]; profiles: Profile[]; invitations: Invitation
 const emptyPermissions = (): Permissions => ({ alerts: false, read: false, write: false });
 // Cuenta ficticia del almacén demo: disponible nuevamente después de cada recarga.
 let state: State = {
-  accounts: [{ id: 'demo-patient-user', name: 'Juan Pérez', email: 'paciente@ejemplo.com', password: 'Paciente123', role: 'patient', patientId: 'demo-patient' }],
-  profiles: [{ id: 'demo-patient', name: 'Juan Pérez', email: 'paciente@ejemplo.com', code: 'DEMO-ACTIVATED', expires: 0, activated: true }],
-  invitations: [], relations: [], measurements: [],
+  accounts: [{ id: 'demo-patient-user', name: 'Juan Pérez', email: 'paciente@ejemplo.com', password: 'Paciente123', role: 'patient', patientId: 'demo-patient', },
+    { id: 'demo-caregiver-user', name: 'Ana Martínez', email: 'cuidador@ejemplo.com', password: 'Cuidador123', role: 'caregiver', },],
+  profiles: [{ id: 'demo-patient', name: 'Juan Pérez', email: 'paciente@ejemplo.com', code: 'DEMO-ACTIVATED', expires: 0, activated: true, },],
+  invitations: [],
+  relations: [{ id: 'demo-relation', patientId: 'demo-patient', caregiverId: 'demo-caregiver-user', status: 'approved', permissions: { alerts: true, read: true, write: true, },},],
+  measurements: [],
 };
 const listeners = new Set<() => void>();
 const id = () => Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -65,6 +68,50 @@ export const demo = {
     if (patients.length === 1) update({ selectedId: patients[0].id });
   },
   logout: () => update({ userId: undefined, selectedId: undefined }),
+  updateProfile(name: string, email: string) {
+  const user = demo.user();
+
+  if (!user) fail('No hay un usuario autenticado.');
+
+  name = name.trim();
+  email = email.trim().toLowerCase();
+
+  if (!name) fail('Ingresa tu nombre.');
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    fail('Ingresa un correo electrónico válido.');
+  }
+
+  if (
+    state.accounts.some(
+      (a) => a.id !== user!.id && a.email === email
+    )
+  ) {
+    fail('Ya existe una cuenta con ese correo.');
+  }
+
+  const patientId = user!.patientId;
+
+  if (
+    state.profiles.some(
+      (p) => p.id !== patientId && p.email === email
+    )
+  ) {
+    fail('Ese correo ya está registrado.');
+  }
+
+  update({
+    accounts: state.accounts.map((a) =>
+      a.id === user!.id ? { ...a, name, email } : a
+    ),
+
+    profiles: patientId
+      ? state.profiles.map((p) =>
+          p.id === patientId ? { ...p, name, email } : p
+        )
+      : state.profiles,
+  });
+},
   select(patientId: string) {
     if (!demo.patients().some((p) => p.id === patientId)) fail('No tienes acceso a este paciente.');
     update({ selectedId: patientId });

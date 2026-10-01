@@ -117,23 +117,47 @@ export default function SeguimientoScreen() {
             </View>
           </Pressable>
 
-          <View
-            accessible
+          <Pressable
+            accessibilityHint="Abre los gráficos de evolución de tus mediciones"
             accessibilityLabel="Evolución y gráficos"
-            style={[styles.secondaryCard, { backgroundColor: surfaceColor, borderColor }]}>
+            accessibilityRole="button"
+            onPress={() => router.push('/graficos')}
+            style={({ pressed }) => [
+              styles.secondaryCard,
+              { backgroundColor: surfaceColor, borderColor },
+              pressed && styles.pressed,
+            ]}>
             <MaterialCommunityIcons
               name="chart-line"
               size={78}
               color={purple.purpleGhost}
               style={styles.backgroundIcon}
             />
-            <View style={[styles.secondaryIcon, { backgroundColor: purple.purpleSoft }]}>
-              <MaterialCommunityIcons name="chart-line" size={27} color={purple.purple} />
+
+            <View
+              style={[
+                styles.secondaryIcon,
+                { backgroundColor: purple.purpleSoft },
+              ]}>
+              <MaterialCommunityIcons
+                name="chart-line"
+                size={27}
+                color={purple.purple}
+              />
             </View>
-            <View style={styles.secondaryCardFooterVertical}>
-              <ThemedText style={styles.secondaryTitle}>Evolución y gráficos</ThemedText>
+
+            <View style={styles.secondaryCardFooter}>
+              <ThemedText style={styles.secondaryTitle}>
+                Evolución y gráficos
+              </ThemedText>
+
+              <MaterialCommunityIcons
+                name="arrow-right"
+                size={21}
+                color={purple.purple}
+              />
             </View>
-          </View>
+          </Pressable>
         </View>
       </ScrollView>
     </ThemedView>
