@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useAppState } from '@/hooks/use-app-state';
 import { useDemo } from '@/hooks/use-demo';
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -39,15 +40,16 @@ function SharedHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { user, patient, relations } = useDemo();
+  const { user, selectedPatient } = useAppState();
+  const { relations } = useDemo();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const pendingCount = relations.filter((relation) =>
-    relation.status === 'pending' && relation.patientId === user?.patientId
+    relation.status === 'pending' && relation.patientId === selectedPatient?.id
   ).length;
   const date = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'long' }).format(new Date());
   const isCaregiver = user?.role === 'caregiver';
-  const patientName = patient?.name;
+  const patientName = selectedPatient?.name;
   let heading = `Hola, ${user?.name.split(' ')[0] ?? ''}`;
   let subtitle = isCaregiver && patientName ? `Acompañas a ${patientName}` : 'Resumen de salud';
   if (pathname === '/seguimiento') {

@@ -18,7 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { MeasurementType } from '@/types/measurement';
 import { useRouter } from 'expo-router';
 import { demo } from '@/services/demo-store';
-import { useDemo } from '@/hooks/use-demo';
+import { useAppState } from '@/hooks/use-app-state';
 
 type GlucoseContext = 'fasting' | 'before_meal' | 'after_meal';
 
@@ -75,7 +75,7 @@ function isPositiveNumber(value: string) {
 
 export default function RegisterMeasurementScreen() {
   const router = useRouter();
-  const { patient, user } = useDemo();
+  const { selectedPatient: patient, user } = useAppState();
   const [saveError, setSaveError] = useState('');
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';

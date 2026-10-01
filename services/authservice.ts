@@ -129,7 +129,9 @@ export const authService = {
         cache: false,
         retry: { attempts: 2, initialDelayMs: 300, maxDelayMs: 600 },
       });
+      ensureMobileRole(user);
       authSession.setUser(user);
+      demo.startBackendSession(user);
       return user;
     }
 
@@ -171,6 +173,7 @@ export const authService = {
     });
     ensureMobileRole(user);
     authSession.setUser(user);
+    demo.startBackendSession(user);
 
     return tokens;
   },
@@ -185,9 +188,9 @@ export const authService = {
       await mockApi.auth.logout();
     }
 
+    demo.logout();
     authSession.clear();
     dataClient.clearCache();
-    demo.logout();
   },
 
   // Registro y datos de dominio siguen mock por ahora.

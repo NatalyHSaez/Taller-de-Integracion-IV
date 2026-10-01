@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Action, Card, Copy, Field, FlowPage } from './flow-ui';
 import { demo } from '@/services/demo-store';
 import { useDemo } from '@/hooks/use-demo';
+import { appState } from '@/services/app-state';
 export function AccountForm({ mode }: { mode: 'login' | 'activate' | 'register' }) {
   const router = useRouter(); const { pendingToken } = useDemo();
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
@@ -14,7 +15,8 @@ export function AccountForm({ mode }: { mode: 'login' | 'activate' | 'register' 
       if (mode === 'login') demo.login(email, password);
       else if (mode === 'activate') demo.activate(code, email, password);
       else demo.registerCaregiver(name, email, password);
-      router.replace(demo.snapshot().pendingToken && demo.user()?.role === 'caregiver' ? '/invitacion' : demo.patient() ? '/(tabs)' : '/(auth)/select-patient');
+      const globalState = appState.snapshot();
+      router.replace(demo.snapshot().pendingToken && globalState.user?.role === 'caregiver' ? '/invitacion' : globalState.selectedPatient ? '/(tabs)' : '/(auth)/select-patient');
     } catch (e) { setError((e as Error).message); }
   }
   return <FlowPage title={mode === 'login' ? 'Bienvenido a Domicilia' : mode === 'activate' ? 'Activa tu cuenta de paciente' : 'Crea tu cuenta de cuidador'} subtitle={mode === 'activate' ? 'Usa la invitación del centro y el correo registrado por tu doctor.' : mode === 'register' ? 'El paciente debe aprobar tu solicitud antes de compartir sus datos.' : 'Ingresa con tu correo y contraseña.'}>

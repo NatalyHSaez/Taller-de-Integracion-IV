@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getDemoAlerts } from '@/services/alerts';
 import { BrandColors, Colors, MeasurementColors, StatusColors } from '@/constants/theme';
+import { useAppState } from '@/hooks/use-app-state';
 import { useDemo } from '@/hooks/use-demo';
 import { Action } from '@/components/flow-ui';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -61,8 +62,11 @@ function formatMeasurementDate(date: string) {
 }
 
 export default function ResumenScreen() {
-  const { user, measurements, permissions, relations } = useDemo();
-  const pendingCount = relations.filter((r) => r.patientId === user?.patientId && r.status === 'pending').length;
+  const { user, selectedPatient } = useAppState();
+  const { measurements, permissions, relations } = useDemo();
+  const pendingCount = relations.filter(
+    (relation) => relation.patientId === selectedPatient?.id && relation.status === 'pending',
+  ).length;
   const router = useRouter();
   const colorScheme = useColorScheme();
   const themeName = colorScheme === 'dark' ? 'dark' : 'light';

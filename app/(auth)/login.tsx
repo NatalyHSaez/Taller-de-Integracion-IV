@@ -19,6 +19,7 @@ import { useDemo } from '@/hooks/use-demo';
 import { authService } from '@/services/authservice';
 import { getApiErrorMessage } from '@/services/errors';
 import { demo } from '@/services/demo-store';
+import { appState } from '@/services/app-state';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -35,10 +36,11 @@ export default function LoginScreen() {
     try {
       setError('');
       await authService.login(email, password);
+      const globalState = appState.snapshot();
       router.replace(
-        demo.snapshot().pendingToken && demo.user()?.role === 'caregiver'
+        demo.snapshot().pendingToken && globalState.user?.role === 'caregiver'
           ? '/invitacion'
-          : demo.patient()
+          : globalState.selectedPatient
             ? '/(tabs)'
             : '/(auth)/select-patient'
       );

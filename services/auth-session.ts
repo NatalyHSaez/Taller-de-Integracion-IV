@@ -3,7 +3,7 @@ import { setApiAccessTokenProvider } from './api';
 
 export type AuthSessionMode = 'backend' | 'mock';
 
-type SessionState = {
+export type SessionState = {
   mode: AuthSessionMode | null;
   tokens: AuthTokensResponse | null;
   user: CurrentUserResponse | null;
@@ -15,14 +15,30 @@ let state: SessionState = {
   user: null,
 };
 
+const listeners = new Set<() => void>();
+
+function replaceState(nextState: SessionState) {
+  state = nextState;
+  listeners.forEach((listener) => listener());
+}
+
 /**
  * Sesión temporal de autenticación.
  *
- * Por ahora los tokens quedan solo en memoria. Esto permite conectar el login real
- * sin mezclar todavía esta etapa con expo-secure-store. En una etapa posterior se
- * podrá cambiar la persistencia sin modificar apiClient ni las pantallas.
+ * Por ahora los tokens quedan solo en memoria. Además de exponer el token al
+ * cliente HTTP, la sesión publica cambios para que el estado global de la app
+ * pueda reaccionar cuando cambia entre backend, mock o sesión cerrada.
  */
 export const authSession = {
+  snapshot: () => state,
+
+  subscribe(listener: () => void) {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  },
+
   mode: () => state.mode,
   tokens: () => state.tokens,
   user: () => state.user,
@@ -30,34 +46,34 @@ export const authSession = {
   refreshToken: () => state.tokens?.refresh_token ?? null,
 
   startBackend(tokens: AuthTokensResponse) {
-    state = {
+    replaceState({
       mode: 'backend',
       tokens,
       user: null,
-    };
+    });
   },
 
   startMock(tokens: AuthTokensResponse, user: CurrentUserResponse) {
-    state = {
+    replaceState({
       mode: 'mock',
       tokens,
       user,
-    };
+    });
   },
 
   setUser(user: CurrentUserResponse) {
-    state = {
+    replaceState({
       ...state,
       user,
-    };
+    });
   },
 
   clear() {
-    state = {
+    replaceState({
       mode: null,
       tokens: null,
       user: null,
-    };
+    });
   },
 };
 

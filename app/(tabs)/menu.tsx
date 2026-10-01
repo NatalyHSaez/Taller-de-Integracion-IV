@@ -5,8 +5,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { demo } from '@/services/demo-store';
-import { useDemo } from '@/hooks/use-demo';
+import { useAppState } from '@/hooks/use-app-state';
+import { authService } from '@/services/authservice';
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
@@ -29,7 +29,7 @@ const ACCOUNT_OPTIONS: MenuOption[] = [
 ];
 
 export default function MenuScreen() {
-  const { user } = useDemo();
+  const { user } = useAppState();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -44,8 +44,8 @@ export default function MenuScreen() {
     Alert.alert('Configuración', 'Esta sección estará disponible próximamente.');
   };
 
-  const confirmLogout = () => {
-    demo.logout();
+  const confirmLogout = async () => {
+    await authService.logout();
     router.replace('/(auth)/login');
   };
 
@@ -102,7 +102,7 @@ export default function MenuScreen() {
 
       <Pressable
         accessibilityRole="button"
-        onPress={confirmLogout}
+        onPress={() => void confirmLogout()}
         style={({ pressed }) => [
           styles.logoutButton,
           { backgroundColor: theme.dangerBackground, borderColor: theme.dangerBorder },
