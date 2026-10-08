@@ -7,14 +7,31 @@ import {
 import { Platform } from 'react-native';
 
 /**
- * IMPORTANTE:
- * En el emulador Android, 10.0.2.2 apunta al notebook donde corre Docker.
+ * EXPO_PUBLIC_API_URL es opcional:
+ * - Expo Go en un teléfono físico: se configura con la IP del computador.
+ * - Android Emulator: si se omite, usamos 10.0.2.2.
+ * - Web/iOS Simulator: si se omite, usamos localhost.
  *
- * En web usamos localhost porque el navegador corre en el notebook.
+ * La variable puede incluir o no el sufijo /api/v1.
  */
-const API_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+const fallbackApiUrl = Platform.OS === 'android'
+  ? 'http://10.0.2.2:8000'
+  : 'http://localhost:8000';
 
-export const API_BASE_URL = `http://${API_HOST}:8000/api/v1`;
+function withApiVersion(url: string): string {
+  const normalizedUrl = url.replace(/\/+$/, '');
+
+  return normalizedUrl.endsWith('/api/v1')
+    ? normalizedUrl
+    : `${normalizedUrl}/api/v1`;
+}
+
+export const API_BASE_URL = withApiVersion(configuredApiUrl || fallbackApiUrl);
+
+if (__DEV__) {
+  console.log(`[api] Backend: ${API_BASE_URL}`);
+}
 /**
  * Tokens entregados por el backend.
  */

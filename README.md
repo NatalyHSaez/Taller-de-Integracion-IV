@@ -91,6 +91,33 @@ npm run start
 
 Escanea el código QR con la app **Expo Go** desde tu celular, o presiona `w` para abrirlo en el navegador.
 
+### Conexión con el backend local
+
+La aplicación funciona sin configuración adicional cuando el backend se ejecuta en el mismo computador:
+
+- Expo Web usa `http://localhost:8000`.
+- Android Emulator usa `http://10.0.2.2:8000`.
+
+Para usar **Expo Go en un teléfono físico**, crea un archivo `.env.local` a partir del ejemplo:
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Ejecuta `ipconfig`, busca la dirección IPv4 del computador que ejecuta el backend y reemplaza el valor del archivo:
+
+```env
+EXPO_PUBLIC_API_URL=http://192.168.X.X:8000
+```
+
+Después reinicia Expo y vuelve a cargar la aplicación:
+
+```powershell
+npx expo start --clear
+```
+
+El teléfono y el computador deben estar en la misma red. El backend debe aceptar conexiones externas (por ejemplo, escuchando en `0.0.0.0`) y el firewall debe permitir el puerto `8000`. El archivo `.env.local` es personal, está ignorado por Git y no debe subirse al repositorio.
+
 > **Nota de compatibilidad:** el proyecto usa **Expo SDK 54** para asegurar compatibilidad con la versión de Expo Go disponible actualmente en las tiendas de aplicaciones.
 
 ##  Equipo
