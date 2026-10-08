@@ -1,12 +1,16 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
   Pressable,
+  StyleSheet,
   Text,
   View,
 } from 'react-native';
 
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 import { register as registerWithBackend } from '@/services/api';
 import { authService } from '@/services/authservice';
@@ -29,6 +33,7 @@ export function AccountForm({
 }) {
   const router = useRouter();
   const { pendingToken } = useDemo();
+  const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
 
   /*
    * Campos generales.
@@ -293,10 +298,12 @@ export function AccountForm({
       {mode === 'register' && (
         <Field
           label="Nombre completo"
+          icon="account-outline"
           value={name}
           onChangeText={setName}
           autoComplete="name"
           autoCapitalize="words"
+          placeholder="Nombre y apellido"
         />
       )}
 
@@ -304,26 +311,31 @@ export function AccountForm({
       {mode === 'activate' && (
         <Field
           label="Código de invitación del centro"
+          icon="ticket-confirmation-outline"
           value={code}
           onChangeText={setCode}
           autoCapitalize="characters"
+          placeholder="Código de invitación"
         />
       )}
 
       {/* Correo */}
       <Field
         label="Correo electrónico"
+        icon="email-outline"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete="email"
+        placeholder="ejemplo@correo.com"
       />
 
       {/* Contraseña */}
       <Field
         label="Contraseña"
+        icon="lock-outline"
         value={password}
         onChangeText={setPassword}
         secureTextEntry={!visible}
@@ -334,6 +346,9 @@ export function AccountForm({
             ? 'current-password'
             : 'new-password'
         }
+        placeholder="••••••••"
+        secureVisible={visible}
+        onToggleSecure={() => setVisible((current) => !current)}
       />
 
       {/* Confirmar contraseña */}
@@ -345,27 +360,18 @@ export function AccountForm({
 
           <Field
             label="Repite la contraseña"
+            icon="lock-check-outline"
             value={confirm}
             onChangeText={setConfirm}
             secureTextEntry={!visible}
             autoCapitalize="none"
             autoCorrect={false}
+            placeholder="••••••••"
+            secureVisible={visible}
+            onToggleSecure={() => setVisible((current) => !current)}
           />
         </>
       )}
-
-      {/* Mostrar / ocultar contraseña */}
-      <Action
-        secondary
-        label={
-          visible
-            ? 'Ocultar contraseña'
-            : 'Mostrar contraseña'
-        }
-        onPress={() =>
-          setVisible((current) => !current)
-        }
-      />
 
       {/* ============================= */}
       {/* OPCIONES DEL REGISTRO */}
@@ -406,12 +412,12 @@ export function AccountForm({
                   borderWidth: 2,
                   borderColor:
                     role === 'paciente'
-                      ? '#2563EB'
-                      : '#D1D5DB',
+                      ? theme.primary
+                      : theme.border,
                   backgroundColor:
                     role === 'paciente'
-                      ? '#EFF6FF'
-                      : 'transparent',
+                      ? theme.primarySoft
+                      : theme.surface,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -422,8 +428,8 @@ export function AccountForm({
                     fontWeight: '700',
                     color:
                       role === 'paciente'
-                        ? '#2563EB'
-                        : '#6B7280',
+                        ? theme.primary
+                        : theme.mutedText,
                   }}
                 >
                   Paciente
@@ -447,12 +453,12 @@ export function AccountForm({
                   borderWidth: 2,
                   borderColor:
                     role === 'cuidador'
-                      ? '#2563EB'
-                      : '#D1D5DB',
+                      ? theme.primary
+                      : theme.border,
                   backgroundColor:
                     role === 'cuidador'
-                      ? '#EFF6FF'
-                      : 'transparent',
+                      ? theme.primarySoft
+                      : theme.surface,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -463,8 +469,8 @@ export function AccountForm({
                     fontWeight: '700',
                     color:
                       role === 'cuidador'
-                        ? '#2563EB'
-                        : '#6B7280',
+                        ? theme.primary
+                        : theme.mutedText,
                   }}
                 >
                   Cuidador
@@ -500,12 +506,12 @@ export function AccountForm({
                 borderWidth: 2,
                 borderColor:
                   privacyAccepted
-                    ? '#2563EB'
-                    : '#9CA3AF',
+                    ? theme.primary
+                    : theme.border,
                 backgroundColor:
                   privacyAccepted
-                    ? '#2563EB'
-                    : 'transparent',
+                    ? theme.primary
+                    : theme.surface,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -513,7 +519,7 @@ export function AccountForm({
               {privacyAccepted && (
                 <Text
                   style={{
-                    color: '#FFFFFF',
+                    color: theme.onPrimary,
                     fontSize: 14,
                     fontWeight: '900',
                   }}
@@ -540,24 +546,32 @@ export function AccountForm({
 
       {/* Mensajes de error */}
       {!!error && (
-        <Card>
-          <Copy>
-            {error}
-          </Copy>
-        </Card>
+        <View
+          style={{
+            backgroundColor: theme.dangerBackground,
+            borderColor: theme.dangerBorder,
+            borderRadius: 14,
+            borderWidth: 1,
+            padding: 13,
+          }}>
+          <Text style={{ color: theme.danger, fontSize: 13, lineHeight: 19 }}>{error}</Text>
+        </View>
       )}
 
       {/* Acción principal */}
       <Action
         label={
           submitting
-            ? 'Creando cuenta...'
+            ? mode === 'activate'
+              ? 'Activando cuenta...'
+              : 'Creando cuenta...'
             : mode === 'login'
               ? 'Iniciar sesión'
               : mode === 'activate'
                 ? 'Activar cuenta'
                 : 'Crear cuenta'
         }
+        disabled={submitting}
         onPress={submit}
       />
 
@@ -589,13 +603,13 @@ export function AccountForm({
           />
         </>
       ) : (
-        <Action
-          secondary
-          label="Volver a iniciar sesión"
-          onPress={() =>
-            router.replace('/(auth)/login')
-          }
-        />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.replace('/(auth)/login')}
+          style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}>
+          <MaterialCommunityIcons color={theme.primary} name="arrow-left" size={18} />
+          <Text style={[styles.backLinkText, { color: theme.primary }]}>Volver a iniciar sesión</Text>
+        </Pressable>
       )}
 
       {/* Aviso demo solo para flujos demo */}
@@ -610,3 +624,16 @@ export function AccountForm({
     </FlowPage>
   );
 }
+
+const styles = StyleSheet.create({
+  backLink: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  backLinkText: { fontSize: 15, fontWeight: '700' },
+  pressed: { opacity: 0.72 },
+});

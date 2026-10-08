@@ -304,32 +304,6 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.demoArea}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/demo')}
-                style={({ pressed }) => [
-                  styles.demoCard,
-                  { backgroundColor: theme.primarySoft, borderColor: theme.border },
-                  pressed && styles.pressed,
-                ]}>
-                <View style={[styles.demoIcon, { backgroundColor: theme.surfaceMuted }]}>
-                  <MaterialCommunityIcons color={theme.primary} name="play" size={19} />
-                </View>
-
-                <View style={styles.demoCopy}>
-                  <View style={styles.demoTitleRow}>
-                    <Text style={[styles.demoTitle, { color: theme.primary }]}>Probar recorrido de demostración</Text>
-
-                    <MaterialCommunityIcons color={theme.primary} name="chevron-right" size={18} />
-                  </View>
-
-                  <Text style={[styles.demoDescription, { color: theme.mutedText }]}>
-                    Demostración local con datos ficticios. Las cuentas y vínculos se reinician al recargar la app.
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -409,12 +383,5 @@ const styles = StyleSheet.create({
   accountLink: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 30 },
   accountLinkText: { fontSize: 15, fontWeight: '700' },
   linkDivider: { height: 1, marginVertical: 1, width: 48 },
-  demoArea: { marginTop: 'auto', paddingTop: 36 },
-  demoCard: { alignItems: 'flex-start', borderRadius: 24, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 17 },
-  demoIcon: { alignItems: 'center', borderRadius: 22, height: 42, justifyContent: 'center', width: 42 },
-  demoCopy: { flex: 1, gap: 5 },
-  demoTitleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  demoTitle: { flex: 1, fontSize: 14, fontWeight: '800', lineHeight: 19 },
-  demoDescription: { fontSize: 11, fontWeight: '500', lineHeight: 16 },
   pressed: { opacity: 0.72 },
 });
