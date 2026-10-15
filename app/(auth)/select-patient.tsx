@@ -1,74 +1,94 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useRouter } from "expo-router";
 
-import {
-  Action,
-  Card,
-  Copy,
-  FlowPage,
-} from '@/components/flow-ui';
+import { Alert, Platform } from "react-native";
 
-import { useAuth } from '@/hooks/use-auth';
-import { useDemo } from '@/hooks/use-demo';
-import { demo } from '@/services/demo-store';
+import { Action, Card, Copy, FlowPage } from "@/components/flow-ui";
+
+import { useAppState } from "@/hooks/use-app-state";
+import { useAuth } from "@/hooks/use-auth";
+import { useDemo } from "@/hooks/use-demo";
+import { authService } from "@/services/authservice";
 
 export default function SelectPatient() {
   const router = useRouter();
 
-  const {
-    patients,
-    user: demoUser,
-    relations,
-    profiles,
-  } = useDemo();
+  const { user, patients, selectPatient } = useAppState();
 
-  const {
-    user: authUser,
-    authenticated,
-  } = useAuth();
+  const { relations, profiles } = useDemo();
 
-  /*
-   * ---------------------------------------------------------
-   * 1. SESIÓN REAL
-   * ---------------------------------------------------------
-   *
-   * Un usuario autenticado mediante backend no debe utilizar
-   * todavía esta pantalla.
-   *
-   * /me/patients todavía no está conectado al backend.
-   */
-  if (authenticated && authUser) {
-    return <Redirect href="/(tabs)" />;
-  }
+  const { setUser } = useAuth();
 
-  /*
-   * ---------------------------------------------------------
-   * 2. SIN SESIÓN
-   * ---------------------------------------------------------
-   *
-   * select-patient es una pantalla privada del recorrido demo.
-   *
-   * Si Expo Router restaura esta ruta después de cerrar la app,
-   * pero ya no existe usuario demo, volvemos al Login.
-   */
-  if (!demoUser) {
+  if (!user) {
     return <Redirect href="/(auth)/login" />;
   }
 
   /*
-   * ---------------------------------------------------------
-   * 3. SESIÓN DEMO
-   * ---------------------------------------------------------
-   *
-   * A partir de aquí sabemos que existe un usuario demo.
+   * Ejecuta realmente el cierre de sesión.
    */
+  const performLogout = async () => {
+    try {
+      /*
+       * authService.logout() se encarga de:
+       * - cerrar sesión backend cuando corresponde;
+       * - eliminar tokens;
+       * - limpiar authSession;
+       * - limpiar caché;
+       * - limpiar demo-store.
+       */
+      await authService.logout();
+
+      /*
+       * También sincronizamos AuthProvider.
+       */
+      setUser(null);
+
+      router.replace("/(auth)/login");
+    } catch (error) {
+      console.log("Error cerrando sesión:", error);
+
+      if (Platform.OS === "web") {
+        window.alert("No se pudo cerrar la sesión correctamente.");
+      } else {
+        Alert.alert("Error", "No se pudo cerrar la sesión correctamente.");
+      }
+    }
+  };
+
+  /*
+   * Pide confirmación antes de cerrar sesión.
+   */
+  const confirmLogout = () => {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("¿Deseas cerrar tu sesión?");
+
+      if (confirmed) {
+        void performLogout();
+      }
+
+      return;
+    }
+
+    Alert.alert("Cerrar sesión", "¿Deseas cerrar tu sesión?", [
+      {
+        text: "Cancelar",
+        style: "cancel",
+      },
+      {
+        text: "Cerrar sesión",
+        style: "destructive",
+        onPress: () => void performLogout(),
+      },
+    ]);
+  };
+
   return (
     <FlowPage
       title={
         patients.length
-          ? '¿A quién acompañas hoy?'
-          : 'Aún no tienes pacientes vinculados'
+          ? "¿A quién acompañas hoy?"
+          : "Aún no tienes pacientes vinculados"
       }
-      subtitle={`Hola, ${demoUser.name}. Solo puedes acceder a vínculos aprobados.`}
+      subtitle={`Hola, ${user.name}. Solo puedes acceder a vínculos aprobados.`}
     >
       {patients.map((patient) => (
         <Card key={patient.id}>
@@ -77,8 +97,9 @@ export default function SelectPatient() {
           <Action
             label="Acompañar a este paciente"
             onPress={() => {
-              demo.select(patient.id);
-              router.replace('/(tabs)');
+              selectPatient(patient.id);
+
+              router.replace("/(tabs)");
             }}
           />
         </Card>
@@ -87,26 +108,23 @@ export default function SelectPatient() {
       {relations
         .filter(
           (relation) =>
-            relation.caregiverId === demoUser.id &&
-            relation.status !== 'approved'
+            relation.caregiverId === user.id && relation.status !== "approved",
         )
         .map((relation) => {
           const profile = profiles.find(
-            (item) => item.id === relation.patientId
+            (item) => item.id === relation.patientId,
           );
 
           return (
             <Card key={relation.id}>
-              <Copy>
-                {profile?.name ?? 'Paciente'}
-              </Copy>
+              <Copy>{profile?.name ?? "Paciente"}</Copy>
 
               <Copy>
-                {relation.status === 'pending'
-                  ? 'Solicitud pendiente de aprobación. Todavía no tienes acceso a información clínica.'
-                  : relation.status === 'rejected'
-                    ? 'El paciente rechazó la solicitud.'
-                    : 'El paciente retiró tu acceso.'}
+                {relation.status === "pending"
+                  ? "Solicitud pendiente de aprobación. Todavía no tienes acceso a información clínica."
+                  : relation.status === "rejected"
+                    ? "El paciente rechazó la solicitud."
+                    : "El paciente retiró tu acceso."}
               </Copy>
             </Card>
           );
@@ -114,22 +132,15 @@ export default function SelectPatient() {
 
       <Action
         label="Escanear QR o abrir invitación"
-        onPress={() => router.push('/invitacion')}
+        onPress={() => router.push("/invitacion")}
       />
 
-      <Action
-        secondary
-        label="Cerrar sesión"
-        onPress={() => {
-          demo.logout();
-          router.replace('/(auth)/login');
-        }}
-      />
+      <Action secondary label="Cerrar sesión" onPress={confirmLogout} />
 
       <Action
         secondary
         label="Ver guía de demostración"
-        onPress={() => router.push('/demo')}
+        onPress={() => router.push("/demo")}
       />
     </FlowPage>
   );

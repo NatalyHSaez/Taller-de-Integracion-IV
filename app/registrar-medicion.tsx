@@ -1,6 +1,6 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import * as Speech from 'expo-speech';
-import { useMemo, useState } from 'react';
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import * as Speech from "expo-speech";
+import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -9,89 +9,92 @@ import {
   StyleSheet,
   TextInput,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BrandColors, Colors, MeasurementColors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
-import { demo } from '@/services/demo-store';
-import type { MeasurementType } from '@/types/measurement';
-import { useRouter } from 'expo-router';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { BrandColors, Colors, MeasurementColors } from "@/constants/theme";
+import { useAppState } from "@/hooks/use-app-state";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { demo } from "@/services/demo-store";
+import type { MeasurementType } from "@/types/measurement";
+import { useRouter } from "expo-router";
 
-type GlucoseContext = 'fasting' | 'before_meal' | 'after_meal';
+type GlucoseContext = "fasting" | "before_meal" | "after_meal";
 
 type MeasurementOption = {
   value: MeasurementType;
   label: string;
-  icon: 'heart-pulse' | 'water-outline' | 'scale-bathroom';
+  icon: "heart-pulse" | "water-outline" | "scale-bathroom";
 };
 
 const MEASUREMENT_OPTIONS: MeasurementOption[] = [
   {
-    value: 'blood_pressure',
-    label: 'Presión',
-    icon: 'heart-pulse',
+    value: "blood_pressure",
+    label: "Presión",
+    icon: "heart-pulse",
   },
   {
-    value: 'glucose',
-    label: 'Glucosa',
-    icon: 'water-outline',
+    value: "glucose",
+    label: "Glucosa",
+    icon: "water-outline",
   },
   {
-    value: 'weight',
-    label: 'Peso',
-    icon: 'scale-bathroom',
+    value: "weight",
+    label: "Peso",
+    icon: "scale-bathroom",
   },
 ];
 
 const GLUCOSE_CONTEXTS: { value: GlucoseContext; label: string }[] = [
-  { value: 'fasting', label: 'En ayunas' },
-  { value: 'before_meal', label: 'Antes de comer' },
-  { value: 'after_meal', label: 'Después de comer' },
+  { value: "fasting", label: "En ayunas" },
+  { value: "before_meal", label: "Antes de comer" },
+  { value: "after_meal", label: "Después de comer" },
 ];
 
 function formatDate(date: Date) {
-  return new Intl.DateTimeFormat('es-CL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+  return new Intl.DateTimeFormat("es-CL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   }).format(date);
 }
 
 function formatTime(date: Date) {
-  return new Intl.DateTimeFormat('es-CL', {
-    hour: '2-digit',
-    minute: '2-digit',
+  return new Intl.DateTimeFormat("es-CL", {
+    hour: "2-digit",
+    minute: "2-digit",
     hour12: false,
   }).format(date);
 }
 
 function isPositiveNumber(value: string) {
-  const parsed = Number(value.replace(',', '.'));
+  const parsed = Number(value.replace(",", "."));
   return value.trim().length > 0 && Number.isFinite(parsed) && parsed > 0;
 }
 
 export default function RegisterMeasurementScreen() {
   const router = useRouter();
-  const { patient, user } = useDemo();
-  const [saveError, setSaveError] = useState('');
+  const { selectedPatient: patient, user } = useAppState();
+  const [saveError, setSaveError] = useState("");
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const themeName = isDark ? 'dark' : 'light';
+  const isDark = colorScheme === "dark";
+  const themeName = isDark ? "dark" : "light";
   const theme = Colors[themeName];
   const insets = useSafeAreaInsets();
   const now = useMemo(() => new Date(), []);
 
-  const [measurementType, setMeasurementType] = useState<MeasurementType>('blood_pressure');
-  const [systolic, setSystolic] = useState('');
-  const [diastolic, setDiastolic] = useState('');
-  const [heartRate, setHeartRate] = useState('');
-  const [glucose, setGlucose] = useState('');
-  const [glucoseContext, setGlucoseContext] = useState<GlucoseContext | null>(null);
-  const [weight, setWeight] = useState('');
+  const [measurementType, setMeasurementType] =
+    useState<MeasurementType>("blood_pressure");
+  const [systolic, setSystolic] = useState("");
+  const [diastolic, setDiastolic] = useState("");
+  const [heartRate, setHeartRate] = useState("");
+  const [glucose, setGlucose] = useState("");
+  const [glucoseContext, setGlucoseContext] = useState<GlucoseContext | null>(
+    null,
+  );
+  const [weight, setWeight] = useState("");
   const [date, setDate] = useState(formatDate(now));
   const [time, setTime] = useState(formatTime(now));
   const [showReview, setShowReview] = useState(false);
@@ -104,13 +107,17 @@ export default function RegisterMeasurementScreen() {
   const formIsValid =
     date.trim().length > 0 &&
     time.trim().length > 0 &&
-    (measurementType === 'blood_pressure'
-      ? isPositiveNumber(systolic) && isPositiveNumber(diastolic) && isPositiveNumber(heartRate)
-      : measurementType === 'glucose'
+    (measurementType === "blood_pressure"
+      ? isPositiveNumber(systolic) &&
+        isPositiveNumber(diastolic) &&
+        isPositiveNumber(heartRate)
+      : measurementType === "glucose"
         ? isPositiveNumber(glucose) && glucoseContext !== null
         : isPositiveNumber(weight));
 
-  const selectedOption = MEASUREMENT_OPTIONS.find((option) => option.value === measurementType)!;
+  const selectedOption = MEASUREMENT_OPTIONS.find(
+    (option) => option.value === measurementType,
+  )!;
   const selectedColors = MeasurementColors[themeName][measurementType];
 
   function selectMeasurementType(value: MeasurementType) {
@@ -119,76 +126,142 @@ export default function RegisterMeasurementScreen() {
   }
 
   function getSummaryValue() {
-    if (measurementType === 'blood_pressure') {
+    if (measurementType === "blood_pressure") {
       return `${systolic} / ${diastolic} mmHg · ${heartRate} lpm`;
     }
-    if (measurementType === 'glucose') return `${glucose} mg/dL`;
-    return `${weight.replace('.', ',')} kg`;
+    if (measurementType === "glucose") return `${glucose} mg/dL`;
+    return `${weight.replace(".", ",")} kg`;
   }
 
-  const contextLabel = GLUCOSE_CONTEXTS.find((item) => item.value === glucoseContext)?.label;
+  const contextLabel = GLUCOSE_CONTEXTS.find(
+    (item) => item.value === glucoseContext,
+  )?.label;
   function save() {
-    if (!showReview) { setShowReview(true); return; }
+    if (!showReview) {
+      setShowReview(true);
+      return;
+    }
     try {
       const [day, month, year] = date.split(/[/-]/).map(Number);
-      const [hour, minute] = time.split(':').map(Number);
+      const [hour, minute] = time.split(":").map(Number);
       const measured = new Date(year, month - 1, day, hour, minute);
-      if (!/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(date) || !/^\d{2}:\d{2}$/.test(time) || measured.getFullYear() !== year || measured.getMonth() !== month - 1 || measured.getDate() !== day || hour > 23 || minute > 59 || !Number.isFinite(measured.getTime()) || measured.getTime() > Date.now()) throw new Error('Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.');
-      const number = (value: string) => Number(value.replace(',', '.'));
-      const base = { id: '', measuredAt: measured.toISOString() };
-      demo.save(measurementType === 'blood_pressure' ? { ...base, type: 'blood_pressure', systolic: number(systolic), diastolic: number(diastolic), heartRate: number(heartRate) } : measurementType === 'glucose' ? { ...base, type: 'glucose', value: number(glucose), unit: 'mg/dL', context: contextLabel } : { ...base, type: 'weight', value: number(weight), unit: 'kg' });
+      if (
+        !/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(date) ||
+        !/^\d{2}:\d{2}$/.test(time) ||
+        measured.getFullYear() !== year ||
+        measured.getMonth() !== month - 1 ||
+        measured.getDate() !== day ||
+        hour > 23 ||
+        minute > 59 ||
+        !Number.isFinite(measured.getTime()) ||
+        measured.getTime() > Date.now()
+      )
+        throw new Error(
+          "Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.",
+        );
+      const number = (value: string) => Number(value.replace(",", "."));
+      const base = { id: "", measuredAt: measured.toISOString() };
+      demo.save(
+        measurementType === "blood_pressure"
+          ? {
+              ...base,
+              type: "blood_pressure",
+              systolic: number(systolic),
+              diastolic: number(diastolic),
+              heartRate: number(heartRate),
+            }
+          : measurementType === "glucose"
+            ? {
+                ...base,
+                type: "glucose",
+                value: number(glucose),
+                unit: "mg/dL",
+                context: contextLabel,
+              }
+            : { ...base, type: "weight", value: number(weight), unit: "kg" },
+      );
 
       if (demo.snapshot().vozActiva) {
         const detalle =
-          measurementType === 'blood_pressure'
+          measurementType === "blood_pressure"
             ? `Presión arterial: ${systolic} sobre ${diastolic}, frecuencia cardíaca ${heartRate}`
-            : measurementType === 'glucose'
+            : measurementType === "glucose"
               ? `Glucosa: ${glucose} miligramos por decilitro`
-              : `Peso: ${weight.replace('.', ',')} kilos`;
-        const diaSemana = measured.toLocaleDateString('es-CL', { weekday: 'long' });
-        const fecha = measured.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' });
-        const hora = measured.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+              : `Peso: ${weight.replace(".", ",")} kilos`;
+        const diaSemana = measured.toLocaleDateString("es-CL", {
+          weekday: "long",
+        });
+        const fecha = measured.toLocaleDateString("es-CL", {
+          day: "numeric",
+          month: "long",
+        });
+        const hora = measured.toLocaleTimeString("es-CL", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
         Speech.speak(
           `Datos registrados correctamente. ${detalle}. ${diaSemana} ${fecha}, a las ${hora}.`,
-          { language: 'es-CL', volume: demo.snapshot().vozVolumen }
+          { language: "es-CL", volume: demo.snapshot().vozVolumen },
         );
       }
 
-      router.replace(demo.permissions().read ? '/historial' : '/(tabs)');
-    } catch (e) { setSaveError((e as Error).message); }
+      router.replace(demo.permissions().read ? "/historial" : "/(tabs)");
+    } catch (e) {
+      setSaveError((e as Error).message);
+    }
   }
 
   return (
     <ThemedView style={styles.screen}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.screen}>
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.screen}
+      >
         <ScrollView
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom + 24, 36) },
           ]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <ThemedText>Paciente: {patient?.name} · Registra: {user?.name}</ThemedText>
+          showsVerticalScrollIndicator={false}
+        >
+          <ThemedText>
+            Paciente: {patient?.name} · Registra: {user?.name}
+          </ThemedText>
           {!!saveError && <ThemedText>{saveError}</ThemedText>}
           <View style={styles.hero}>
             <View style={styles.heroDecorationTop} />
             <View style={styles.heroDecorationBottom} />
             <View style={styles.heroIcon}>
-              <MaterialCommunityIcons name="heart-plus" size={31} color={BrandColors.onPrimary} />
+              <MaterialCommunityIcons
+                name="heart-plus"
+                size={31}
+                color={BrandColors.onPrimary}
+              />
             </View>
-            <ThemedText lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary} style={styles.heroTitle}>
+            <ThemedText
+              lightColor={BrandColors.onPrimary}
+              darkColor={BrandColors.onPrimary}
+              style={styles.heroTitle}
+            >
               Nueva medición
             </ThemedText>
-            <ThemedText lightColor={BrandColors.onPrimaryMuted} darkColor={BrandColors.onPrimaryMuted} style={styles.heroDescription}>
+            <ThemedText
+              lightColor={BrandColors.onPrimaryMuted}
+              darkColor={BrandColors.onPrimaryMuted}
+              style={styles.heroDescription}
+            >
               Ingresa los datos tal como aparecen en tu dispositivo de medición.
             </ThemedText>
           </View>
 
           <View style={styles.sectionHeading}>
             <View style={styles.stepBadge}>
-              <ThemedText lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary} style={styles.stepBadgeText}>
+              <ThemedText
+                lightColor={BrandColors.onPrimary}
+                darkColor={BrandColors.onPrimary}
+                style={styles.stepBadgeText}
+              >
                 1
               </ThemedText>
             </View>
@@ -212,15 +285,29 @@ export default function RegisterMeasurementScreen() {
                     styles.typeCard,
                     {
                       backgroundColor: surfaceColor,
-                      borderColor: isSelected ? optionColors.accent : borderColor,
+                      borderColor: isSelected
+                        ? optionColors.accent
+                        : borderColor,
                     },
                     isSelected && styles.typeCardSelected,
                     pressed && styles.pressed,
-                  ]}>
-                  <View style={[styles.typeIcon, { backgroundColor: optionColors.background }]}> 
-                    <MaterialCommunityIcons name={option.icon} size={25} color={optionColors.accent} />
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.typeIcon,
+                      { backgroundColor: optionColors.background },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={option.icon}
+                      size={25}
+                      color={optionColors.accent}
+                    />
                   </View>
-                  <ThemedText style={styles.typeLabel}>{option.label}</ThemedText>
+                  <ThemedText style={styles.typeLabel}>
+                    {option.label}
+                  </ThemedText>
                   {isSelected && (
                     <MaterialCommunityIcons
                       name="check-circle"
@@ -236,7 +323,11 @@ export default function RegisterMeasurementScreen() {
 
           <View style={styles.sectionHeading}>
             <View style={styles.stepBadge}>
-              <ThemedText lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary} style={styles.stepBadgeText}>
+              <ThemedText
+                lightColor={BrandColors.onPrimary}
+                darkColor={BrandColors.onPrimary}
+                style={styles.stepBadgeText}
+              >
                 2
               </ThemedText>
             </View>
@@ -245,8 +336,13 @@ export default function RegisterMeasurementScreen() {
             </ThemedText>
           </View>
 
-          <View style={[styles.formCard, { backgroundColor: surfaceColor, borderColor }]}>
-            {measurementType === 'blood_pressure' && (
+          <View
+            style={[
+              styles.formCard,
+              { backgroundColor: surfaceColor, borderColor },
+            ]}
+          >
+            {measurementType === "blood_pressure" && (
               <>
                 <View style={styles.twoColumns}>
                   <MeasurementInput
@@ -286,7 +382,7 @@ export default function RegisterMeasurementScreen() {
               </>
             )}
 
-            {measurementType === 'glucose' && (
+            {measurementType === "glucose" && (
               <>
                 <MeasurementInput
                   label="Glucosa"
@@ -300,11 +396,16 @@ export default function RegisterMeasurementScreen() {
                   placeholderColor={theme.placeholder}
                 />
                 <View style={styles.fieldGroup}>
-                  <ThemedText style={styles.inputLabel}>Contexto de la medición</ThemedText>
+                  <ThemedText style={styles.inputLabel}>
+                    Contexto de la medición
+                  </ThemedText>
                   <ThemedText style={[styles.fieldHelp, { color: theme.icon }]}>
                     Necesario para interpretar correctamente la glucosa.
                   </ThemedText>
-                  <View accessibilityRole="radiogroup" style={styles.contextOptions}>
+                  <View
+                    accessibilityRole="radiogroup"
+                    style={styles.contextOptions}
+                  >
                     {GLUCOSE_CONTEXTS.map((item) => {
                       const isSelected = glucoseContext === item.value;
                       return (
@@ -316,15 +417,28 @@ export default function RegisterMeasurementScreen() {
                           style={({ pressed }) => [
                             styles.contextButton,
                             {
-                              backgroundColor: isSelected ? accentColor : inputColor,
-                              borderColor: isSelected ? accentColor : borderColor,
+                              backgroundColor: isSelected
+                                ? accentColor
+                                : inputColor,
+                              borderColor: isSelected
+                                ? accentColor
+                                : borderColor,
                             },
                             pressed && styles.pressed,
-                          ]}>
+                          ]}
+                        >
                           <ThemedText
-                            lightColor={isSelected ? theme.onPrimary : theme.text}
-                            darkColor={isSelected ? theme.onPrimary : theme.text}
-                            style={[styles.contextLabel, isSelected && styles.contextLabelSelected]}>
+                            lightColor={
+                              isSelected ? theme.onPrimary : theme.text
+                            }
+                            darkColor={
+                              isSelected ? theme.onPrimary : theme.text
+                            }
+                            style={[
+                              styles.contextLabel,
+                              isSelected && styles.contextLabelSelected,
+                            ]}
+                          >
                             {item.label}
                           </ThemedText>
                         </Pressable>
@@ -335,7 +449,7 @@ export default function RegisterMeasurementScreen() {
               </>
             )}
 
-            {measurementType === 'weight' && (
+            {measurementType === "weight" && (
               <MeasurementInput
                 label="Peso"
                 value={weight}
@@ -353,7 +467,11 @@ export default function RegisterMeasurementScreen() {
 
           <View style={styles.sectionHeading}>
             <View style={styles.stepBadge}>
-              <ThemedText lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary} style={styles.stepBadgeText}>
+              <ThemedText
+                lightColor={BrandColors.onPrimary}
+                darkColor={BrandColors.onPrimary}
+                style={styles.stepBadgeText}
+              >
                 3
               </ThemedText>
             </View>
@@ -362,11 +480,26 @@ export default function RegisterMeasurementScreen() {
             </ThemedText>
           </View>
 
-          <View style={[styles.formCard, styles.dateCard, { backgroundColor: surfaceColor, borderColor }]}>
+          <View
+            style={[
+              styles.formCard,
+              styles.dateCard,
+              { backgroundColor: surfaceColor, borderColor },
+            ]}
+          >
             <View style={styles.dateField}>
               <ThemedText style={styles.inputLabel}>Fecha</ThemedText>
-              <View style={[styles.inputShell, { backgroundColor: inputColor, borderColor }]}>
-                <MaterialCommunityIcons name="calendar-outline" size={21} color={accentColor} />
+              <View
+                style={[
+                  styles.inputShell,
+                  { backgroundColor: inputColor, borderColor },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="calendar-outline"
+                  size={21}
+                  color={accentColor}
+                />
                 <TextInput
                   accessibilityLabel="Fecha de la medición"
                   onChangeText={setDate}
@@ -379,8 +512,17 @@ export default function RegisterMeasurementScreen() {
             </View>
             <View style={styles.timeField}>
               <ThemedText style={styles.inputLabel}>Hora</ThemedText>
-              <View style={[styles.inputShell, { backgroundColor: inputColor, borderColor }]}>
-                <MaterialCommunityIcons name="clock-outline" size={21} color={accentColor} />
+              <View
+                style={[
+                  styles.inputShell,
+                  { backgroundColor: inputColor, borderColor },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="clock-outline"
+                  size={21}
+                  color={accentColor}
+                />
                 <TextInput
                   accessibilityLabel="Hora de la medición"
                   onChangeText={setTime}
@@ -394,8 +536,21 @@ export default function RegisterMeasurementScreen() {
           </View>
 
           {showReview && formIsValid && (
-            <View style={[styles.reviewCard, { backgroundColor: surfaceColor, borderColor: selectedColors.accent }]}> 
-              <View style={[styles.reviewIcon, { backgroundColor: selectedColors.background }]}> 
+            <View
+              style={[
+                styles.reviewCard,
+                {
+                  backgroundColor: surfaceColor,
+                  borderColor: selectedColors.accent,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.reviewIcon,
+                  { backgroundColor: selectedColors.background },
+                ]}
+              >
                 <MaterialCommunityIcons
                   name={selectedOption.icon}
                   size={25}
@@ -403,11 +558,19 @@ export default function RegisterMeasurementScreen() {
                 />
               </View>
               <View style={styles.reviewCopy}>
-                <ThemedText style={styles.reviewEyebrow}>REVISA ANTES DE GUARDAR</ThemedText>
-                <ThemedText style={styles.reviewTitle}>{selectedOption.label}</ThemedText>
-                <ThemedText style={styles.reviewValue}>{getSummaryValue()}</ThemedText>
+                <ThemedText style={styles.reviewEyebrow}>
+                  REVISA ANTES DE GUARDAR
+                </ThemedText>
+                <ThemedText style={styles.reviewTitle}>
+                  {selectedOption.label}
+                </ThemedText>
+                <ThemedText style={styles.reviewValue}>
+                  {getSummaryValue()}
+                </ThemedText>
                 {contextLabel && (
-                  <ThemedText style={[styles.reviewMeta, { color: theme.icon }]}>
+                  <ThemedText
+                    style={[styles.reviewMeta, { color: theme.icon }]}
+                  >
                     {contextLabel}
                   </ThemedText>
                 )}
@@ -427,21 +590,31 @@ export default function RegisterMeasurementScreen() {
               styles.submitButton,
               { backgroundColor: formIsValid ? accentColor : theme.disabled },
               pressed && formIsValid && styles.pressed,
-            ]}>
-            <ThemedText lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary} style={styles.submitLabel}>
-              {showReview ? 'Guardar medición' : 'Revisar medición'}
+            ]}
+          >
+            <ThemedText
+              lightColor={BrandColors.onPrimary}
+              darkColor={BrandColors.onPrimary}
+              style={styles.submitLabel}
+            >
+              {showReview ? "Guardar medición" : "Revisar medición"}
             </ThemedText>
             <MaterialCommunityIcons
-              name={showReview ? 'check-circle-outline' : 'arrow-right'}
+              name={showReview ? "check-circle-outline" : "arrow-right"}
               size={22}
               color={BrandColors.onPrimary}
             />
           </Pressable>
 
           <View style={styles.integrationNote}>
-            <MaterialCommunityIcons name="shield-check-outline" size={19} color={theme.icon} />
+            <MaterialCommunityIcons
+              name="shield-check-outline"
+              size={19}
+              color={theme.icon}
+            />
             <ThemedText style={[styles.integrationText, { color: theme.icon }]}>
-              Verifica que los valores coincidan con tu dispositivo antes de continuar.
+              Verifica que los valores coincidan con tu dispositivo antes de
+              continuar.
             </ThemedText>
           </View>
         </ScrollView>
@@ -478,10 +651,15 @@ function MeasurementInput({
   return (
     <View style={styles.measurementField}>
       <ThemedText style={styles.inputLabel}>{label}</ThemedText>
-      <View style={[styles.measurementInputShell, { backgroundColor: inputColor, borderColor }]}>
+      <View
+        style={[
+          styles.measurementInputShell,
+          { backgroundColor: inputColor, borderColor },
+        ]}
+      >
         <TextInput
           accessibilityLabel={`${label} en ${unit}`}
-          keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
+          keyboardType={decimal ? "decimal-pad" : "number-pad"}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={placeholderColor}
@@ -505,16 +683,16 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.primary,
     borderRadius: 22,
     minHeight: 188,
-    overflow: 'hidden',
+    overflow: "hidden",
     padding: 20,
-    position: 'relative',
+    position: "relative",
   },
   heroDecorationTop: {
     backgroundColor: BrandColors.heroHighlight,
     borderRadius: 80,
     height: 160,
     opacity: 0.5,
-    position: 'absolute',
+    position: "absolute",
     right: -52,
     top: -72,
     width: 160,
@@ -526,22 +704,22 @@ const styles = StyleSheet.create({
     height: 130,
     left: -42,
     opacity: 0.3,
-    position: 'absolute',
+    position: "absolute",
     width: 130,
   },
   heroIcon: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: BrandColors.overlayStrong,
     borderColor: BrandColors.overlayBorderStrong,
     borderRadius: 13,
     borderWidth: StyleSheet.hairlineWidth,
     height: 52,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 52,
   },
   heroTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: "800",
     lineHeight: 32,
     marginTop: 13,
   },
@@ -552,30 +730,30 @@ const styles = StyleSheet.create({
     maxWidth: 310,
   },
   sectionHeading: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: 9,
   },
   stepBadge: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: BrandColors.primary,
     borderRadius: 10,
     height: 28,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 28,
   },
-  stepBadgeText: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
-  sectionTitle: { fontSize: 19, fontWeight: '700', lineHeight: 25 },
-  typeRow: { flexDirection: 'row', gap: 9 },
+  stepBadgeText: { fontSize: 14, fontWeight: "800", lineHeight: 18 },
+  sectionTitle: { fontSize: 19, fontWeight: "700", lineHeight: 25 },
+  typeRow: { flexDirection: "row", gap: 9 },
   typeCard: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 15,
     borderWidth: 1,
     flex: 1,
     gap: 7,
     minHeight: 112,
     padding: 12,
-    position: 'relative',
+    position: "relative",
   },
   typeCardSelected: {
     shadowColor: BrandColors.shadow,
@@ -585,14 +763,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   typeIcon: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 11,
     height: 45,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 45,
   },
-  typeLabel: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
-  checkIcon: { position: 'absolute', right: 7, top: 7 },
+  typeLabel: { fontSize: 14, fontWeight: "700", lineHeight: 19 },
+  checkIcon: { position: "absolute", right: 7, top: 7 },
   formCard: {
     borderRadius: 17,
     borderWidth: StyleSheet.hairlineWidth,
@@ -604,28 +782,33 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 1,
   },
-  twoColumns: { flexDirection: 'row', gap: 12 },
+  twoColumns: { flexDirection: "row", gap: 12 },
   measurementField: { flex: 1, gap: 7 },
   fieldGroup: { gap: 7 },
-  inputLabel: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
+  inputLabel: { fontSize: 15, fontWeight: "700", lineHeight: 20 },
   fieldHelp: { fontSize: 13, lineHeight: 19 },
   measurementInputShell: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
+    flexDirection: "row",
     minHeight: 58,
     paddingHorizontal: 13,
   },
   measurementInput: {
     flex: 1,
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     minWidth: 48,
     paddingVertical: 12,
   },
-  unit: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
-  contextOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 3 },
+  unit: { fontSize: 13, fontWeight: "600", lineHeight: 18 },
+  contextOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 3,
+  },
   contextButton: {
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
@@ -633,55 +816,70 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  contextLabel: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
-  contextLabelSelected: { fontWeight: '700' },
-  dateCard: { flexDirection: 'row', gap: 12 },
+  contextLabel: { fontSize: 14, fontWeight: "500", lineHeight: 20 },
+  contextLabelSelected: { fontWeight: "700" },
+  dateCard: { flexDirection: "row", gap: 12 },
   dateField: { flex: 1.45, gap: 7 },
   timeField: { flex: 1, gap: 7 },
   inputShell: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     minHeight: 54,
     paddingHorizontal: 12,
   },
-  dateInput: { flex: 1, fontSize: 15, fontWeight: '600', paddingVertical: 10 },
+  dateInput: { flex: 1, fontSize: 15, fontWeight: "600", paddingVertical: 10 },
   reviewCard: {
     borderRadius: 17,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 13,
     padding: 16,
   },
   reviewIcon: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 11,
     height: 46,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 46,
   },
   reviewCopy: { flex: 1 },
-  reviewEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, lineHeight: 15 },
-  reviewTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22, marginTop: 2 },
-  reviewValue: { fontSize: 21, fontWeight: '800', lineHeight: 27, marginTop: 2 },
+  reviewEyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    lineHeight: 15,
+  },
+  reviewTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
+    marginTop: 2,
+  },
+  reviewValue: {
+    fontSize: 21,
+    fontWeight: "800",
+    lineHeight: 27,
+    marginTop: 2,
+  },
   reviewMeta: { fontSize: 14, lineHeight: 20, marginTop: 2 },
   submitButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 14,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 9,
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: 56,
     paddingHorizontal: 18,
   },
-  submitLabel: { fontSize: 17, fontWeight: '800', lineHeight: 23 },
+  submitLabel: { fontSize: 17, fontWeight: "800", lineHeight: 23 },
   integrationNote: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
+    alignItems: "flex-start",
+    flexDirection: "row",
     gap: 8,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 12,
   },
   integrationText: { flex: 1, fontSize: 13, lineHeight: 19 },

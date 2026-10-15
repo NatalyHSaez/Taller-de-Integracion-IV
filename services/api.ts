@@ -1,243 +1,328 @@
+import { API_V1_URL } from "@/config/api";
 import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
   saveTokens,
-} from '@/services/token-storage';
-import { Platform } from 'react-native';
+} from "@/services/token-storage";
+import type {
+  AuthTokensResponse,
+  CurrentUserResponse,
+  RegisterRequest,
+  UUID,
+} from "@/types/api";
+import { ApiError, apiErrorFromResponse, normalizeApiError } from "./errors";
 
-/**
- * EXPO_PUBLIC_API_URL es opcional:
- * - Expo Go en un teléfono físico: se configura con la IP del computador.
- * - Android Emulator: si se omite, usamos 10.0.2.2.
- * - Web/iOS Simulator: si se omite, usamos localhost.
- *
- * La variable puede incluir o no el sufijo /api/v1.
- */
-const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-const fallbackApiUrl = Platform.OS === 'android'
-  ? 'http://10.0.2.2:8000'
-  : 'http://localhost:8000';
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-function withApiVersion(url: string): string {
-  const normalizedUrl = url.replace(/\/+$/, '');
+export type QueryValue = string | number | boolean | null | undefined;
 
-  return normalizedUrl.endsWith('/api/v1')
-    ? normalizedUrl
-    : `${normalizedUrl}/api/v1`;
-}
+export type QueryParams = Record<string, QueryValue>;
 
-export const API_BASE_URL = withApiVersion(configuredApiUrl || fallbackApiUrl);
+export type ApiRequestOptions = {
+  query?: QueryParams;
+  body?: unknown;
+  headers?: HeadersInit;
 
-if (__DEV__) {
-  console.log(`[api] Backend: ${API_BASE_URL}`);
-}
-/**
- * Tokens entregados por el backend.
- */
-export type AuthTokens = {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-};
-
-/**
- * Usuario autenticado.
- */
-export type AuthUser = {
-  id?: string;
-  correo?: string;
-  email?: string;
-  nombre?: string;
-  apellido?: string;
-  nombre_completo?: string;
-  roles?: string[];
-  rol?: string;
-  [key: string]: unknown;
-};
-
-/**
- * Datos necesarios para registrar una cuenta.
- */
-export type RegisterData = {
-  nombre_completo: string;
-  correo: string;
-  password: string;
-  rol: string;
-};
-
-/**
- * Respuesta del registro.
- *
- * Se deja flexible porque el backend puede devolver
- * información adicional del usuario creado.
- */
-export type RegisterResponse = {
-  id?: string;
-  nombre_completo?: string;
-  correo?: string;
-  rol?: string;
-  roles?: string[];
-  message?: string;
-  [key: string]: unknown;
-};
-
-/**
- * Intenta obtener un mensaje entendible desde una respuesta
- * de error del backend.
- */
-async function getErrorMessage(response: Response): Promise<string> {
-  try {
-    const data = await response.json();
-
-    if (typeof data?.detail === 'string') {
-      return data.detail;
-    }
-
-    if (typeof data?.message === 'string') {
-      return data.message;
-    }
-
-    if (typeof data?.error === 'string') {
-      return data.error;
-    }
-  } catch {
-    // La respuesta no contenía JSON.
-  }
-
-  if (response.status === 400) {
-    return 'Los datos enviados no son válidos.';
-  }
-
-  if (response.status === 401) {
-    return 'Correo o contraseña incorrectos.';
-  }
-
-  if (response.status === 403) {
-    return 'No tienes permisos para realizar esta acción.';
-  }
-
-  if (response.status === 409) {
-    return 'Ya existe una cuenta asociada a ese correo electrónico.';
-  }
-
-  if (response.status === 422) {
-    return 'Revisa los datos ingresados. Uno o más campos no son válidos.';
-  }
-
-  if (response.status >= 500) {
-    return 'El servidor no está disponible en este momento.';
-  }
-
-  return `Error de conexión con el servidor (${response.status}).`;
-}
-
-/**
- * Registra una nueva cuenta contra el backend real.
- */
-export async function register(
-  data: RegisterData
-): Promise<RegisterResponse> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE_URL}/auth/registro`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        nombre_completo: data.nombre_completo.trim(),
-        correo: data.correo.trim().toLowerCase(),
-        password: data.password,
-        rol: data.rol,
-      }),
-    });
-  } catch {
-    throw new Error(
-      'No se pudo conectar con el servidor. Verifica que Docker esté encendido y que el teléfono esté en la misma red Wi-Fi.'
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
-  }
-
-  /*
-   * Algunos endpoints pueden responder 201 sin contenido.
-   * Intentamos leer JSON, pero si no existe devolvemos un objeto vacío.
+  /**
+   * Por defecto las solicitudes intentan
+   * adjuntar Authorization.
+   *
+   * Login, registro, refresh, etc. usan:
+   * auth: false
    */
-  try {
-    return (await response.json()) as RegisterResponse;
-  } catch {
-    return {};
-  }
+  auth?: boolean;
+
+  /**
+   * Permite entregar un token explícitamente.
+   */
+  accessToken?: string | null;
+
+  timeoutMs?: number;
+  signal?: AbortSignal;
+};
+
+export type AccessTokenProvider = () =>
+  | string
+  | null
+  | undefined
+  | Promise<string | null | undefined>;
+
+/*
+ * Alias para mantener compatibilidad con
+ * componentes agregados por Sebastián.
+ */
+export type AuthTokens = AuthTokensResponse;
+
+export type AuthUser = CurrentUserResponse;
+
+export type RegisterData = RegisterRequest;
+
+export type RegisterResponse = CurrentUserResponse | Record<string, unknown>;
+
+const DEFAULT_TIMEOUT_MS = 15_000;
+const API_PREFIX = "/api/v1";
+
+/*
+ * Sebastián utilizaba API_BASE_URL para
+ * representar la URL ya versionada.
+ *
+ * Conservamos el export para evitar romper
+ * imports existentes.
+ */
+export const API_BASE_URL = API_V1_URL;
+
+/*
+ * Por defecto recuperamos el token desde
+ * SecureStore/localStorage.
+ *
+ * auth-session podrá reemplazar este proveedor
+ * mientras exista una sesión activa.
+ */
+let accessTokenProvider: AccessTokenProvider = () => getAccessToken();
+
+export function setApiAccessTokenProvider(provider: AccessTokenProvider): void {
+  accessTokenProvider = provider;
 }
 
-/**
- * Inicia sesión contra el Gateway real.
- */
-export async function login(
-  correo: string,
-  password: string
-): Promise<AuthTokens> {
-  let response: Response;
+export function clearApiAccessTokenProvider(): void {
+  accessTokenProvider = () => getAccessToken();
+}
 
-  try {
-    response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+function createCorrelationId(): UUID {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+    /[xy]/g,
+    (character) => {
+      const random = Math.floor(Math.random() * 16);
+
+      const value = character === "x" ? random : (random & 0x3) | 0x8;
+
+      return value.toString(16);
+    },
+  );
+}
+
+function requireApiBaseUrl(): string {
+  if (!API_V1_URL) {
+    throw new ApiError({
+      code: "API_NOT_CONFIGURED",
+
+      message: "La URL del API Gateway no está configurada.",
+
+      details: {
+        variable: "EXPO_PUBLIC_API_URL",
       },
-      body: JSON.stringify({
-        correo: correo.trim().toLowerCase(),
-        password,
-      }),
     });
-  } catch {
-    throw new Error(
-      'No se pudo conectar con el servidor. Verifica que Docker esté encendido y que el teléfono esté en la misma red Wi-Fi.'
-    );
   }
 
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
+  return API_V1_URL;
+}
+
+/*
+ * Se aceptan:
+ *
+ * /auth/login
+ *
+ * o:
+ *
+ * /api/v1/auth/login
+ *
+ * pero nunca una URL absoluta dirigida
+ * directamente a un microservicio.
+ */
+function normalizePath(path: string): string {
+  let trimmed = path.trim();
+
+  if (!trimmed || trimmed === "/" || trimmed === API_PREFIX) {
+    return "";
   }
 
-  const data = (await response.json()) as AuthTokens;
+  if (/^https?:\/\//i.test(trimmed)) {
+    throw new ApiError({
+      code: "INVALID_API_PATH",
 
-  if (!data.access_token || !data.refresh_token) {
-    throw new Error('El servidor devolvió una sesión inválida.');
+      message: "La ruta de la API debe ser relativa al API Gateway.",
+
+      details: {
+        path: trimmed,
+      },
+    });
   }
 
-  await saveTokens(
-    data.access_token,
-    data.refresh_token
+  if (!trimmed.startsWith("/")) {
+    trimmed = `/${trimmed}`;
+  }
+
+  if (trimmed === API_PREFIX) {
+    return "";
+  }
+
+  if (trimmed.startsWith(`${API_PREFIX}/`)) {
+    trimmed = trimmed.slice(API_PREFIX.length);
+  }
+
+  return trimmed;
+}
+
+function buildUrl(path: string, query?: QueryParams): string {
+  const baseUrl = requireApiBaseUrl();
+
+  const url = `${baseUrl}${normalizePath(path)}`;
+
+  if (!query) {
+    return url;
+  }
+
+  const entries = Object.entries(query).filter(
+    ([, value]) => value !== undefined && value !== null,
   );
 
-  return data;
+  if (entries.length === 0) {
+    return url;
+  }
+
+  const search = entries
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+    )
+    .join("&");
+
+  return `${url}?${search}`;
 }
 
-/**
- * Obtiene un nuevo access token usando el refresh token.
- *
- * El backend rota el refresh token, por lo que guardamos
- * ambos tokens nuevos.
+function isFormData(value: unknown): value is FormData {
+  return typeof FormData !== "undefined" && value instanceof FormData;
+}
+
+function isBlob(value: unknown): value is Blob {
+  return typeof Blob !== "undefined" && value instanceof Blob;
+}
+
+function isArrayBuffer(value: unknown): value is ArrayBuffer {
+  return typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer;
+}
+
+function prepareBody(body: unknown): BodyInit | undefined {
+  if (body === undefined || body === null) {
+    return undefined;
+  }
+
+  if (
+    typeof body === "string" ||
+    isFormData(body) ||
+    isBlob(body) ||
+    isArrayBuffer(body)
+  ) {
+    return body;
+  }
+
+  return JSON.stringify(body);
+}
+
+async function resolveAccessToken(
+  explicitToken: string | null | undefined,
+): Promise<string | null> {
+  if (explicitToken !== undefined) {
+    return explicitToken;
+  }
+
+  const provided = await accessTokenProvider();
+
+  return provided ?? null;
+}
+
+async function buildHeaders(
+  body: unknown,
+  options: ApiRequestOptions,
+): Promise<Headers> {
+  const headers = new Headers(options.headers);
+
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
+  if (!headers.has("X-Correlation-ID")) {
+    headers.set("X-Correlation-ID", createCorrelationId());
+  }
+
+  if (
+    body !== undefined &&
+    body !== null &&
+    !isFormData(body) &&
+    !headers.has("Content-Type")
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (options.auth !== false && !headers.has("Authorization")) {
+    const token = await resolveAccessToken(options.accessToken);
+
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  return headers;
+}
+
+async function parseSuccessfulResponse<T>(response: Response): Promise<T> {
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new ApiError({
+        code: "INVALID_API_RESPONSE",
+
+        message: "El servidor devolvió una respuesta JSON inválida.",
+
+        details: {
+          status: response.status,
+        },
+
+        status: response.status,
+      });
+    }
+  }
+
+  return text as T;
+}
+
+/*
+ * Renovación del access token utilizando el
+ * refresh token almacenado con SecureStore.
  */
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = await getRefreshToken();
 
-  if (!refreshToken) {
+  if (!refreshToken || !API_V1_URL) {
     return null;
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
+    const response = await fetch(`${API_V1_URL}/auth/refresh`, {
+      method: "POST",
+
       headers: {
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+
+        "Content-Type": "application/json",
+
+        "X-Correlation-ID": createCorrelationId(),
       },
+
       body: JSON.stringify({
         refresh_token: refreshToken,
       }),
@@ -248,123 +333,329 @@ export async function refreshAccessToken(): Promise<string | null> {
       return null;
     }
 
-    const data = (await response.json()) as AuthTokens;
+    const tokens = await parseSuccessfulResponse<AuthTokensResponse>(response);
 
-    if (!data.access_token || !data.refresh_token) {
+    if (!tokens?.access_token || !tokens?.refresh_token) {
       await clearTokens();
       return null;
     }
 
-    await saveTokens(
-      data.access_token,
-      data.refresh_token
-    );
+    await saveTokens(tokens.access_token, tokens.refresh_token);
 
-    return data.access_token;
+    return tokens.access_token;
   } catch {
     return null;
   }
 }
 
-/**
- * Peticiones autenticadas.
+async function executeFetch(
+  method: HttpMethod,
+  path: string,
+  options: ApiRequestOptions,
+  signal: AbortSignal,
+  accessTokenOverride?: string | null,
+): Promise<Response> {
+  const headers = await buildHeaders(options.body, {
+    ...options,
+
+    accessToken:
+      accessTokenOverride !== undefined
+        ? accessTokenOverride
+        : options.accessToken,
+  });
+
+  return fetch(buildUrl(path, options.query), {
+    method,
+
+    headers,
+
+    body: prepareBody(options.body),
+
+    signal,
+  });
+}
+
+/*
+ * Cliente HTTP central.
  *
- * Si el access token expiró:
- * 1. intenta renovarlo;
- * 2. guarda los tokens nuevos;
- * 3. repite una vez la petición original.
+ * Mantiene:
+ * - API Gateway;
+ * - Bearer token;
+ * - SecureStore;
+ * - X-Correlation-ID;
+ * - timeout;
+ * - cancelación;
+ * - ApiError;
+ * - refresh automático ante 401.
+ */
+export async function apiRequest<T>(
+  method: HttpMethod,
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const controller = new AbortController();
+
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  let timedOut = false;
+
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const abortFromExternalSignal = () => controller.abort();
+
+  if (options.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener("abort", abortFromExternalSignal, {
+        once: true,
+      });
+    }
+  }
+
+  try {
+    let response = await executeFetch(method, path, options, controller.signal);
+
+    /*
+     * Si expira el access token:
+     * 1. renovamos;
+     * 2. almacenamos tokens nuevos;
+     * 3. repetimos una sola vez.
+     */
+    if (response.status === 401 && options.auth !== false) {
+      const refreshedAccessToken = await refreshAccessToken();
+
+      if (refreshedAccessToken) {
+        response = await executeFetch(
+          method,
+          path,
+          options,
+          controller.signal,
+          refreshedAccessToken,
+        );
+      }
+    }
+
+    if (!response.ok) {
+      throw await apiErrorFromResponse(response);
+    }
+
+    return await parseSuccessfulResponse<T>(response);
+  } catch (cause) {
+    if (cause instanceof ApiError) {
+      throw cause;
+    }
+
+    if (cause instanceof Error && cause.name === "AbortError") {
+      if (timedOut) {
+        throw new ApiError({
+          code: "REQUEST_TIMEOUT",
+
+          message: "La solicitud tardó demasiado tiempo en responder.",
+
+          details: {
+            timeoutMs,
+          },
+        });
+      }
+
+      throw new ApiError({
+        code: "REQUEST_CANCELLED",
+
+        message: "La solicitud fue cancelada.",
+
+        details: {},
+      });
+    }
+
+    const normalized = normalizeApiError(
+      cause,
+      "No fue posible comunicarse con el servidor.",
+    );
+
+    throw new ApiError({
+      code:
+        normalized.code === "CLIENT_ERROR" ? "NETWORK_ERROR" : normalized.code,
+
+      message:
+        normalized.code === "CLIENT_ERROR"
+          ? "No fue posible comunicarse con el servidor."
+          : normalized.message,
+
+      details: normalized.details,
+
+      correlationId: normalized.correlationId,
+
+      status: normalized.status,
+    });
+  } finally {
+    clearTimeout(timeout);
+
+    options.signal?.removeEventListener("abort", abortFromExternalSignal);
+  }
+}
+
+/*
+ * Cliente simplificado para que cada servicio
+ * no tenga que repetir fetch.
+ */
+export const apiClient = {
+  get: <T>(path: string, options?: ApiRequestOptions) =>
+    apiRequest<T>("GET", path, options),
+
+  post: <T>(path: string, body?: unknown, options: ApiRequestOptions = {}) =>
+    apiRequest<T>("POST", path, {
+      ...options,
+      body,
+    }),
+
+  put: <T>(path: string, body?: unknown, options: ApiRequestOptions = {}) =>
+    apiRequest<T>("PUT", path, {
+      ...options,
+      body,
+    }),
+
+  patch: <T>(path: string, body?: unknown, options: ApiRequestOptions = {}) =>
+    apiRequest<T>("PATCH", path, {
+      ...options,
+      body,
+    }),
+
+  delete: <T>(path: string, options?: ApiRequestOptions) =>
+    apiRequest<T>("DELETE", path, options),
+};
+
+/*
+ * Registro real.
+ *
+ * Se conserva esta función porque
+ * account-form.tsx de Sebastián ya la utiliza.
+ */
+export async function register(data: RegisterData): Promise<RegisterResponse> {
+  return apiClient.post<RegisterResponse>(
+    "/auth/registro",
+
+    {
+      ...data,
+
+      nombre_completo: data.nombre_completo.trim(),
+
+      correo: data.correo.trim().toLowerCase(),
+    },
+
+    {
+      auth: false,
+    },
+  );
+}
+
+/*
+ * Login real.
+ *
+ * Además de retornar los tokens, los guarda
+ * mediante SecureStore.
+ */
+export async function login(
+  correo: string,
+  password: string,
+): Promise<AuthTokensResponse> {
+  const tokens = await apiClient.post<AuthTokensResponse>(
+    "/auth/login",
+
+    {
+      correo: correo.trim().toLowerCase(),
+
+      password,
+    },
+
+    {
+      auth: false,
+    },
+  );
+
+  if (!tokens?.access_token || !tokens?.refresh_token) {
+    throw new ApiError({
+      code: "INVALID_API_RESPONSE",
+
+      message: "El servidor devolvió una sesión inválida.",
+
+      details: {},
+    });
+  }
+
+  await saveTokens(tokens.access_token, tokens.refresh_token);
+
+  return tokens;
+}
+
+/*
+ * Usuario real autenticado.
+ */
+export async function getMe(): Promise<CurrentUserResponse> {
+  return apiClient.get<CurrentUserResponse>("/auth/me");
+}
+
+/*
+ * Compatibilidad con código previo de
+ * Sebastián que pudiera requerir Response
+ * directamente.
  */
 export async function fetchWithAuth(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
+  const url = `${requireApiBaseUrl()}${normalizePath(endpoint)}`;
+
   let accessToken = await getAccessToken();
 
   const headers = new Headers(options.headers ?? {});
 
-  headers.set('Content-Type', 'application/json');
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
+  if (!headers.has("Content-Type") && options.body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (!headers.has("X-Correlation-ID")) {
+    headers.set("X-Correlation-ID", createCorrelationId());
+  }
 
   if (accessToken) {
-    headers.set(
-      'Authorization',
-      `Bearer ${accessToken}`
-    );
+    headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
-  let response: Response;
+  let response = await fetch(url, {
+    ...options,
+    headers,
+  });
 
-  try {
-    response = await fetch(
-      `${API_BASE_URL}${endpoint}`,
-      {
-        ...options,
-        headers,
-      }
-    );
-  } catch {
-    throw new Error(
-      'No se pudo conectar con el servidor. Revisa tu conexión de red.'
-    );
-  }
-
-  /*
-   * Si no es un 401, devolvemos la respuesta normalmente.
-   */
   if (response.status !== 401) {
     return response;
   }
 
-  /*
-   * Access token expirado.
-   * Intentamos renovarlo automáticamente.
-   */
   accessToken = await refreshAccessToken();
 
   if (!accessToken) {
-    await clearTokens();
     return response;
   }
 
-  /*
-   * Reintentamos la petición original con el nuevo access token.
-   */
-  headers.set(
-    'Authorization',
-    `Bearer ${accessToken}`
-  );
+  headers.set("Authorization", `Bearer ${accessToken}`);
 
-  try {
-    return await fetch(
-      `${API_BASE_URL}${endpoint}`,
-      {
-        ...options,
-        headers,
-      }
-    );
-  } catch {
-    throw new Error(
-      'No se pudo conectar con el servidor. Revisa tu conexión de red.'
-    );
-  }
+  response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  return response;
 }
 
-/**
- * Devuelve el usuario correspondiente a la sesión actual.
- */
-export async function getMe(): Promise<AuthUser> {
-  const response = await fetchWithAuth('/auth/me');
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
-  }
-
-  return (await response.json()) as AuthUser;
-}
-
-/**
- * Cierra la sesión local.
- *
- * Elimina access token y refresh token del almacenamiento seguro.
+/*
+ * Cierre local de la sesión real.
  */
 export async function logoutLocal(): Promise<void> {
   await clearTokens();

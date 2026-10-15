@@ -1,312 +1,189 @@
-import { HealthInformation } from '@/components/profile/health-information';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
-import { demo } from '@/services/demo-store';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View, } from 'react-native';
+import { HealthInformation } from "@/components/profile/health-information";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { Colors } from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useDemo } from "@/hooks/use-demo";
+import { demo } from "@/services/demo-store";
+
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 
 export default function Profile() {
   const { user: demoUser, patients } = useDemo();
 
-  const {
-    user: authUser,
-    authenticated,
-    signOut,
-  } = useAuth();
+  const { user: authUser, authenticated, signOut } = useAuth();
 
   const router = useRouter();
+
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+
+  const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
 
   // ==========================================================
   // DATOS DEL USUARIO
   // ==========================================================
 
-  // Si existe una sesión real, usamos primero los datos
-  // entregados por el backend.
-  const displayName =
-    authUser?.nombre_completo ??
-    authUser?.nombre ??
-    demoUser?.name ??
-    'Usuario';
+  /*
+   * Si existe una sesión real utilizamos primero
+   * los datos entregados por /auth/me.
+   *
+   * Si estamos utilizando una cuenta mock,
+   * recurrimos a demo-store.
+   */
+  const displayName: string =
+    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
 
-  const displayEmail =
-    authUser?.correo ??
-    authUser?.email ??
-    demoUser?.email ??
-    '';
+  const displayEmail: string = authUser?.correo ?? demoUser?.email ?? "";
 
-  const realRole =
-    authUser?.roles?.[0] ??
-    authUser?.rol;
+  const realRole = authUser?.roles?.[0];
 
-  const displayRole =
-    realRole === 'paciente' ||
-    demoUser?.role === 'patient'
-      ? 'Paciente'
-      : realRole === 'cuidador' ||
-          demoUser?.role === 'caregiver'
-        ? 'Cuidador'
-        : 'Usuario';
+  const displayRole: string =
+    realRole === "paciente" || demoUser?.role === "patient"
+      ? "Paciente"
+      : realRole === "cuidador" || demoUser?.role === "caregiver"
+        ? "Cuidador"
+        : "Usuario";
 
   // ==========================================================
-  // INFORMACIÓN PERSONAL
+  // EDICIÓN DEL PERFIL
   // ==========================================================
 
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
 
-  // Por ahora no inventamos una fecha.
-  // Si el backend no entrega una, InfoRow mostrará
-  // "Sin información".
-  const [birthDate, setBirthDate] = useState('');
+  const [name, setName] = useState("");
 
-  // ==========================================================
-  // DATOS TEMPORALES DE SALUD
-  // ==========================================================
+  const [email, setEmail] = useState("");
 
-  const [hasHypertension, setHasHypertension] = useState(true);
-  const [hasDiabetes, setHasDiabetes] = useState(false);
-
-  const [medications, setMedications] = useState([
-    {
-      id: '1',
-      name: 'Losartán',
-      dose: '50 mg',
-      frequencyHours: 12,
-    },
-  ]);
-
-  const [editingHealth, setEditingHealth] = useState(false);
-
-  const [medicationName, setMedicationName] = useState('');
-  const [medicationDose, setMedicationDose] = useState('');
-  const [medicationFrequency, setMedicationFrequency] = useState('');
-
-  const [editingMedicationId, setEditingMedicationId] =
-    useState<string | null>(null);
-
-  // ==========================================================
-  // EDITAR PERFIL
-  // ==========================================================
+  /*
+   * Actualmente el contrato de usuario no entrega
+   * fecha de nacimiento.
+   *
+   * No inventamos un dato para una cuenta real.
+   */
+  const [birthDate, setBirthDate] = useState("");
 
   const startEditing = () => {
-    // Para una cuenta real todavía no escribimos en demo-store.
-    // Primero necesitamos conectar el endpoint de actualización
-    // del backend.
+    /*
+     * Todavía no existe un endpoint integrado
+     * para modificar el perfil real.
+     *
+     * Evitamos guardar accidentalmente información
+     * proveniente del backend dentro de demo-store.
+     */
     if (authenticated) {
       Alert.alert(
-        'Edición de perfil',
-        'Tus datos están conectados con tu cuenta real. La edición se habilitará cuando conectemos el endpoint de actualización del perfil.'
+        "Edición de perfil",
+        "Tus datos están conectados con tu cuenta real. La edición se habilitará cuando conectemos el endpoint de actualización del perfil.",
       );
 
       return;
     }
 
-    setName(
-      displayName === 'Usuario'
-        ? ''
-        : displayName
-    );
+    setName(displayName === "Usuario" ? "" : displayName);
 
     setEmail(displayEmail);
+
     setEditing(true);
   };
 
   const cancelEditing = () => {
     setEditing(false);
-    setName('');
-    setEmail('');
+
+    setName("");
+    setEmail("");
   };
 
   const saveProfile = () => {
-    // Protección para evitar guardar datos reales
-    // accidentalmente en el demo-store.
     if (authenticated) {
       Alert.alert(
-        'Edición de perfil',
-        'No se realizaron cambios porque esta cuenta está conectada al backend.'
+        "Edición de perfil",
+        "No se realizaron cambios porque esta cuenta está conectada al backend.",
       );
 
       setEditing(false);
+
       return;
     }
 
     try {
-      demo.updateProfile(
-        name.trim(),
-        email.trim()
-      );
+      demo.updateProfile(name.trim(), email.trim());
 
       setEditing(false);
 
       Alert.alert(
-        'Perfil actualizado',
-        'Tus datos se guardaron correctamente.'
+        "Perfil actualizado",
+        "Tus datos se guardaron correctamente.",
       );
     } catch (error) {
       Alert.alert(
-        'Error',
+        "Error",
         error instanceof Error
           ? error.message
-          : 'No se pudieron guardar los cambios.'
+          : "No se pudieron guardar los cambios.",
       );
     }
-  };
-
-  // ==========================================================
-  // MEDICAMENTOS
-  // ==========================================================
-
-  const clearMedicationForm = () => {
-    setMedicationName('');
-    setMedicationDose('');
-    setMedicationFrequency('');
-    setEditingMedicationId(null);
-  };
-
-  const saveMedication = () => {
-    const cleanName = medicationName.trim();
-    const cleanDose = medicationDose.trim();
-    const frequency = Number(medicationFrequency);
-
-    if (
-      !cleanName ||
-      !cleanDose ||
-      !medicationFrequency.trim()
-    ) {
-      Alert.alert(
-        'Datos incompletos',
-        'Completa el nombre, la cantidad y la frecuencia.'
-      );
-
-      return;
-    }
-
-    if (
-      !Number.isFinite(frequency) ||
-      frequency <= 0
-    ) {
-      Alert.alert(
-        'Frecuencia inválida',
-        'Ingresa una cantidad de horas válida.'
-      );
-
-      return;
-    }
-
-    if (editingMedicationId) {
-      setMedications((current) =>
-        current.map((medication) =>
-          medication.id === editingMedicationId
-            ? {
-                ...medication,
-                name: cleanName,
-                dose: cleanDose,
-                frequencyHours: frequency,
-              }
-            : medication
-        )
-      );
-    } else {
-      setMedications((current) => [
-        ...current,
-        {
-          id: Date.now().toString(),
-          name: cleanName,
-          dose: cleanDose,
-          frequencyHours: frequency,
-        },
-      ]);
-    }
-
-    clearMedicationForm();
-  };
-
-  const editMedication = (id: string) => {
-    const medication = medications.find(
-      (item) => item.id === id
-    );
-
-    if (!medication) {
-      return;
-    }
-
-    setMedicationName(medication.name);
-    setMedicationDose(medication.dose);
-    setMedicationFrequency(
-      medication.frequencyHours.toString()
-    );
-
-    setEditingMedicationId(medication.id);
-  };
-
-  const removeMedication = (id: string) => {
-    Alert.alert(
-      'Eliminar medicamento',
-      '¿Deseas eliminar este medicamento?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-
-          onPress: () => {
-            setMedications((current) =>
-              current.filter(
-                (medication) =>
-                  medication.id !== id
-              )
-            );
-
-            if (editingMedicationId === id) {
-              clearMedicationForm();
-            }
-          },
-        },
-      ]
-    );
   };
 
   // ==========================================================
   // CERRAR SESIÓN
   // ==========================================================
 
+  const performLogout = async () => {
+    try {
+      // Limpia cualquier sesión mock.
+      demo.logout();
+
+      // Limpia la sesión real y sus tokens.
+      await signOut();
+
+      // Volvemos al login.
+      router.replace("/(auth)/login");
+    } catch (error) {
+      console.log("Error cerrando sesión:", error);
+
+      if (Platform.OS === "web") {
+        window.alert("No se pudo cerrar la sesión correctamente.");
+      } else {
+        Alert.alert("Error", "No se pudo cerrar la sesión correctamente.");
+      }
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Deseas cerrar tu sesión?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("¿Deseas cerrar tu sesión?");
 
-          onPress: async () => {
-            // Limpia cualquier sesión demo.
-            demo.logout();
+      if (confirmed) {
+        void performLogout();
+      }
 
-            // Limpia la sesión real y sus tokens.
-            await signOut();
+      return;
+    }
 
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
+    Alert.alert("Cerrar sesión", "¿Deseas cerrar tu sesión?", [
+      {
+        text: "Cancelar",
+        style: "cancel",
+      },
+      {
+        text: "Cerrar sesión",
+        style: "destructive",
+        onPress: () => void performLogout(),
+      },
+    ]);
   };
 
   // ==========================================================
@@ -315,12 +192,13 @@ export default function Profile() {
 
   const initials =
     displayName
-      .split(' ')
+      .trim()
+      .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((word) => word[0])
-      .join('')
-      .toUpperCase() || 'U';
+      .map((word: string) => word.charAt(0))
+      .join("")
+      .toUpperCase() || "U";
 
   // ==========================================================
   // INTERFAZ
@@ -332,12 +210,13 @@ export default function Profile() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Cabecera del perfil */}
+        {/* CABECERA */}
         <View
           style={[
             styles.profileCard,
             {
               backgroundColor: theme.surface,
+
               borderColor: theme.border,
             },
           ]}
@@ -363,9 +242,7 @@ export default function Profile() {
           </View>
 
           <View style={styles.profileIdentity}>
-            <ThemedText style={styles.profileName}>
-              {displayName}
-            </ThemedText>
+            <ThemedText style={styles.profileName}>{displayName}</ThemedText>
 
             <View
               style={[
@@ -395,7 +272,7 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Información personal */}
+        {/* INFORMACIÓN PERSONAL */}
         <View style={styles.sectionHeader}>
           <ThemedText style={styles.sectionTitle}>
             Información personal
@@ -418,6 +295,7 @@ export default function Profile() {
             styles.card,
             {
               backgroundColor: theme.surface,
+
               borderColor: theme.border,
             },
           ]}
@@ -427,11 +305,7 @@ export default function Profile() {
               <InfoRow
                 icon="account-outline"
                 label="Nombre"
-                value={
-                  displayName === 'Usuario'
-                    ? ''
-                    : displayName
-                }
+                value={displayName === "Usuario" ? "" : displayName}
                 color={theme.primary}
               />
 
@@ -461,6 +335,7 @@ export default function Profile() {
                   {
                     backgroundColor: theme.primary,
                   },
+
                   pressed && styles.pressed,
                 ]}
               >
@@ -483,7 +358,9 @@ export default function Profile() {
                     styles.input,
                     {
                       borderColor: theme.border,
+
                       backgroundColor: theme.background,
+
                       color: theme.text,
                     },
                   ]}
@@ -502,7 +379,9 @@ export default function Profile() {
                     styles.input,
                     {
                       borderColor: theme.border,
+
                       backgroundColor: theme.background,
+
                       color: theme.text,
                     },
                   ]}
@@ -523,7 +402,9 @@ export default function Profile() {
                     styles.input,
                     {
                       borderColor: theme.border,
+
                       backgroundColor: theme.background,
+
                       color: theme.text,
                     },
                   ]}
@@ -543,6 +424,7 @@ export default function Profile() {
                   {
                     backgroundColor: theme.primary,
                   },
+
                   pressed && styles.pressed,
                 ]}
               >
@@ -565,6 +447,7 @@ export default function Profile() {
                   {
                     borderColor: theme.primary,
                   },
+
                   pressed && styles.pressed,
                 ]}
               >
@@ -583,8 +466,8 @@ export default function Profile() {
           )}
         </View>
 
-        {/* Información de salud */}
-        {displayRole === 'Paciente' && (
+        {/* INFORMACIÓN DE SALUD */}
+        {displayRole === "Paciente" && (
           <>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>
@@ -608,6 +491,7 @@ export default function Profile() {
                 styles.card,
                 {
                   backgroundColor: theme.surface,
+
                   borderColor: theme.border,
                 },
               ]}
@@ -617,8 +501,8 @@ export default function Profile() {
           </>
         )}
 
-        {/* Pacientes vinculados del cuidador */}
-        {displayRole === 'Cuidador' && (
+        {/* PACIENTES DEL CUIDADOR */}
+        {displayRole === "Cuidador" && (
           <>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>
@@ -642,6 +526,7 @@ export default function Profile() {
                 styles.card,
                 {
                   backgroundColor: theme.surface,
+
                   borderColor: theme.border,
                 },
               ]}
@@ -651,13 +536,31 @@ export default function Profile() {
                   <Pressable
                     key={patient.id}
                     accessibilityRole="button"
-                    accessibilityLabel={`Ver información de ${patient.name}`}
+                    accessibilityLabel={`Seleccionar a ${patient.name}`}
                     onPress={() => {
+                      /*
+                       * Guardamos el paciente
+                       * seleccionado.
+                       */
                       demo.select(patient.id);
-                      router.push('/paciente-vinculado');
+
+                      /*
+                       * La antigua ruta:
+                       *
+                       * /paciente-vinculado
+                       *
+                       * no existe en el proyecto
+                       * actual.
+                       *
+                       * Entramos al área principal
+                       * utilizando al paciente
+                       * seleccionado.
+                       */
+                      router.replace("/(tabs)");
                     }}
                     style={({ pressed }) => [
                       styles.patientRow,
+
                       pressed && styles.pressed,
                     ]}
                   >
@@ -724,11 +627,9 @@ export default function Profile() {
           </>
         )}
 
-        {/* Cuenta */}
+        {/* CUENTA */}
         <View style={styles.sectionHeader}>
-          <ThemedText style={styles.sectionTitle}>
-            Cuenta
-          </ThemedText>
+          <ThemedText style={styles.sectionTitle}>Cuenta</ThemedText>
         </View>
 
         <View
@@ -736,17 +637,15 @@ export default function Profile() {
             styles.card,
             {
               backgroundColor: theme.surface,
+
               borderColor: theme.border,
             },
           ]}
         >
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.push('/vinculos')}
-            style={({ pressed }) => [
-              styles.menuRow,
-              pressed && styles.pressed,
-            ]}
+            onPress={() => router.push("/vinculos")}
+            style={({ pressed }) => [styles.menuRow, pressed && styles.pressed]}
           >
             <View style={styles.menuLeft}>
               <MaterialCommunityIcons
@@ -772,10 +671,7 @@ export default function Profile() {
           <Pressable
             accessibilityRole="button"
             onPress={handleLogout}
-            style={({ pressed }) => [
-              styles.menuRow,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.menuRow, pressed && styles.pressed]}
           >
             <View style={styles.menuLeft}>
               <MaterialCommunityIcons
@@ -815,19 +711,13 @@ function InfoRow({
 }) {
   return (
     <View style={styles.infoRow}>
-      <MaterialCommunityIcons
-        name={icon}
-        size={22}
-        color={color}
-      />
+      <MaterialCommunityIcons name={icon} size={22} color={color} />
 
       <View style={styles.infoCopy}>
-        <ThemedText style={styles.infoLabel}>
-          {label}
-        </ThemedText>
+        <ThemedText style={styles.infoLabel}>{label}</ThemedText>
 
         <ThemedText style={styles.infoValue}>
-          {value || 'Sin información'}
+          {value || "Sin información"}
         </ThemedText>
       </View>
     </View>
@@ -843,9 +733,8 @@ function FormField({
 }) {
   return (
     <View style={styles.formField}>
-      <ThemedText style={styles.formLabel}>
-        {label}
-      </ThemedText>
+      <ThemedText style={styles.formLabel}>{label}</ThemedText>
+
       {children}
     </View>
   );
@@ -856,70 +745,11 @@ function Divider({ color }: { color: string }) {
     <View
       style={[
         styles.divider,
-        { backgroundColor: color },
+        {
+          backgroundColor: color,
+        },
       ]}
     />
-  );
-}
-
-function ConditionOption({
-  label,
-  selected,
-  editable,
-  onPress,
-  primary,
-  soft,
-  border,
-}: {
-  label: string;
-  selected: boolean;
-  editable: boolean;
-  onPress: () => void;
-  primary: string;
-  soft: string;
-  border: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole={editable ? 'checkbox' : undefined}
-      accessibilityState={
-        editable ? { checked: selected } : undefined
-      }
-      disabled={!editable}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.condition,
-        {
-          borderColor:
-            editable && selected ? primary : border,
-          backgroundColor:
-            editable && selected ? soft : 'transparent',
-        },
-        pressed && editable && styles.pressed,
-      ]}
-    >
-      <MaterialCommunityIcons
-        name={
-          editable
-            ? selected
-              ? 'checkbox-marked'
-              : 'checkbox-blank-outline'
-            : selected
-              ? 'check-circle'
-              : 'minus-circle-outline'
-        }
-        size={22}
-        color={
-          selected
-            ? primary
-            : border
-        }
-      />
-
-      <ThemedText style={styles.conditionText}>
-        {label}
-      </ThemedText>
-    </Pressable>
   );
 }
 
@@ -935,99 +765,131 @@ const styles = StyleSheet.create({
   },
 
   profileCard: {
-    alignItems: 'center',
+    alignItems: "center",
+
     borderRadius: 20,
+
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
+
+    flexDirection: "row",
+
     gap: 16,
+
     padding: 18,
   },
 
   avatar: {
-    alignItems: 'center',
+    alignItems: "center",
+
     borderRadius: 32,
+
     height: 64,
-    justifyContent: 'center',
+
+    justifyContent: "center",
+
     width: 64,
   },
 
   avatarText: {
     fontSize: 21,
-    fontWeight: '800',
+
+    fontWeight: "800",
   },
 
   profileIdentity: {
     flex: 1,
+
     gap: 7,
   },
 
   profileName: {
     fontSize: 21,
-    fontWeight: '800',
+
+    fontWeight: "800",
   },
 
   roleBadge: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignItems: "center",
+
+    alignSelf: "flex-start",
+
     borderRadius: 20,
-    flexDirection: 'row',
+
+    flexDirection: "row",
+
     gap: 5,
+
     paddingHorizontal: 10,
+
     paddingVertical: 5,
   },
 
   roleText: {
     fontSize: 13,
-    fontWeight: '700',
+
+    fontWeight: "700",
   },
 
   sectionHeader: {
     gap: 3,
+
     marginTop: 6,
   },
 
   sectionTitle: {
     fontSize: 19,
-    fontWeight: '800',
+
+    fontWeight: "800",
   },
 
   sectionSubtitle: {
     fontSize: 13,
+
     lineHeight: 18,
   },
 
   card: {
     borderRadius: 18,
+
     borderWidth: StyleSheet.hairlineWidth,
+
     gap: 16,
+
     padding: 18,
   },
 
   infoRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+
+    flexDirection: "row",
+
     gap: 13,
   },
 
   infoCopy: {
     flex: 1,
+
     gap: 2,
   },
 
   infoLabel: {
     fontSize: 12,
-    fontWeight: '600',
+
+    fontWeight: "600",
+
     opacity: 0.7,
   },
 
   infoValue: {
     fontSize: 15,
-    fontWeight: '600',
+
+    fontWeight: "600",
   },
 
   divider: {
     height: StyleSheet.hairlineWidth,
-    width: '100%',
+
+    width: "100%",
   },
 
   formField: {
@@ -1036,148 +898,94 @@ const styles = StyleSheet.create({
 
   formLabel: {
     fontSize: 14,
-    fontWeight: '700',
+
+    fontWeight: "700",
   },
 
   input: {
     borderRadius: 11,
+
     borderWidth: 1,
+
     fontSize: 15,
+
     paddingHorizontal: 13,
+
     paddingVertical: 12,
   },
 
   primaryButton: {
-    alignItems: 'center',
+    alignItems: "center",
+
     borderRadius: 12,
-    flexDirection: 'row',
+
+    flexDirection: "row",
+
     gap: 8,
-    justifyContent: 'center',
+
+    justifyContent: "center",
+
     marginTop: 3,
+
     paddingHorizontal: 16,
+
     paddingVertical: 13,
   },
 
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
+
     fontSize: 15,
-    fontWeight: '700',
+
+    fontWeight: "700",
   },
 
   secondaryButton: {
-    alignItems: 'center',
+    alignItems: "center",
+
     borderRadius: 12,
+
     borderWidth: 1,
-    flexDirection: 'row',
+
+    flexDirection: "row",
+
     gap: 7,
-    justifyContent: 'center',
+
+    justifyContent: "center",
+
     paddingHorizontal: 14,
+
     paddingVertical: 12,
   },
 
   secondaryButtonText: {
     fontSize: 14,
-    fontWeight: '700',
-  },
 
-  healthTitleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  smallIcon: {
-    alignItems: 'center',
-    borderRadius: 10,
-    height: 38,
-    justifyContent: 'center',
-    width: 38,
-  },
-
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  helperText: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: -7,
-  },
-
-  conditionList: {
-    gap: 9,
-  },
-
-  condition: {
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-  },
-
-  conditionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  medicationCard: {
-    borderRadius: 13,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-    padding: 14,
-  },
-
-  medicationTop: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  medicationName: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  medicationDetails: {
-    flexDirection: 'row',
-    gap: 40,
-  },
-
-  detailLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-
-  emptyText: {
-    fontSize: 14,
+    fontWeight: "700",
   },
 
   menuRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: "center",
+
+    flexDirection: "row",
+
+    justifyContent: "space-between",
+
     minHeight: 42,
   },
 
   menuLeft: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+
+    flexDirection: "row",
+
     gap: 12,
   },
 
   menuText: {
     fontSize: 15,
-    fontWeight: '700',
+
+    fontWeight: "700",
   },
 
   pressed: {
@@ -1185,105 +993,54 @@ const styles = StyleSheet.create({
   },
 
   patientRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+
+    flexDirection: "row",
+
     minHeight: 58,
   },
 
   patientAvatar: {
-    alignItems: 'center',
+    alignItems: "center",
+
     borderRadius: 24,
+
     height: 48,
-    justifyContent: 'center',
+
+    justifyContent: "center",
+
     width: 48,
   },
 
   patientInfo: {
     flex: 1,
+
     gap: 3,
+
     marginLeft: 13,
   },
 
   patientName: {
     fontSize: 16,
-    fontWeight: '800',
+
+    fontWeight: "800",
   },
 
   patientDescription: {
     fontSize: 13,
   },
 
-  medicationTitleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  medicationIcon: {
-    alignItems: 'center',
-    borderRadius: 9,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-
-  medicationActions: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 4,
-  },
-
-  iconButton: {
-    alignItems: 'center',
-    height: 38,
-    justifyContent: 'center',
-    width: 38,
-  },
-
-  medicationDetail: {
-    flex: 1,
-  },
-
-  medicationFormHeader: {
-    gap: 3,
-  },
-
-  frequencyInput: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-  },
-
-  frequencyTextInput: {
-    flex: 1,
-  },
-
-  hoursText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
-  finishHealthButton: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 7,
-    justifyContent: 'center',
-    paddingVertical: 8,
-  },
-
-  finishHealthText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
   emptyPatients: {
-    alignItems: 'center',
+    alignItems: "center",
+
     gap: 8,
+
     paddingVertical: 20,
   },
 
   emptyPatientsText: {
     fontSize: 14,
-    textAlign: 'center',
+
+    textAlign: "center",
   },
 });

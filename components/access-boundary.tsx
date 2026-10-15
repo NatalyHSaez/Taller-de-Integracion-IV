@@ -1,103 +1,81 @@
-import { useAuth } from '@/hooks/use-auth';
-import { useDemo } from '@/hooks/use-demo';
-import { Redirect, usePathname, useRouter, useSegments } from 'expo-router';
-import type { PropsWithChildren } from 'react';
+import { Redirect, usePathname, useRouter, useSegments } from "expo-router";
+import type { PropsWithChildren } from "react";
 
-import { Action, Copy, FlowPage } from './flow-ui';
+import { useAppState } from "@/hooks/use-app-state";
+
+import { Action, Copy, FlowPage } from "./flow-ui";
 
 export function AccessBoundary({ children }: PropsWithChildren) {
-  const {
-    user: demoUser,
-    patient,
-    permissions,
-  } = useDemo();
-
-  const {
-    user: authUser,
-    authenticated,
-  } = useAuth();
+  const { user, selectedPatient, permissions } = useAppState();
 
   const path = usePathname();
   const segments = useSegments();
   const router = useRouter();
 
-  const hasRealSession =
-    authenticated && authUser !== null;
+  const isAuthRoute = segments[0] === "(auth)";
 
-  const hasDemoSession =
-    demoUser !== null;
+  const isPublicPage = path === "/invitacion" || path === "/demo";
 
-  const hasSession =
-    hasRealSession || hasDemoSession;
-
-  const isAuthRoute =
-    segments[0] === '(auth)';
+  const isSelectPatient = path === "/select-patient";
 
   /*
-   * Si tenemos una sesión REAL y Expo abre una
-   * pantalla de autenticación, entramos a la app.
-   */
-  if (hasRealSession && isAuthRoute) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  /*
-   * Si NO tenemos sesión y estamos fuera del
-   * grupo de autenticación, vamos al Login.
+   * Sin sesión solo pueden utilizarse:
+   * - pantallas de autenticación;
+   * - invitación;
+   * - demo.
    *
-   * No intentamos distinguir select-patient aquí.
+   * select-patient requiere usuario autenticado.
    */
-  if (
-    !hasSession &&
-    !isAuthRoute &&
-    path !== '/invitacion' &&
-    path !== '/demo'
-  ) {
+  if (!user && (!isAuthRoute || isSelectPatient) && !isPublicPage) {
     return <Redirect href="/(auth)/login" />;
   }
 
   /*
-   * Selección de paciente SOLO para el flujo demo.
+   * Un usuario ya autenticado no debería volver
+   * a Login/Registro.
+   *
+   * IMPORTANTE:
+   * select-patient queda excluida porque un
+   * cuidador autenticado puede necesitar pasar
+   * por ella.
+   */
+  if (user && isAuthRoute && !isSelectPatient) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  /*
+   * Para entrar al resto de la aplicación debe
+   * existir un paciente seleccionado.
+   *
+   * Perfil se permite porque corresponde al
+   * propio usuario.
    */
   if (
-    hasDemoSession &&
-    !hasRealSession &&
+    user &&
     !isAuthRoute &&
-    path !== '/perfil' &&
-    !patient
+    !isPublicPage &&
+    path !== "/perfil" &&
+    !selectedPatient
   ) {
     return <Redirect href="/(auth)/select-patient" />;
   }
 
   /*
-   * Permisos del cuidador del flujo demo.
+   * Permisos del cuidador.
    */
-  if (
-    hasDemoSession &&
-    !hasRealSession &&
-    demoUser?.role === 'caregiver' &&
-    !isAuthRoute
-  ) {
-    const readPage = [
-      '/historial',
-      '/graficos',
-      '/seguimiento',
-    ].includes(path);
+  if (user?.role === "caregiver" && !isAuthRoute && !isPublicPage) {
+    const readPage =
+      ["/historial", "/graficos", "/seguimiento"].includes(path) ||
+      path.startsWith("/lectura/");
 
-    const alertPage =
-      path.startsWith('/notificaci') ||
-      path === '/alertas';
+    const alertPage = path.startsWith("/notificaci") || path === "/alertas";
 
     const unavailablePage =
-      path.startsWith('/documentos') ||
-      path === '/atencion';
+      path.startsWith("/documentos") || path === "/atencion";
 
     if (
       (readPage && !permissions.read) ||
-      (
-        path === '/registrar-medicion' &&
-        !permissions.write
-      ) ||
+      (path === "/registrar-medicion" && !permissions.write) ||
       (alertPage && !permissions.alerts) ||
       unavailablePage
     ) {
@@ -109,7 +87,7 @@ export function AccessBoundary({ children }: PropsWithChildren) {
 
           <Action
             label="Volver al inicio"
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => router.replace("/(tabs)")}
           />
         </FlowPage>
       );

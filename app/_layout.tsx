@@ -1,27 +1,31 @@
-import { AccessBoundary } from '@/components/access-boundary';
-import { Colors } from '@/constants/theme';
-import { AuthProvider, useAuth } from '@/hooks/use-auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AccessBoundary } from "@/components/access-boundary";
+import { Colors } from "@/constants/theme";
+import { AppStateProvider } from "@/contexts/app-state-context";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
-import { Stack } from 'expo-router';
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
-import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import 'react-native-reanimated';
+import { Stack } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "expo-router/react-navigation";
+import { StatusBar } from "expo-status-bar";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import "react-native-reanimated";
 
 export const unstable_settings = {
-  anchor: '(auth)',
+  anchor: "(auth)",
 };
 
 function RootNavigator() {
   const colorScheme = useColorScheme();
   const { loading } = useAuth();
 
-  const themeName = colorScheme === 'dark' ? 'dark' : 'light';
+  const themeName = colorScheme === "dark" ? "dark" : "light";
   const appColors = Colors[themeName];
 
-  const baseNavigationTheme =
-    themeName === 'dark' ? DarkTheme : DefaultTheme;
+  const baseNavigationTheme = themeName === "dark" ? DarkTheme : DefaultTheme;
 
   const navigationTheme = {
     ...baseNavigationTheme,
@@ -62,13 +66,14 @@ function RootNavigator() {
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="(auth)" />
+
         <Stack.Screen name="(tabs)" />
 
         <Stack.Screen
           name="registrar-medicion"
           options={{
             headerShown: true,
-            title: 'Registrar medición',
+            title: "Registrar medición",
           }}
         />
 
@@ -76,7 +81,15 @@ function RootNavigator() {
           name="historial"
           options={{
             headerShown: true,
-            title: 'Historial',
+            title: "Historial",
+          }}
+        />
+
+        <Stack.Screen
+          name="lectura/[readingId]"
+          options={{
+            headerShown: true,
+            title: "Detalle de lectura",
           }}
         />
 
@@ -84,7 +97,7 @@ function RootNavigator() {
           name="notificaciones"
           options={{
             headerShown: true,
-            title: 'Notificaciones',
+            title: "Notificaciones",
           }}
         />
 
@@ -92,7 +105,7 @@ function RootNavigator() {
           name="perfil"
           options={{
             headerShown: true,
-            title: 'Perfil',
+            title: "Perfil",
           }}
         />
       </Stack>
@@ -105,15 +118,17 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootNavigator />
+      <AppStateProvider>
+        <RootNavigator />
+      </AppStateProvider>
     </AuthProvider>
   );
 }
 
 const styles = StyleSheet.create({
   loadingContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
 });

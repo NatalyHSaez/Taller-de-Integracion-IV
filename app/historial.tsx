@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, SectionList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -82,6 +83,7 @@ function buildSections(measurements: Measurement[]): MeasurementSection[] {
 }
 
 export default function MeasurementHistoryScreen() {
+  const router = useRouter();
   const { measurements } = useDemo();
   const [activeFilter, setActiveFilter] = useState<MeasurementFilter>('all');
   const colorScheme = useColorScheme();
@@ -174,7 +176,25 @@ export default function MeasurementHistoryScreen() {
             <View style={[styles.sectionRule, { backgroundColor: borderColor }]} />
           </View>
         )}
-        renderItem={({ item }) => <MeasurementCard measurement={item} />}
+        renderItem={({ item }) => {
+          const readingId = item.readingId ?? item.id;
+
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver detalle de la lectura"
+              accessibilityHint="Abre la información completa de esta lectura"
+              onPress={() =>
+                router.push({
+                  pathname: '/lectura/[readingId]',
+                  params: { readingId },
+                })
+              }
+              style={({ pressed }) => pressed && styles.readingPressed}>
+              <MeasurementCard measurement={item} />
+            </Pressable>
+          );
+        }}
         ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -300,6 +320,7 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
   },
   itemSeparator: { height: 9 },
+  readingPressed: { opacity: 0.78 },
   emptyState: {
     alignItems: 'center',
     flex: 1,

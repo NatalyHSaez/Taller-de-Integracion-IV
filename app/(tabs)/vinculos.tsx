@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Share, Switch, View } from 'react-native';
 import { Action, Card, Copy, FlowPage } from '@/components/flow-ui';
+import { useAppState } from '@/hooks/use-app-state';
 import { useDemo } from '@/hooks/use-demo';
 import { demo, type Permissions, type Relation } from '@/services/demo-store';
 function RequestCard({ relation }: { relation: Relation }) {
@@ -17,9 +18,9 @@ function RequestCard({ relation }: { relation: Relation }) {
   </Card>;
 }
 export default function Links() {
-  const router = useRouter(); const { user, relations, invitations } = useDemo(); const [showQr, setShowQr] = useState(false); const [error, setError] = useState('');
-  const invitation = invitations.find((i) => i.patientId === user?.patientId);
-  const links = relations.filter((r) => r.patientId === user?.patientId && ['pending', 'approved'].includes(r.status));
+  const router = useRouter(); const { user, selectedPatient } = useAppState(); const { relations, invitations } = useDemo(); const [showQr, setShowQr] = useState(false); const [error, setError] = useState('');
+  const invitation = invitations.find((i) => i.patientId === selectedPatient?.id);
+  const links = relations.filter((r) => r.patientId === selectedPatient?.id && ['pending', 'approved'].includes(r.status));
   const url = invitation ? Linking.createURL('/invitacion', { queryParams: { token: invitation.token } }) : '';
   return <FlowPage title="Vínculos" subtitle="Tú decides quién te acompaña y qué puede hacer.">
     <Action secondary label="Volver al inicio" onPress={() => router.replace('/(tabs)')} />

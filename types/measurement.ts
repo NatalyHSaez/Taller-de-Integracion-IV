@@ -2,6 +2,7 @@ export type MeasurementType = 'blood_pressure' | 'glucose' | 'weight';
 
 type BaseMeasurement = {
   patientId?: string;
+  readingId?: string;
   recordedBy?: string;
   recordedById?: string;
   context?: string;
