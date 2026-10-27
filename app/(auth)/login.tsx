@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BrandColors, Colors } from "@/constants/theme";
+import { GatewayHealthCard } from "@/components/gateway-health-card";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
@@ -399,6 +400,10 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
             </View>
+
+            <View style={styles.healthSection}>
+              <GatewayHealthCard />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -496,6 +501,7 @@ const styles = StyleSheet.create({
   loadingRow: { alignItems: "center", flexDirection: "row", gap: 10 },
   disabled: { opacity: 0.7 },
   newAccount: { alignItems: "center", gap: 11, marginTop: 31 },
+  healthSection: { marginTop: 28 },
   newAccountTitle: { fontSize: 14, fontWeight: "500", marginBottom: 2 },
   accountLink: {
     alignItems: "center",

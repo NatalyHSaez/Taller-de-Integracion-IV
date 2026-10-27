@@ -40,6 +40,14 @@ export type ApiRequestOptions = {
 
   timeoutMs?: number;
   signal?: AbortSignal;
+
+  /**
+   * Códigos HTTP no exitosos cuyo cuerpo sigue siendo una respuesta válida.
+   *
+   * Por ejemplo, el health check del Gateway responde 503 junto con el
+   * detalle de los microservicios cuando el sistema está degradado.
+   */
+  acceptedStatuses?: readonly number[];
 };
 
 export type AccessTokenProvider = () =>
@@ -439,7 +447,10 @@ export async function apiRequest<T>(
       }
     }
 
-    if (!response.ok) {
+    if (
+      !response.ok &&
+      !options.acceptedStatuses?.includes(response.status)
+    ) {
       throw await apiErrorFromResponse(response);
     }
 
