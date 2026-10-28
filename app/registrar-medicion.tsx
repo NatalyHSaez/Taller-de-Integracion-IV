@@ -72,9 +72,35 @@ function formatTime(date: Date) {
   }).format(date);
 }
 
-function isPositiveNumber(value: string) {
-  const parsed = Number(value.replace(",", "."));
-  return value.trim().length > 0 && Number.isFinite(parsed) && parsed > 0;
+// Límites técnicos y unidades canónicas de services/seguimiento/catalogo.py.
+// Los valores inusuales dentro de estos rangos se envían al servidor,
+// que puede solicitar confirmación mediante REQUIRES_CONFIRMATION.
+type ClinicalParameterCode = "SBP" | "DBP" | "HEART_RATE" | "GLUCOSE" | "WEIGHT";
+
+const CLINICAL_LIMITS: Record<
+  ClinicalParameterCode,
+  { min: number; max: number; unit: string; label: string }
+> = {
+  SBP: { min: 40, max: 300, unit: "mmHg", label: "La presión sistólica" },
+  DBP: { min: 30, max: 200, unit: "mmHg", label: "La presión diastólica" },
+  HEART_RATE: { min: 20, max: 250, unit: "bpm", label: "La frecuencia cardíaca" },
+  GLUCOSE: { min: 10, max: 1000, unit: "mg/dL", label: "La glucosa" },
+  WEIGHT: { min: 2, max: 400, unit: "kg", label: "El peso" },
+};
+
+function validateClinicalValue(value: string, code: ClinicalParameterCode): string | null {
+  const parameter = CLINICAL_LIMITS[code];
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return `Ingresa un valor para ${parameter.label.toLowerCase()}.`;
+  // Evita conversiones inesperadas de Number(), como "0x10" o "1e3".
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) {
+    return `${parameter.label} debe ser un número válido.`;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < parameter.min || parsed > parameter.max) {
+    return `${parameter.label} debe estar entre ${parameter.min} y ${parameter.max} ${parameter.unit}.`;
+  }
+  return null;
 }
 
 export default function RegisterMeasurementScreen() {
@@ -115,16 +141,20 @@ export default function RegisterMeasurementScreen() {
   const borderColor = theme.border;
   const inputColor = theme.surfaceMuted;
 
+  const validationError =
+    measurementType === "blood_pressure"
+      ? validateClinicalValue(systolic, "SBP") ??
+        validateClinicalValue(diastolic, "DBP") ??
+        validateClinicalValue(heartRate, "HEART_RATE")
+      : measurementType === "glucose"
+        ? validateClinicalValue(glucose, "GLUCOSE") ??
+          (glucoseContext === null ? "Selecciona el contexto de la glucosa." : null)
+        : validateClinicalValue(weight, "WEIGHT");
+
   const formIsValid =
     date.trim().length > 0 &&
     time.trim().length > 0 &&
-    (measurementType === "blood_pressure"
-      ? isPositiveNumber(systolic) &&
-        isPositiveNumber(diastolic) &&
-        isPositiveNumber(heartRate)
-      : measurementType === "glucose"
-        ? isPositiveNumber(glucose) && glucoseContext !== null
-        : isPositiveNumber(weight));
+    validationError === null;
 
   const selectedOption = MEASUREMENT_OPTIONS.find(
     (option) => option.value === measurementType,
@@ -134,11 +164,12 @@ export default function RegisterMeasurementScreen() {
   function selectMeasurementType(value: MeasurementType) {
     setMeasurementType(value);
     setShowReview(false);
+    setSaveError("");
   }
 
   function getSummaryValue() {
     if (measurementType === "blood_pressure") {
-      return `${systolic} / ${diastolic} mmHg · ${heartRate} lpm`;
+      return `${systolic} / ${diastolic} mmHg · ${heartRate} bpm`;
     }
     if (measurementType === "glucose") return `${glucose} mg/dL`;
     return `${weight.replace(".", ",")} kg`;
@@ -180,7 +211,16 @@ export default function RegisterMeasurementScreen() {
     }
 
     if (!showReview) {
+      if (validationError) {
+        setSaveError(validationError);
+        return;
+      }
       setShowReview(true);
+      return;
+    }
+
+    if (validationError) {
+      setSaveError(validationError);
       return;
     }
 
@@ -462,7 +502,7 @@ export default function RegisterMeasurementScreen() {
                   label="Frecuencia cardíaca"
                   value={heartRate}
                   onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setHeartRate(v); setShowReview(false); } }}
-                  unit="lpm"
+                  unit="bpm"
                   placeholder="72"
                   inputColor={inputColor}
                   borderColor={borderColor}
@@ -554,6 +594,17 @@ export default function RegisterMeasurementScreen() {
               />
             )}
           </View>
+
+          {!!validationError &&
+            (measurementType === "blood_pressure"
+              ? !!(systolic.trim() || diastolic.trim() || heartRate.trim())
+              : measurementType === "glucose"
+                ? !!glucose.trim()
+                : !!weight.trim()) && (
+              <ThemedText accessibilityRole="alert" style={{ color: "#C2410C" }}>
+                {validationError}
+              </ThemedText>
+            )}
 
           <View style={styles.sectionHeading}>
             <View style={styles.stepBadge}>
