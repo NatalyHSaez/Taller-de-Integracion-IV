@@ -1,7 +1,7 @@
 import { IS_API_CONFIGURED } from "@/config/api";
 import type { AuthTokensResponse, CurrentUserResponse } from "@/types/api";
 
-import { apiClient, login as apiLogin } from "./api";
+import { apiClient, login as apiLogin, getMe } from "./api";
 import { authSession } from "./auth-session";
 import { dataClient } from "./data";
 import { demo } from "./demo-store";
@@ -154,7 +154,7 @@ async function revokeBackendSession(
     await apiClient.post<void>(
       "/auth/logout",
       {
-        refresh_token: refreshToken,
+        refreshToken,
       },
       {
         auth: false,
@@ -204,17 +204,10 @@ async function loginWithBackend(
 
   try {
     /*
-     * /auth/me utiliza el access token
+     * /me utiliza el access token
      * recientemente recibido.
      */
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-      cache: false,
-      retry: {
-        attempts: 2,
-        initialDelayMs: 300,
-        maxDelayMs: 600,
-      },
-    });
+    const user = await getMe();
 
     ensureMobileRole(user);
 
@@ -267,19 +260,13 @@ export const authService = {
    * API Gateway
    */
   async login(email: string, password: string): Promise<AuthTokensResponse> {
-    if (isMockAccountEmail(email) || isRuntimeMockAccountEmail(email)) {
-      return loginWithMock(email, password);
+    // Con Gateway configurado, incluso las cuentas demo se validan en PostgreSQL.
+    if (IS_API_CONFIGURED) {
+      return loginWithBackend(email, password);
     }
 
-    /*
-     * Si todavía no existe Gateway configurado,
-     * mantenemos el funcionamiento de desarrollo.
-     */
-    if (!IS_API_CONFIGURED) {
-      return loginWithMock(email, password);
-    }
-
-    return loginWithBackend(email, password);
+    // Sin Gateway, conservamos el modo demostración local.
+    return loginWithMock(email, password);
   },
 
   /**
@@ -287,14 +274,7 @@ export const authService = {
    */
   async me(): Promise<CurrentUserResponse> {
     if (authSession.mode() === "backend") {
-      const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-        cache: false,
-        retry: {
-          attempts: 2,
-          initialDelayMs: 300,
-          maxDelayMs: 600,
-        },
-      });
+      const user = await getMe();
 
       ensureMobileRole(user);
 
@@ -342,33 +322,33 @@ export const authService = {
       });
     }
 
-    const tokens = await apiClient.post<AuthTokensResponse>(
-      "/auth/refresh",
-      {
-        refresh_token: refreshToken,
-      },
-      {
-        auth: false,
-      },
-    );
+    const raw = await apiClient.post<{
+      accessToken: string;
+      refreshToken: string;
+      tokenType?: string;
+      expiresIn?: number;
+    }>("/auth/refresh", { refreshToken }, { auth: false });
 
-    /*
-     * A diferencia de tu implementación inicial,
-     * ahora también persistimos los tokens
-     * renovados mediante SecureStore.
-     */
+    if (!raw?.accessToken || !raw?.refreshToken) {
+      throw new ApiError({
+        code: "INVALID_API_RESPONSE",
+        message: "El backend devolvió tokens de renovación inválidos.",
+        details: {},
+      });
+    }
+
+    const tokens: AuthTokensResponse = {
+      access_token: raw.accessToken,
+      refresh_token: raw.refreshToken,
+      token_type: raw.tokenType ?? "bearer",
+      expires_in: raw.expiresIn ?? 3600,
+    };
+
     await saveTokens(tokens.access_token, tokens.refresh_token);
 
     authSession.startBackend(tokens);
 
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-      cache: false,
-      retry: {
-        attempts: 2,
-        initialDelayMs: 300,
-        maxDelayMs: 600,
-      },
-    });
+    const user = await getMe();
 
     ensureMobileRole(user);
 

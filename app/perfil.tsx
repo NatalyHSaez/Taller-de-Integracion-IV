@@ -7,9 +7,10 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
 import { demo } from "@/services/demo-store";
 
+import { getPatient } from "@/services/api";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Alert,
@@ -22,38 +23,57 @@ import {
 } from "react-native";
 
 export default function Profile() {
-  const { user: demoUser, patients } = useDemo();
+  
+const { user: demoUser, patients } = useDemo();
 
-  const { user: authUser, authenticated, signOut } = useAuth();
+const {
+  user: authUser,
+  authenticated,
+  loading: authLoading,
+  signOut,
+} = useAuth();
 
-  const router = useRouter();
+const router = useRouter();
 
-  const colorScheme = useColorScheme();
+const colorScheme = useColorScheme();
 
-  const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
+const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
 
-  // ==========================================================
-  // DATOS DEL USUARIO
-  // ==========================================================
+// ==========================================================
+// TI4-8: DATOS REALES DEL USUARIO
+// ==========================================================
 
-  /*
-   * Si existe una sesión real utilizamos primero
-   * los datos entregados por /auth/me.
-   *
-   * Si estamos utilizando una cuenta mock,
-   * recurrimos a demo-store.
-   */
-  const displayName: string =
-    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
+// Mientras se restaura la sesión, no mostramos datos mock.
+const isRealSession = authenticated;
 
-  const displayEmail: string = authUser?.correo ?? demoUser?.email ?? "";
+// Nombre y correo provenientes de GET /me cuando
+// existe una sesión autenticada.
+const displayName: string = authLoading
+  ? "Cargando..."
+  : isRealSession
+    ? authUser?.nombre_completo ?? "Usuario"
+    : demoUser?.name ?? "Usuario";
 
-  const realRole = authUser?.roles?.[0];
+const displayEmail: string = authLoading
+  ? ""
+  : isRealSession
+    ? authUser?.correo ?? ""
+    : demoUser?.email ?? "";
 
-  const displayRole: string =
-    realRole === "paciente" || demoUser?.role === "patient"
+// El rol real tiene prioridad absoluta sobre el mock.
+const realRole = authUser?.roles?.[0];
+
+const displayRole: string = authLoading
+  ? "Usuario"
+  : isRealSession
+    ? realRole === "paciente"
       ? "Paciente"
-      : realRole === "cuidador" || demoUser?.role === "caregiver"
+      : realRole === "cuidador"
+        ? "Cuidador"
+        : "Usuario"
+    : demoUser?.role === "patient"
+      ? "Paciente"
+      : demoUser?.role === "caregiver"
         ? "Cuidador"
         : "Usuario";
 
@@ -73,7 +93,71 @@ export default function Profile() {
    *
    * No inventamos un dato para una cuenta real.
    */
-  const [birthDate, setBirthDate] = useState("");
+  
+const [birthDate, setBirthDate] = useState("");
+const [birthDateLoading, setBirthDateLoading] = useState(false);
+const [birthDateError, setBirthDateError] = useState(false);
+
+useEffect(() => {
+  let cancelled = false;
+
+  // Cada vez que cambia la cuenta, limpiamos los
+  // datos del paciente anterior.
+  setBirthDate("");
+  setBirthDateError(false);
+  setBirthDateLoading(false);
+
+  if (
+    !authenticated ||
+    authLoading ||
+    !authUser?.id ||
+    !authUser.roles?.includes("paciente")
+  ) {
+    return;
+  }
+
+  setBirthDateLoading(true);
+
+  async function loadPatientProfile() {
+    try {
+      const patient = await getPatient(authUser!.id);
+
+      if (cancelled) return;
+
+      if (patient.birthDate) {
+        const [year, month, day] =
+          patient.birthDate.split("-");
+
+        setBirthDate(`${day}/${month}/${year}`);
+      }
+    } catch (error) {
+      if (cancelled) return;
+
+      console.warn(
+        "[perfil] No fue posible obtener los datos del paciente:",
+        error,
+      );
+
+      setBirthDateError(true);
+    } finally {
+      if (!cancelled) {
+        setBirthDateLoading(false);
+      }
+    }
+  }
+
+  void loadPatientProfile();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  authenticated,
+  authLoading,
+  authUser?.id,
+  authUser?.roles,
+]);
+
 
   const startEditing = () => {
     /*
@@ -319,11 +403,17 @@ export default function Profile() {
               />
 
               <Divider color={theme.border} />
-
+              
               <InfoRow
                 icon="calendar-outline"
                 label="Fecha de nacimiento"
-                value={birthDate}
+                value={
+                  birthDateLoading
+                    ? "Cargando..."
+                    : birthDateError
+                      ? "No se pudo obtener la fecha"
+                      : birthDate
+                }
                 color={theme.primary}
               />
 

@@ -1,3 +1,4 @@
+
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -13,7 +14,6 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 import { register as registerWithBackend } from '@/services/api';
-import { authService } from '@/services/authservice';
 import { demo } from '@/services/demo-store';
 
 import {
@@ -26,6 +26,42 @@ import {
 
 type RegisterRole = 'paciente' | 'cuidador';
 
+function validarFechaNacimiento(valor: string): string {
+  const fecha = valor.trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    throw new Error(
+      'La fecha debe tener el formato AAAA-MM-DD. Ejemplo: 1998-05-21.',
+    );
+  }
+
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const fechaUTC = new Date(Date.UTC(anio, mes - 1, dia));
+
+  if (
+    fechaUTC.getUTCFullYear() !== anio ||
+    fechaUTC.getUTCMonth() !== mes - 1 ||
+    fechaUTC.getUTCDate() !== dia
+  ) {
+    throw new Error('Ingresa una fecha de nacimiento válida.');
+  }
+
+  const hoy = new Date();
+  const hoyUTC = Date.UTC(
+    hoy.getFullYear(),
+    hoy.getMonth(),
+    hoy.getDate(),
+  );
+
+  if (fechaUTC.getTime() > hoyUTC) {
+    throw new Error(
+      'La fecha de nacimiento no puede ser futura.',
+    );
+  }
+
+  return fecha;
+}
+
 export function AccountForm({
   mode,
 }: {
@@ -33,139 +69,105 @@ export function AccountForm({
 }) {
   const router = useRouter();
   const { pendingToken } = useDemo();
-  const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const theme = Colors[
+    useColorScheme() === 'dark' ? 'dark' : 'light'
+  ];
 
-  /*
-   * Campos generales.
-   */
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-
-  /*
-   * Campo utilizado por el flujo antiguo de activación.
-   */
   const [code, setCode] = useState('');
 
-  /*
-   * Estado de interfaz.
-   */
+  const [birthDate, setBirthDate] = useState('');
+  const [role, setRole] = useState<RegisterRole>('paciente');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+
   const [error, setError] = useState('');
   const [visible, setVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  /*
-   * Campos específicos del registro real.
-   */
-  const [role, setRole] =
-    useState<RegisterRole>('paciente');
-
-  const [privacyAccepted, setPrivacyAccepted] =
-    useState(false);
-
-  /**
-   * Validación del formulario de registro.
-   */
   function validateRegister() {
     const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanName) {
-      throw new Error(
-        'Ingresa tu nombre completo.'
-      );
-    }
-
     if (cleanName.length < 3) {
       throw new Error(
-        'El nombre debe tener al menos 3 caracteres.'
+        'Ingresa un nombre completo de al menos 3 caracteres.',
       );
     }
 
-    if (!cleanEmail) {
+    if (cleanName.length > 200) {
       throw new Error(
-        'Ingresa tu correo electrónico.'
+        'El nombre no puede superar los 200 caracteres.',
       );
     }
 
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(cleanEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       throw new Error(
-        'Ingresa un correo electrónico válido.'
+        'Ingresa un correo electrónico válido.',
       );
     }
 
-    if (!password) {
+    if (password.length < 8 || password.length > 128) {
       throw new Error(
-        'Ingresa una contraseña.'
-      );
-    }
-
-    if (password.length < 8) {
-      throw new Error(
-        'La contraseña debe tener al menos 8 caracteres.'
+        'La contraseña debe tener entre 8 y 128 caracteres.',
       );
     }
 
     if (password !== confirm) {
-      throw new Error(
-        'Las contraseñas no coinciden.'
-      );
+      throw new Error('Las contraseñas no coinciden.');
+    }
+
+    let fechaNacimiento: string | undefined;
+
+    if (role === 'paciente') {
+      if (!birthDate.trim()) {
+        throw new Error(
+          'Ingresa la fecha de nacimiento del paciente.',
+        );
+      }
+
+      fechaNacimiento = validarFechaNacimiento(birthDate);
     }
 
     if (!privacyAccepted) {
       throw new Error(
-        'Debes aceptar la Política de Privacidad para crear tu cuenta.'
+        'Debes aceptar la Política de Privacidad para crear tu cuenta.',
       );
     }
 
     return {
       cleanName,
       cleanEmail,
+      fechaNacimiento,
     };
   }
 
-  /**
-   * Envío principal del formulario.
-   */
   async function submit() {
-    if (submitting) {
-      return;
-    }
+    if (submitting) return;
 
     setError('');
 
     try {
-      /*
-       * ============================
-       * REGISTRO
-       * ============================
-       */
       if (mode === 'register') {
         const {
           cleanName,
           cleanEmail,
+          fechaNacimiento,
         } = validateRegister();
 
         setSubmitting(true);
 
-        if (role === 'cuidador') {
-          await authService.register({
-            name: cleanName,
-            email: cleanEmail,
-            password,
-          });
-        } else {
-          await registerWithBackend({
-            nombre_completo: cleanName,
-            correo: cleanEmail,
-            password,
-            rol: role,
-          });
-        }
+        await registerWithBackend({
+          nombre_completo: cleanName,
+          correo: cleanEmail,
+          password,
+          rol: role,
+          ...(fechaNacimiento
+            ? { fecha_nacimiento: fechaNacimiento }
+            : {}),
+        });
 
         Alert.alert(
           'Cuenta creada',
@@ -177,23 +179,13 @@ export function AccountForm({
                 router.replace('/(auth)/login');
               },
             },
-          ]
+          ],
         );
 
         return;
       }
 
-      /*
-       * ============================
-       * LOGIN DEMO
-       * ============================
-       *
-       * Este bloque se conserva porque AccountForm
-       * todavía es utilizado por los flujos antiguos.
-       *
-       * El Login real que ya probamos está implementado
-       * en la pantalla correspondiente.
-       */
+      // Conservar el flujo de login demostrativo.
       if (mode === 'login') {
         demo.login(email, password);
 
@@ -203,68 +195,61 @@ export function AccountForm({
             ? '/invitacion'
             : demo.patient()
               ? '/(tabs)'
-              : '/(auth)/select-patient'
+              : '/(auth)/select-patient',
         );
 
         return;
       }
 
-      /*
-       * ============================
-       * ACTIVACIÓN DEMO
-       * ============================
-       */
+      // Conservar el flujo de activación demostrativo.
       if (mode === 'activate') {
         if (!code.trim()) {
           throw new Error(
-            'Ingresa el código de invitación.'
+            'Ingresa el código de invitación.',
           );
         }
 
         if (!email.trim()) {
           throw new Error(
-            'Ingresa tu correo electrónico.'
+            'Ingresa tu correo electrónico.',
           );
         }
 
         if (password.length < 8) {
           throw new Error(
-            'La contraseña debe tener al menos 8 caracteres.'
+            'La contraseña debe tener al menos 8 caracteres.',
           );
         }
 
         if (password !== confirm) {
           throw new Error(
-            'Las contraseñas no coinciden.'
+            'Las contraseñas no coinciden.',
           );
         }
 
         demo.activate(
           code.trim(),
           email.trim().toLowerCase(),
-          password
+          password,
         );
 
         router.replace(
           demo.patient()
             ? '/(tabs)'
-            : '/(auth)/select-patient'
+            : '/(auth)/select-patient',
         );
       }
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
-          : 'Ocurrió un error inesperado.'
+          : 'Ocurrió un error inesperado.',
       );
     } finally {
       setSubmitting(false);
     }
   }
 
-  /*
-   * Textos dependiendo del flujo.
-   */
   const title =
     mode === 'login'
       ? 'Bienvenido a Domicilia'
@@ -279,22 +264,62 @@ export function AccountForm({
         ? 'Completa tus datos para crear tu cuenta en Domicilia.'
         : 'Ingresa con tu correo y contraseña.';
 
+  function roleButton(
+    value: RegisterRole,
+    label: string,
+  ) {
+    const selected = role === value;
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={() => {
+          setRole(value);
+          setError('');
+        }}
+        style={{
+          flex: 1,
+          paddingHorizontal: 12,
+          paddingVertical: 13,
+          borderRadius: 10,
+          borderWidth: 2,
+          borderColor: selected
+            ? theme.primary
+            : theme.border,
+          backgroundColor: selected
+            ? theme.primarySoft
+            : theme.surface,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: '700',
+            color: selected
+              ? theme.primary
+              : theme.mutedText,
+          }}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
-    <FlowPage
-      title={title}
-      subtitle={subtitle}
-    >
+    <FlowPage title={title} subtitle={subtitle}>
       {pendingToken && mode !== 'register' && (
         <Card>
           <Copy>
             Tienes una invitación pendiente.
-            La retomaremos al identificarte
-            como cuidador.
+            La retomaremos al identificarte como cuidador.
           </Copy>
         </Card>
       )}
 
-      {/* Nombre */}
       {mode === 'register' && (
         <Field
           label="Nombre completo"
@@ -307,7 +332,6 @@ export function AccountForm({
         />
       )}
 
-      {/* Código de activación */}
       {mode === 'activate' && (
         <Field
           label="Código de invitación del centro"
@@ -319,7 +343,6 @@ export function AccountForm({
         />
       )}
 
-      {/* Correo */}
       <Field
         label="Correo electrónico"
         icon="email-outline"
@@ -332,7 +355,6 @@ export function AccountForm({
         placeholder="ejemplo@correo.com"
       />
 
-      {/* Contraseña */}
       <Field
         label="Contraseña"
         icon="lock-outline"
@@ -348,10 +370,11 @@ export function AccountForm({
         }
         placeholder="••••••••"
         secureVisible={visible}
-        onToggleSecure={() => setVisible((current) => !current)}
+        onToggleSecure={() =>
+          setVisible((current) => !current)
+        }
       />
 
-      {/* Confirmar contraseña */}
       {mode !== 'login' && (
         <>
           <Copy>
@@ -368,26 +391,17 @@ export function AccountForm({
             autoCorrect={false}
             placeholder="••••••••"
             secureVisible={visible}
-            onToggleSecure={() => setVisible((current) => !current)}
+            onToggleSecure={() =>
+              setVisible((current) => !current)
+            }
           />
         </>
       )}
 
-      {/* ============================= */}
-      {/* OPCIONES DEL REGISTRO */}
-      {/* ============================= */}
-
       {mode === 'register' && (
         <>
-          {/* Tipo de cuenta */}
-          <View
-            style={{
-              gap: 8,
-            }}
-          >
-            <Copy>
-              Tipo de cuenta
-            </Copy>
+          <View style={{ gap: 8 }}>
+            <Copy>Tipo de cuenta</Copy>
 
             <View
               style={{
@@ -395,91 +409,30 @@ export function AccountForm({
                 gap: 10,
               }}
             >
-              {/* Paciente */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{
-                  selected: role === 'paciente',
-                }}
-                onPress={() =>
-                  setRole('paciente')
-                }
-                style={{
-                  flex: 1,
-                  paddingHorizontal: 12,
-                  paddingVertical: 13,
-                  borderRadius: 10,
-                  borderWidth: 2,
-                  borderColor:
-                    role === 'paciente'
-                      ? theme.primary
-                      : theme.border,
-                  backgroundColor:
-                    role === 'paciente'
-                      ? theme.primarySoft
-                      : theme.surface,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: '700',
-                    color:
-                      role === 'paciente'
-                        ? theme.primary
-                        : theme.mutedText,
-                  }}
-                >
-                  Paciente
-                </Text>
-              </Pressable>
-
-              {/* Cuidador */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{
-                  selected: role === 'cuidador',
-                }}
-                onPress={() =>
-                  setRole('cuidador')
-                }
-                style={{
-                  flex: 1,
-                  paddingHorizontal: 12,
-                  paddingVertical: 13,
-                  borderRadius: 10,
-                  borderWidth: 2,
-                  borderColor:
-                    role === 'cuidador'
-                      ? theme.primary
-                      : theme.border,
-                  backgroundColor:
-                    role === 'cuidador'
-                      ? theme.primarySoft
-                      : theme.surface,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: '700',
-                    color:
-                      role === 'cuidador'
-                        ? theme.primary
-                        : theme.mutedText,
-                  }}
-                >
-                  Cuidador
-                </Text>
-              </Pressable>
+              {roleButton('paciente', 'Paciente')}
+              {roleButton('cuidador', 'Cuidador')}
             </View>
           </View>
 
-          {/* Política de privacidad */}
+          {role === 'paciente' && (
+            <View style={{ gap: 6 }}>
+              <Field
+                label="Fecha de nacimiento"
+                icon="calendar-outline"
+                value={birthDate}
+                onChangeText={setBirthDate}
+                placeholder="AAAA-MM-DD"
+                keyboardType="numbers-and-punctuation"
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              <Copy>
+                Ejemplo: 1998-05-21. Este dato es
+                obligatorio para pacientes.
+              </Copy>
+            </View>
+          )}
+
           <Pressable
             accessibilityRole="checkbox"
             accessibilityState={{
@@ -487,7 +440,7 @@ export function AccountForm({
             }}
             onPress={() =>
               setPrivacyAccepted(
-                (current) => !current
+                (current) => !current,
               )
             }
             style={{
@@ -497,21 +450,18 @@ export function AccountForm({
               paddingVertical: 8,
             }}
           >
-            {/* Checkbox */}
             <View
               style={{
                 width: 22,
                 height: 22,
                 borderRadius: 5,
                 borderWidth: 2,
-                borderColor:
-                  privacyAccepted
-                    ? theme.primary
-                    : theme.border,
-                backgroundColor:
-                  privacyAccepted
-                    ? theme.primary
-                    : theme.surface,
+                borderColor: privacyAccepted
+                  ? theme.primary
+                  : theme.border,
+                backgroundColor: privacyAccepted
+                  ? theme.primary
+                  : theme.surface,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -529,11 +479,7 @@ export function AccountForm({
               )}
             </View>
 
-            <View
-              style={{
-                flex: 1,
-              }}
-            >
+            <View style={{ flex: 1 }}>
               <Copy>
                 He leído y acepto la Política
                 de Privacidad y el tratamiento
@@ -544,7 +490,6 @@ export function AccountForm({
         </>
       )}
 
-      {/* Mensajes de error */}
       {!!error && (
         <View
           style={{
@@ -553,18 +498,28 @@ export function AccountForm({
             borderRadius: 14,
             borderWidth: 1,
             padding: 13,
-          }}>
-          <Text style={{ color: theme.danger, fontSize: 13, lineHeight: 19 }}>{error}</Text>
+          }}
+        >
+          <Text
+            style={{
+              color: theme.danger,
+              fontSize: 13,
+              lineHeight: 19,
+            }}
+          >
+            {error}
+          </Text>
         </View>
       )}
 
-      {/* Acción principal */}
       <Action
         label={
           submitting
             ? mode === 'activate'
               ? 'Activando cuenta...'
-              : 'Creando cuenta...'
+              : mode === 'login'
+                ? 'Iniciando sesión...'
+                : 'Creando cuenta...'
             : mode === 'login'
               ? 'Iniciar sesión'
               : mode === 'activate'
@@ -575,7 +530,6 @@ export function AccountForm({
         onPress={submit}
       />
 
-      {/* Navegación secundaria */}
       {mode === 'login' ? (
         <>
           <Action
@@ -597,28 +551,42 @@ export function AccountForm({
           <Action
             secondary
             label="Probar recorrido de demostración"
-            onPress={() =>
-              router.push('/demo')
-            }
+            onPress={() => router.push('/demo')}
           />
         </>
       ) : (
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.replace('/(auth)/login')}
-          style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}>
-          <MaterialCommunityIcons color={theme.primary} name="arrow-left" size={18} />
-          <Text style={[styles.backLinkText, { color: theme.primary }]}>Volver a iniciar sesión</Text>
+          onPress={() =>
+            router.replace('/(auth)/login')
+          }
+          style={({ pressed }) => [
+            styles.backLink,
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialCommunityIcons
+            color={theme.primary}
+            name="arrow-left"
+            size={18}
+          />
+          <Text
+            style={[
+              styles.backLinkText,
+              { color: theme.primary },
+            ]}
+          >
+            Volver a iniciar sesión
+          </Text>
         </Pressable>
       )}
 
-      {/* Aviso demo solo para flujos demo */}
       {mode !== 'register' && (
         <Copy>
-          Demostración local: usa datos
-          ficticios. Las cuentas y vínculos
-          se conservan al cerrar sesión y se
-          reinician al recargar la app.
+          Demostración local: usa datos ficticios.
+          Las cuentas y vínculos se conservan al
+          cerrar sesión y se reinician al recargar
+          la app.
         </Copy>
       )}
     </FlowPage>
@@ -634,6 +602,11 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 12,
   },
-  backLinkText: { fontSize: 15, fontWeight: '700' },
-  pressed: { opacity: 0.72 },
+  backLinkText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pressed: {
+    opacity: 0.72,
+  },
 });

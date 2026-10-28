@@ -686,11 +686,25 @@ export const demo = {
     }
   },
 
+  
   logout() {
     update({
       userId: undefined,
-
       selectedId: undefined,
+      pendingToken: undefined,
+    });
+  },
+
+  clearSessionData() {
+    update({
+      accounts: initialAccounts,
+      profiles: initialProfiles,
+      invitations: [],
+      relations: initialRelations,
+      measurements: readingsToMeasurements(MOCK_READINGS),
+      userId: undefined,
+      selectedId: undefined,
+      pendingToken: undefined,
     });
   },
 

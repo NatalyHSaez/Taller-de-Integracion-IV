@@ -3,14 +3,14 @@ import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { Action } from '@/components/flow-ui';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getDemoAlerts } from '@/services/alerts';
 import { BrandColors, Colors, MeasurementColors, StatusColors } from '@/constants/theme';
 import { useAppState } from '@/hooks/use-app-state';
-import { useDemo } from '@/hooks/use-demo';
-import { Action } from '@/components/flow-ui';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDemo } from '@/hooks/use-demo';
+import { getDemoAlerts } from '@/services/alerts';
 import type { Measurement, MeasurementType } from '@/types/measurement';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];

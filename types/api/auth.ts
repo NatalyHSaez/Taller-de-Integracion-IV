@@ -1,18 +1,18 @@
 import type { ISODate, UUID, UserRole } from './common';
 
-/** Body real de POST /api/v1/auth/login. */
+/** Formato interno compatible con la aplicación móvil. */
 export type LoginRequest = {
   correo: string;
   password: string;
 };
 
-/** Body real de POST /api/v1/auth/refresh y /auth/logout. */
+/** Formato interno para refresh/logout. */
 export type RefreshTokenRequest = {
   refresh_token: string;
 };
 
 /**
- * Body real de POST /api/v1/auth/registro.
+ * Formato interno del registro; api.ts lo adapta al backend nuevo.
  * - paciente exige fecha_nacimiento;
  * - medico puede enviar rut y profesion;
  * - administrador no se registra desde esta ruta.
@@ -27,7 +27,7 @@ export type RegisterRequest = {
   profesion?: string;
 };
 
-/** Respuesta real de POST /api/v1/auth/login y /auth/refresh. */
+/** Tokens en formato interno, normalizados por api.ts. */
 export type AuthTokensResponse = {
   access_token: string;
   refresh_token: string;
@@ -36,9 +36,7 @@ export type AuthTokensResponse = {
 };
 
 /**
- * Respuesta real de:
- * - POST /api/v1/auth/registro
- * - GET /api/v1/auth/me
+ * Usuario en formato interno, normalizado por api.ts.
  */
 export type CurrentUserResponse = {
   id: UUID;

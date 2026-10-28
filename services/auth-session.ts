@@ -1,5 +1,10 @@
-import type { AuthTokensResponse, CurrentUserResponse } from '@/types/api';
+
+import type {
+  AuthTokensResponse,
+  CurrentUserResponse,
+} from '@/types/api';
 import { setApiAccessTokenProvider } from './api';
+import { getAccessToken } from './token-storage';
 
 export type AuthSessionMode = 'backend' | 'mock';
 
@@ -22,18 +27,12 @@ function replaceState(nextState: SessionState) {
   listeners.forEach((listener) => listener());
 }
 
-/**
- * Sesión temporal de autenticación.
- *
- * Por ahora los tokens quedan solo en memoria. Además de exponer el token al
- * cliente HTTP, la sesión publica cambios para que el estado global de la app
- * pueda reaccionar cuando cambia entre backend, mock o sesión cerrada.
- */
 export const authSession = {
   snapshot: () => state,
 
   subscribe(listener: () => void) {
     listeners.add(listener);
+
     return () => {
       listeners.delete(listener);
     };
@@ -42,8 +41,12 @@ export const authSession = {
   mode: () => state.mode,
   tokens: () => state.tokens,
   user: () => state.user,
-  accessToken: () => state.tokens?.access_token ?? null,
-  refreshToken: () => state.tokens?.refresh_token ?? null,
+
+  accessToken: () =>
+    state.tokens?.access_token ?? null,
+
+  refreshToken: () =>
+    state.tokens?.refresh_token ?? null,
 
   startBackend(tokens: AuthTokensResponse) {
     replaceState({
@@ -53,7 +56,10 @@ export const authSession = {
     });
   },
 
-  startMock(tokens: AuthTokensResponse, user: CurrentUserResponse) {
+  startMock(
+    tokens: AuthTokensResponse,
+    user: CurrentUserResponse,
+  ) {
     replaceState({
       mode: 'mock',
       tokens,
@@ -77,5 +83,17 @@ export const authSession = {
   },
 };
 
-// apiClient obtiene siempre el token desde un único punto.
-setApiAccessTokenProvider(() => authSession.accessToken());
+// Las sesiones reales consultan el token actualizado
+// en SecureStore. Las sesiones mock conservan su token
+// en memoria.
+setApiAccessTokenProvider(async () => {
+  if (authSession.mode() === 'mock') {
+    return authSession.accessToken();
+  }
+
+  if (authSession.mode() !== 'backend') {
+    return null;
+  }
+
+  return await getAccessToken();
+});

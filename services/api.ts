@@ -300,53 +300,124 @@ async function parseSuccessfulResponse<T>(response: Response): Promise<T> {
   return text as T;
 }
 
+type BackendTokens = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType?: string;
+  expiresIn?: number;
+};
+
+function normalizeBackendTokens(value: BackendTokens): AuthTokensResponse {
+  if (!value?.accessToken || !value?.refreshToken) {
+    throw new ApiError({
+      code: "INVALID_API_RESPONSE",
+      message: "El servidor devolvió una sesión inválida.",
+      details: {},
+    });
+  }
+
+  return {
+    access_token: value.accessToken,
+    refresh_token: value.refreshToken,
+    token_type: value.tokenType ?? "bearer",
+    expires_in: value.expiresIn ?? 3600,
+  };
+}
+
+type BackendUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  roles: string[];
+};
+
+function normalizeBackendUser(value: BackendUser): CurrentUserResponse {
+  if (!value?.id || !value?.email || !Array.isArray(value.roles)) {
+    throw new ApiError({
+      code: "INVALID_API_RESPONSE",
+      message: "El servidor devolvió datos de usuario inválidos.",
+      details: {},
+    });
+  }
+
+  const roleMap: Record<string, "paciente" | "cuidador" | "medico" | "administrador"> = {
+    PATIENT: "paciente",
+    CAREGIVER: "cuidador",
+    DOCTOR: "medico",
+    ADMIN: "administrador",
+  };
+
+  return {
+    id: value.id,
+    nombre_completo: value.fullName ?? "",
+    correo: value.email,
+    roles: value.roles.map((role) => roleMap[role.toUpperCase()] ?? role.toLowerCase()) as CurrentUserResponse["roles"],
+  };
+}
+
 /*
  * Renovación del access token utilizando el
  * refresh token almacenado con SecureStore.
  */
-export async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = await getRefreshToken();
 
-  if (!refreshToken || !API_V1_URL) {
-    return null;
+let refreshPromise: Promise<string | null> | null = null;
+
+export async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) {
+    return refreshPromise;
   }
+
+  refreshPromise = (async () => {
+    const refreshToken = await getRefreshToken();
+
+    if (!refreshToken || !API_V1_URL) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${API_V1_URL}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Correlation-ID": createCorrelationId(),
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        // Solo invalidamos los tokens cuando el servidor
+        // confirma que la sesión ya no es válida.
+        if (response.status === 401 || response.status === 403) {
+          await clearTokens();
+        }
+
+        return null;
+      }
+
+      const raw = await parseSuccessfulResponse<BackendTokens>(response);
+      const tokens = normalizeBackendTokens(raw);
+
+      await saveTokens(
+        tokens.access_token,
+        tokens.refresh_token,
+      );
+
+      return tokens.access_token;
+    } catch {
+      // Ante fallos temporales de conexión,
+      // conservamos los tokens almacenados.
+      return null;
+    }
+  })();
 
   try {
-    const response = await fetch(`${API_V1_URL}/auth/refresh`, {
-      method: "POST",
-
-      headers: {
-        Accept: "application/json",
-
-        "Content-Type": "application/json",
-
-        "X-Correlation-ID": createCorrelationId(),
-      },
-
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-      }),
-    });
-
-    if (!response.ok) {
-      await clearTokens();
-      return null;
-    }
-
-    const tokens = await parseSuccessfulResponse<AuthTokensResponse>(response);
-
-    if (!tokens?.access_token || !tokens?.refresh_token) {
-      await clearTokens();
-      return null;
-    }
-
-    await saveTokens(tokens.access_token, tokens.refresh_token);
-
-    return tokens.access_token;
-  } catch {
-    return null;
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
   }
 }
+
 
 async function executeFetch(
   method: HttpMethod,
@@ -535,21 +606,24 @@ export const apiClient = {
  * account-form.tsx de Sebastián ya la utiliza.
  */
 export async function register(data: RegisterData): Promise<RegisterResponse> {
-  return apiClient.post<RegisterResponse>(
-    "/auth/registro",
+  const roleMap = {
+    paciente: "PATIENT",
+    cuidador: "CAREGIVER",
+    medico: "DOCTOR",
+  } as const;
 
-    {
-      ...data,
+  const body = {
+    fullName: data.nombre_completo.trim(),
+    email: data.correo.trim().toLowerCase(),
+    password: data.password,
+    role: roleMap[data.rol as keyof typeof roleMap] ?? data.rol.toUpperCase(),
+    ...(data.fecha_nacimiento ? { birthDate: data.fecha_nacimiento } : {}),
+  };
 
-      nombre_completo: data.nombre_completo.trim(),
-
-      correo: data.correo.trim().toLowerCase(),
-    },
-
-    {
-      auth: false,
-    },
-  );
+  const result = await apiClient.post<BackendUser>("/auth/register", body, {
+    auth: false,
+  });
+  return normalizeBackendUser(result);
 }
 
 /*
@@ -562,32 +636,14 @@ export async function login(
   correo: string,
   password: string,
 ): Promise<AuthTokensResponse> {
-  const tokens = await apiClient.post<AuthTokensResponse>(
+  const raw = await apiClient.post<BackendTokens>(
     "/auth/login",
-
-    {
-      correo: correo.trim().toLowerCase(),
-
-      password,
-    },
-
-    {
-      auth: false,
-    },
+    { email: correo.trim().toLowerCase(), password },
+    { auth: false },
   );
 
-  if (!tokens?.access_token || !tokens?.refresh_token) {
-    throw new ApiError({
-      code: "INVALID_API_RESPONSE",
-
-      message: "El servidor devolvió una sesión inválida.",
-
-      details: {},
-    });
-  }
-
+  const tokens = normalizeBackendTokens(raw);
   await saveTokens(tokens.access_token, tokens.refresh_token);
-
   return tokens;
 }
 
@@ -595,7 +651,8 @@ export async function login(
  * Usuario real autenticado.
  */
 export async function getMe(): Promise<CurrentUserResponse> {
-  return apiClient.get<CurrentUserResponse>("/auth/me");
+  const user = await apiClient.get<BackendUser>("/me");
+  return normalizeBackendUser(user);
 }
 
 /*
@@ -659,4 +716,85 @@ export async function fetchWithAuth(
  */
 export async function logoutLocal(): Promise<void> {
   await clearTokens();
+}
+
+export type PatientProfileResponse = {
+  id: string;
+  fullName: string;
+  birthDate: string | null;
+  age: number | null;
+  biologicalSex: string | null;
+  managementMode: string;
+};
+
+export async function getPatient(
+  patientId: string,
+): Promise<PatientProfileResponse> {
+  return apiClient.get<PatientProfileResponse>(
+    `/patients/${encodeURIComponent(patientId)}`,
+  );
+}
+
+
+export type ReadingMeasurementInput = {
+  parameterCode: string;
+  value: number;
+  unit?: string;
+};
+
+export type CreateReadingRequest = {
+  measuredAt: string;
+  source: "mobile";
+  context?: "PREPRANDIAL" | "POSTPRANDIAL";
+  measurements: ReadingMeasurementInput[];
+};
+
+export type ReadingResponse = {
+  readingId: string;
+  patientId: string;
+  measuredAt: string;
+  status: "PENDING" | "REQUIRES_CONFIRMATION" | "EVALUATED";
+  confirmationReasons: string[];
+  measurements: {
+    measurementId: string;
+    parameterCode: string;
+    value: number;
+    unit: string | null;
+    confirmedByUser: boolean;
+  }[];
+};
+
+export async function createReading(
+  patientId: string,
+  data: CreateReadingRequest,
+): Promise<ReadingResponse> {
+  return apiClient.post<ReadingResponse>(
+    `/patients/${encodeURIComponent(patientId)}/readings`,
+    data,
+  );
+}
+
+export async function confirmReading(
+  patientId: string,
+  readingId: string,
+): Promise<ReadingResponse> {
+  return apiClient.post<ReadingResponse>(
+    `/patients/${encodeURIComponent(patientId)}/readings/${encodeURIComponent(readingId)}/confirm`,
+    {},
+  );
+}
+
+export type PaginatedReadingsResponse = {
+  total: number;
+  page: number;
+  size: number;
+  items: ReadingResponse[];
+};
+
+export async function getPatientReadings(
+  patientId: string,
+): Promise<PaginatedReadingsResponse> {
+  return apiClient.get<PaginatedReadingsResponse>(
+    `/patients/${encodeURIComponent(patientId)}/readings`,
+  );
 }

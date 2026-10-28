@@ -1,7 +1,8 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Speech from "expo-speech";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,7 +17,9 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandColors, Colors, MeasurementColors } from "@/constants/theme";
 import { useAppState } from "@/hooks/use-app-state";
+import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { confirmReading, createReading, type CreateReadingRequest } from "@/services/api";
 import { demo } from "@/services/demo-store";
 import type { MeasurementType } from "@/types/measurement";
 import { useRouter } from "expo-router";
@@ -76,7 +79,15 @@ function isPositiveNumber(value: string) {
 
 export default function RegisterMeasurementScreen() {
   const router = useRouter();
-  const { selectedPatient: patient, user } = useAppState();
+  const { selectedPatient: patient, user, sessionMode } = useAppState();
+  const { user: authUser } = useAuth();
+  const isBackend = sessionMode === "backend";
+  const isRealPatient = isBackend && authUser?.roles.includes("paciente");
+  const patientId = isRealPatient && authUser ? authUser.id : null;
+  const [isSaving, setIsSaving] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const savingRef = useRef(false);
+  const [pendingReadingId, setPendingReadingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -136,11 +147,45 @@ export default function RegisterMeasurementScreen() {
   const contextLabel = GLUCOSE_CONTEXTS.find(
     (item) => item.value === glucoseContext,
   )?.label;
-  function save() {
+  async function save() {
+    if (savingRef.current || completed) return;
+    setSaveError("");
+
+    // Una lectura ya creada no se debe enviar por segunda vez.
+    if (pendingReadingId) {
+      if (!patientId) {
+        setSaveError("No se pudo identificar al paciente de esta lectura.");
+        return;
+      }
+      savingRef.current = true;
+      setIsSaving(true);
+      try {
+        const result = await confirmReading(patientId, pendingReadingId);
+        if (result.status === "REQUIRES_CONFIRMATION") {
+          setSaveError("La lectura todavía requiere confirmación. Intenta nuevamente.");
+          return;
+        }
+        setPendingReadingId(null);
+        setCompleted(true);
+        Alert.alert("Lectura confirmada", "La medición quedó registrada en el servidor.", [
+          { text: "Continuar", onPress: () => router.replace("/(tabs)") },
+        ]);
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "No se pudo confirmar la lectura.");
+      } finally {
+        savingRef.current = false;
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (!showReview) {
       setShowReview(true);
       return;
     }
+
+    savingRef.current = true;
+    setIsSaving(true);
     try {
       const [day, month, year] = date.split(/[/-]/).map(Number);
       const [hour, minute] = time.split(":").map(Number);
@@ -155,11 +200,62 @@ export default function RegisterMeasurementScreen() {
         minute > 59 ||
         !Number.isFinite(measured.getTime()) ||
         measured.getTime() > Date.now()
-      )
-        throw new Error(
-          "Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.",
-        );
+      ) {
+        throw new Error("Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.");
+      }
+
       const number = (value: string) => Number(value.replace(",", "."));
+
+      if (isBackend) {
+        if (!patientId) {
+          throw new Error(
+            "El registro de mediciones para cuidadores reales estará disponible cuando se integren los vínculos con pacientes."
+          );
+        }
+
+        const request: CreateReadingRequest = {
+          measuredAt: measured.toISOString(),
+          source: "mobile",
+          measurements:
+            measurementType === "blood_pressure"
+              ? [
+                  { parameterCode: "SBP", value: number(systolic), unit: "mmHg" },
+                  { parameterCode: "DBP", value: number(diastolic), unit: "mmHg" },
+                  { parameterCode: "HEART_RATE", value: number(heartRate), unit: "bpm" },
+                ]
+              : measurementType === "glucose"
+                ? [{ parameterCode: "GLUCOSE", value: number(glucose), unit: "mg/dL" }]
+                : [{ parameterCode: "WEIGHT", value: number(weight), unit: "kg" }],
+        };
+        if (measurementType === "glucose") {
+          request.context = glucoseContext === "after_meal" ? "POSTPRANDIAL" : "PREPRANDIAL";
+        }
+
+        const result = await createReading(patientId, request);
+        if (result.status === "REQUIRES_CONFIRMATION") {
+          setPendingReadingId(result.readingId);
+          const reasons = result.confirmationReasons.length
+            ? `\n\n${result.confirmationReasons.join("\n")}`
+            : "";
+          Alert.alert(
+            "Confirmación necesaria",
+            `El servidor guardó la lectura, pero necesita que confirmes sus valores.${reasons}\n\nRevisa los datos y pulsa «Confirmar lectura pendiente».`,
+            [{ text: "Entendido" }],
+          );
+          return;
+        }
+        setCompleted(true);
+        Alert.alert(
+          "Medición registrada",
+          result.status === "PENDING"
+            ? "La lectura se guardó en el servidor y está pendiente de evaluación."
+            : "La lectura se registró en el servidor.",
+          [{ text: "Continuar", onPress: () => router.replace("/(tabs)") }],
+        );
+        return;
+      }
+
+      // Se conserva el funcionamiento original del modo demostración.
       const base = { id: "", measuredAt: measured.toISOString() };
       demo.save(
         measurementType === "blood_pressure"
@@ -188,26 +284,20 @@ export default function RegisterMeasurementScreen() {
             : measurementType === "glucose"
               ? `Glucosa: ${glucose} miligramos por decilitro`
               : `Peso: ${weight.replace(".", ",")} kilos`;
-        const diaSemana = measured.toLocaleDateString("es-CL", {
-          weekday: "long",
-        });
-        const fecha = measured.toLocaleDateString("es-CL", {
-          day: "numeric",
-          month: "long",
-        });
-        const hora = measured.toLocaleTimeString("es-CL", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const diaSemana = measured.toLocaleDateString("es-CL", { weekday: "long" });
+        const fecha = measured.toLocaleDateString("es-CL", { day: "numeric", month: "long" });
+        const hora = measured.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
         Speech.speak(
           `Datos registrados correctamente. ${detalle}. ${diaSemana} ${fecha}, a las ${hora}.`,
           { language: "es-CL", volume: demo.snapshot().vozVolumen },
         );
       }
-
       router.replace(demo.permissions().read ? "/historial" : "/(tabs)");
-    } catch (e) {
-      setSaveError((e as Error).message);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "No fue posible guardar la medición.");
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
     }
   }
 
@@ -226,7 +316,7 @@ export default function RegisterMeasurementScreen() {
           showsVerticalScrollIndicator={false}
         >
           <ThemedText>
-            Paciente: {patient?.name} · Registra: {user?.name}
+            Paciente: {isBackend ? (isRealPatient ? authUser?.nombre_completo : "Sin vínculo real") : patient?.name} · Registra: {isBackend ? authUser?.nombre_completo : user?.name}
           </ThemedText>
           {!!saveError && <ThemedText>{saveError}</ThemedText>}
           <View style={styles.hero}>
@@ -280,7 +370,7 @@ export default function RegisterMeasurementScreen() {
                   accessibilityLabel={option.label}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: isSelected }}
-                  onPress={() => selectMeasurementType(option.value)}
+                  onPress={() => { if (!pendingReadingId && !isSaving) selectMeasurementType(option.value); }}
                   style={({ pressed }) => [
                     styles.typeCard,
                     {
@@ -348,7 +438,7 @@ export default function RegisterMeasurementScreen() {
                   <MeasurementInput
                     label="Sistólica"
                     value={systolic}
-                    onChangeText={setSystolic}
+                    onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setSystolic(v); setShowReview(false); } }}
                     unit="mmHg"
                     placeholder="120"
                     inputColor={inputColor}
@@ -359,7 +449,7 @@ export default function RegisterMeasurementScreen() {
                   <MeasurementInput
                     label="Diastólica"
                     value={diastolic}
-                    onChangeText={setDiastolic}
+                    onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setDiastolic(v); setShowReview(false); } }}
                     unit="mmHg"
                     placeholder="80"
                     inputColor={inputColor}
@@ -371,7 +461,7 @@ export default function RegisterMeasurementScreen() {
                 <MeasurementInput
                   label="Frecuencia cardíaca"
                   value={heartRate}
-                  onChangeText={setHeartRate}
+                  onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setHeartRate(v); setShowReview(false); } }}
                   unit="lpm"
                   placeholder="72"
                   inputColor={inputColor}
@@ -387,7 +477,7 @@ export default function RegisterMeasurementScreen() {
                 <MeasurementInput
                   label="Glucosa"
                   value={glucose}
-                  onChangeText={setGlucose}
+                  onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setGlucose(v); setShowReview(false); } }}
                   unit="mg/dL"
                   placeholder="105"
                   inputColor={inputColor}
@@ -413,7 +503,7 @@ export default function RegisterMeasurementScreen() {
                           key={item.value}
                           accessibilityRole="radio"
                           accessibilityState={{ checked: isSelected }}
-                          onPress={() => setGlucoseContext(item.value)}
+                          onPress={() => { if (!pendingReadingId && !isSaving) { setGlucoseContext(item.value); setShowReview(false); } }}
                           style={({ pressed }) => [
                             styles.contextButton,
                             {
@@ -453,7 +543,7 @@ export default function RegisterMeasurementScreen() {
               <MeasurementInput
                 label="Peso"
                 value={weight}
-                onChangeText={setWeight}
+                onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setWeight(v); setShowReview(false); } }}
                 unit="kg"
                 placeholder="78,5"
                 inputColor={inputColor}
@@ -502,7 +592,7 @@ export default function RegisterMeasurementScreen() {
                 />
                 <TextInput
                   accessibilityLabel="Fecha de la medición"
-                  onChangeText={setDate}
+                  onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setDate(v); setShowReview(false); } }}
                   placeholder="DD/MM/AAAA"
                   placeholderTextColor={theme.icon}
                   style={[styles.dateInput, { color: theme.text }]}
@@ -525,7 +615,7 @@ export default function RegisterMeasurementScreen() {
                 />
                 <TextInput
                   accessibilityLabel="Hora de la medición"
-                  onChangeText={setTime}
+                  onChangeText={(v) => { if (!pendingReadingId && !isSaving) { setTime(v); setShowReview(false); } }}
                   placeholder="HH:MM"
                   placeholderTextColor={theme.icon}
                   style={[styles.dateInput, { color: theme.text }]}
@@ -579,16 +669,16 @@ export default function RegisterMeasurementScreen() {
                 </ThemedText>
               </View>
             </View>
-          )}
+          )} 
 
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: !formIsValid }}
-            disabled={!formIsValid}
+            accessibilityState={{ disabled: !formIsValid || isSaving || completed }}
+            disabled={!formIsValid || isSaving || completed}
             onPress={save}
             style={({ pressed }) => [
               styles.submitButton,
-              { backgroundColor: formIsValid ? accentColor : theme.disabled },
+              { backgroundColor: formIsValid && !isSaving && !completed ? accentColor : theme.disabled },
               pressed && formIsValid && styles.pressed,
             ]}
           >
@@ -597,7 +687,7 @@ export default function RegisterMeasurementScreen() {
               darkColor={BrandColors.onPrimary}
               style={styles.submitLabel}
             >
-              {showReview ? "Guardar medición" : "Revisar medición"}
+              {completed ? "Medición registrada" : isSaving ? "Procesando..." : pendingReadingId ? "Confirmar lectura pendiente" : showReview ? "Guardar medición" : "Revisar medición"}
             </ThemedText>
             <MaterialCommunityIcons
               name={showReview ? "check-circle-outline" : "arrow-right"}
