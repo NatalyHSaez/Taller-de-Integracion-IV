@@ -1,5 +1,5 @@
 import type { ISODate, UUID } from './common';
-import type { CanonicalUnit } from './reading';
+import type { CanonicalUnit, ClinicalParameterCode } from './reading';
 
 export type HealthConditionResponse = {
   conditionId: UUID;
@@ -8,13 +8,17 @@ export type HealthConditionResponse = {
   active: boolean;
 };
 
+/**
+ * Item de GET /api/v1/clinical-parameters (contrato real del Gateway).
+ * Es la fuente de verdad para nombre, unidad y límites técnicos de cada parámetro.
+ */
 export type ClinicalParameterResponse = {
-  parameterId: UUID;
-  code: string;
+  code: ClinicalParameterCode;
   name: string;
   valueType: string;
-  canonicalUnit: CanonicalUnit | null;
-  active: boolean;
+  unit: CanonicalUnit;
+  technicalMin: number | null;
+  technicalMax: number | null;
 };
 
 export type PatientConditionResponse = {

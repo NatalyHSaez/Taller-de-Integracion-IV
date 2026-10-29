@@ -1,7 +1,8 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Speech from "expo-speech";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,8 +17,11 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandColors, Colors, MeasurementColors } from "@/constants/theme";
 import { useAppState } from "@/hooks/use-app-state";
+import { useClinicalParameters } from "@/hooks/use-clinical-parameters";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { validateAgainstParameter } from "@/services/clinical-parameters";
 import { demo } from "@/services/demo-store";
+import type { ClinicalParameterCode, ClinicalParameterResponse } from "@/types/api";
 import type { MeasurementType } from "@/types/measurement";
 import { useRouter } from "expo-router";
 
@@ -46,6 +50,21 @@ const MEASUREMENT_OPTIONS: MeasurementOption[] = [
     icon: "scale-bathroom",
   },
 ];
+
+/** Parámetros del catálogo que necesita cada tipo de formulario. */
+const REQUIRED_PARAMETERS: Record<MeasurementType, ClinicalParameterCode[]> = {
+  blood_pressure: ["SBP", "DBP", "HEART_RATE"],
+  glucose: ["GLUCOSE"],
+  weight: ["WEIGHT"],
+};
+
+function rangeHint(parameter: ClinicalParameterResponse) {
+  const { technicalMin: min, technicalMax: max } = parameter;
+  if (min !== null && max !== null) return `Rango válido: ${min}–${max}`;
+  if (min !== null) return `Mínimo: ${min}`;
+  if (max !== null) return `Máximo: ${max}`;
+  return undefined;
+}
 
 const GLUCOSE_CONTEXTS: { value: GlucoseContext; label: string }[] = [
   { value: "fasting", label: "En ayunas" },
@@ -98,6 +117,46 @@ export default function RegisterMeasurementScreen() {
   const [date, setDate] = useState(formatDate(now));
   const [time, setTime] = useState(formatTime(now));
   const [showReview, setShowReview] = useState(false);
+  const {
+    catalog,
+    loading: catalogLoading,
+    error: catalogError,
+    retry: retryCatalog,
+  } = useClinicalParameters();
+
+  const isTypeAvailable = (type: MeasurementType) =>
+    !!catalog && REQUIRED_PARAMETERS[type].every((code) => !!catalog[code]);
+  const typeAvailable = isTypeAvailable(measurementType);
+  const parameter = (code: ClinicalParameterCode) => catalog?.[code];
+  const unitOf = (code: ClinicalParameterCode) => parameter(code)?.unit ?? "";
+
+  useEffect(() => {
+    if (!catalog || isTypeAvailable(measurementType)) return;
+    const firstAvailable = MEASUREMENT_OPTIONS.find((option) =>
+      isTypeAvailable(option.value),
+    );
+    if (firstAvailable) setMeasurementType(firstAvailable.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog]);
+
+  const fieldValues: Record<ClinicalParameterCode, string> = {
+    SBP: systolic,
+    DBP: diastolic,
+    HEART_RATE: heartRate,
+    GLUCOSE: glucose,
+    WEIGHT: weight,
+  };
+  const fieldErrors: Partial<Record<ClinicalParameterCode, string>> = {};
+  if (catalog) {
+    for (const code of REQUIRED_PARAMETERS[measurementType]) {
+      const definition = catalog[code];
+      const message = definition
+        ? validateAgainstParameter(definition, fieldValues[code])
+        : null;
+      if (message) fieldErrors[code] = message;
+    }
+  }
+  const hasFieldErrors = Object.keys(fieldErrors).length > 0;
 
   const accentColor = theme.primary;
   const surfaceColor = theme.surface;
@@ -105,6 +164,8 @@ export default function RegisterMeasurementScreen() {
   const inputColor = theme.surfaceMuted;
 
   const formIsValid =
+    typeAvailable &&
+    !hasFieldErrors &&
     date.trim().length > 0 &&
     time.trim().length > 0 &&
     (measurementType === "blood_pressure"
@@ -127,16 +188,45 @@ export default function RegisterMeasurementScreen() {
 
   function getSummaryValue() {
     if (measurementType === "blood_pressure") {
-      return `${systolic} / ${diastolic} mmHg · ${heartRate} lpm`;
+      return `${systolic} / ${diastolic} ${unitOf("SBP")} · ${heartRate} ${unitOf("HEART_RATE")}`;
     }
-    if (measurementType === "glucose") return `${glucose} mg/dL`;
-    return `${weight.replace(".", ",")} kg`;
+    if (measurementType === "glucose") return `${glucose} ${unitOf("GLUCOSE")}`;
+    return `${weight.replace(".", ",")} ${unitOf("WEIGHT")}`;
   }
 
   const contextLabel = GLUCOSE_CONTEXTS.find(
     (item) => item.value === glucoseContext,
   )?.label;
+  function renderParameterInput(
+    code: ClinicalParameterCode,
+    value: string,
+    onChangeText: (value: string) => void,
+    placeholder: string,
+    decimal = false,
+  ) {
+    const definition = parameter(code);
+    if (!definition) return null;
+    return (
+      <MeasurementInput
+        key={code}
+        label={definition.name}
+        value={value}
+        onChangeText={onChangeText}
+        unit={definition.unit}
+        hint={rangeHint(definition)}
+        error={fieldErrors[code]}
+        placeholder={placeholder}
+        inputColor={inputColor}
+        borderColor={borderColor}
+        textColor={theme.text}
+        placeholderColor={theme.placeholder}
+        decimal={decimal}
+      />
+    );
+  }
+
   function save() {
+    if (!formIsValid) return;
     if (!showReview) {
       setShowReview(true);
       return;
@@ -255,368 +345,375 @@ export default function RegisterMeasurementScreen() {
             </ThemedText>
           </View>
 
-          <View style={styles.sectionHeading}>
-            <View style={styles.stepBadge}>
-              <ThemedText
-                lightColor={BrandColors.onPrimary}
-                darkColor={BrandColors.onPrimary}
-                style={styles.stepBadgeText}
-              >
-                1
-              </ThemedText>
-            </View>
-            <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-              Tipo de medición
-            </ThemedText>
-          </View>
-
-          <View accessibilityRole="radiogroup" style={styles.typeRow}>
-            {MEASUREMENT_OPTIONS.map((option) => {
-              const isSelected = measurementType === option.value;
-              const optionColors = MeasurementColors[themeName][option.value];
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityLabel={option.label}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: isSelected }}
-                  onPress={() => selectMeasurementType(option.value)}
-                  style={({ pressed }) => [
-                    styles.typeCard,
-                    {
-                      backgroundColor: surfaceColor,
-                      borderColor: isSelected
-                        ? optionColors.accent
-                        : borderColor,
-                    },
-                    isSelected && styles.typeCardSelected,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.typeIcon,
-                      { backgroundColor: optionColors.background },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={option.icon}
-                      size={25}
-                      color={optionColors.accent}
-                    />
-                  </View>
-                  <ThemedText style={styles.typeLabel}>
-                    {option.label}
-                  </ThemedText>
-                  {isSelected && (
-                    <MaterialCommunityIcons
-                      name="check-circle"
-                      size={19}
-                      color={optionColors.accent}
-                      style={styles.checkIcon}
-                    />
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View style={styles.sectionHeading}>
-            <View style={styles.stepBadge}>
-              <ThemedText
-                lightColor={BrandColors.onPrimary}
-                darkColor={BrandColors.onPrimary}
-                style={styles.stepBadgeText}
-              >
-                2
-              </ThemedText>
-            </View>
-            <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-              Ingresa los valores
-            </ThemedText>
-          </View>
-
-          <View
-            style={[
-              styles.formCard,
-              { backgroundColor: surfaceColor, borderColor },
-            ]}
-          >
-            {measurementType === "blood_pressure" && (
-              <>
-                <View style={styles.twoColumns}>
-                  <MeasurementInput
-                    label="Sistólica"
-                    value={systolic}
-                    onChangeText={setSystolic}
-                    unit="mmHg"
-                    placeholder="120"
-                    inputColor={inputColor}
-                    borderColor={borderColor}
-                    textColor={theme.text}
-                    placeholderColor={theme.placeholder}
-                  />
-                  <MeasurementInput
-                    label="Diastólica"
-                    value={diastolic}
-                    onChangeText={setDiastolic}
-                    unit="mmHg"
-                    placeholder="80"
-                    inputColor={inputColor}
-                    borderColor={borderColor}
-                    textColor={theme.text}
-                    placeholderColor={theme.placeholder}
-                  />
-                </View>
-                <MeasurementInput
-                  label="Frecuencia cardíaca"
-                  value={heartRate}
-                  onChangeText={setHeartRate}
-                  unit="lpm"
-                  placeholder="72"
-                  inputColor={inputColor}
-                  borderColor={borderColor}
-                  textColor={theme.text}
-                  placeholderColor={theme.placeholder}
-                />
-              </>
-            )}
-
-            {measurementType === "glucose" && (
-              <>
-                <MeasurementInput
-                  label="Glucosa"
-                  value={glucose}
-                  onChangeText={setGlucose}
-                  unit="mg/dL"
-                  placeholder="105"
-                  inputColor={inputColor}
-                  borderColor={borderColor}
-                  textColor={theme.text}
-                  placeholderColor={theme.placeholder}
-                />
-                <View style={styles.fieldGroup}>
-                  <ThemedText style={styles.inputLabel}>
-                    Contexto de la medición
-                  </ThemedText>
-                  <ThemedText style={[styles.fieldHelp, { color: theme.icon }]}>
-                    Necesario para interpretar correctamente la glucosa.
-                  </ThemedText>
-                  <View
-                    accessibilityRole="radiogroup"
-                    style={styles.contextOptions}
-                  >
-                    {GLUCOSE_CONTEXTS.map((item) => {
-                      const isSelected = glucoseContext === item.value;
-                      return (
-                        <Pressable
-                          key={item.value}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: isSelected }}
-                          onPress={() => setGlucoseContext(item.value)}
-                          style={({ pressed }) => [
-                            styles.contextButton,
-                            {
-                              backgroundColor: isSelected
-                                ? accentColor
-                                : inputColor,
-                              borderColor: isSelected
-                                ? accentColor
-                                : borderColor,
-                            },
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <ThemedText
-                            lightColor={
-                              isSelected ? theme.onPrimary : theme.text
-                            }
-                            darkColor={
-                              isSelected ? theme.onPrimary : theme.text
-                            }
-                            style={[
-                              styles.contextLabel,
-                              isSelected && styles.contextLabelSelected,
-                            ]}
-                          >
-                            {item.label}
-                          </ThemedText>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              </>
-            )}
-
-            {measurementType === "weight" && (
-              <MeasurementInput
-                label="Peso"
-                value={weight}
-                onChangeText={setWeight}
-                unit="kg"
-                placeholder="78,5"
-                inputColor={inputColor}
-                borderColor={borderColor}
-                textColor={theme.text}
-                placeholderColor={theme.placeholder}
-                decimal
-              />
-            )}
-          </View>
-
-          <View style={styles.sectionHeading}>
-            <View style={styles.stepBadge}>
-              <ThemedText
-                lightColor={BrandColors.onPrimary}
-                darkColor={BrandColors.onPrimary}
-                style={styles.stepBadgeText}
-              >
-                3
-              </ThemedText>
-            </View>
-            <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-              Fecha y hora
-            </ThemedText>
-          </View>
-
-          <View
-            style={[
-              styles.formCard,
-              styles.dateCard,
-              { backgroundColor: surfaceColor, borderColor },
-            ]}
-          >
-            <View style={styles.dateField}>
-              <ThemedText style={styles.inputLabel}>Fecha</ThemedText>
-              <View
-                style={[
-                  styles.inputShell,
-                  { backgroundColor: inputColor, borderColor },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="calendar-outline"
-                  size={21}
-                  color={accentColor}
-                />
-                <TextInput
-                  accessibilityLabel="Fecha de la medición"
-                  onChangeText={setDate}
-                  placeholder="DD/MM/AAAA"
-                  placeholderTextColor={theme.icon}
-                  style={[styles.dateInput, { color: theme.text }]}
-                  value={date}
-                />
-              </View>
-            </View>
-            <View style={styles.timeField}>
-              <ThemedText style={styles.inputLabel}>Hora</ThemedText>
-              <View
-                style={[
-                  styles.inputShell,
-                  { backgroundColor: inputColor, borderColor },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="clock-outline"
-                  size={21}
-                  color={accentColor}
-                />
-                <TextInput
-                  accessibilityLabel="Hora de la medición"
-                  onChangeText={setTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor={theme.icon}
-                  style={[styles.dateInput, { color: theme.text }]}
-                  value={time}
-                />
-              </View>
-            </View>
-          </View>
-
-          {showReview && formIsValid && (
+          {catalogLoading && !catalog && (
             <View
-              style={[
-                styles.reviewCard,
-                {
-                  backgroundColor: surfaceColor,
-                  borderColor: selectedColors.accent,
-                },
-              ]}
+              accessibilityLiveRegion="polite"
+              style={[styles.statusCard, { backgroundColor: surfaceColor, borderColor }]}
             >
-              <View
-                style={[
-                  styles.reviewIcon,
-                  { backgroundColor: selectedColors.background },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={selectedOption.icon}
-                  size={25}
-                  color={selectedColors.accent}
-                />
-              </View>
-              <View style={styles.reviewCopy}>
-                <ThemedText style={styles.reviewEyebrow}>
-                  REVISA ANTES DE GUARDAR
-                </ThemedText>
-                <ThemedText style={styles.reviewTitle}>
-                  {selectedOption.label}
-                </ThemedText>
-                <ThemedText style={styles.reviewValue}>
-                  {getSummaryValue()}
-                </ThemedText>
-                {contextLabel && (
-                  <ThemedText
-                    style={[styles.reviewMeta, { color: theme.icon }]}
-                  >
-                    {contextLabel}
-                  </ThemedText>
-                )}
-                <ThemedText style={[styles.reviewMeta, { color: theme.icon }]}>
-                  {date} · {time}
-                </ThemedText>
-              </View>
+              <ActivityIndicator color={accentColor} />
+              <ThemedText style={styles.statusText}>
+                Cargando tipos de medición…
+              </ThemedText>
             </View>
           )}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !formIsValid }}
-            disabled={!formIsValid}
-            onPress={save}
-            style={({ pressed }) => [
-              styles.submitButton,
-              { backgroundColor: formIsValid ? accentColor : theme.disabled },
-              pressed && formIsValid && styles.pressed,
-            ]}
-          >
-            <ThemedText
-              lightColor={BrandColors.onPrimary}
-              darkColor={BrandColors.onPrimary}
-              style={styles.submitLabel}
+          {!catalogLoading && catalogError && (
+            <View
+              accessibilityRole="alert"
+              style={[styles.statusCard, { backgroundColor: surfaceColor, borderColor }]}
             >
-              {showReview ? "Guardar medición" : "Revisar medición"}
-            </ThemedText>
-            <MaterialCommunityIcons
-              name={showReview ? "check-circle-outline" : "arrow-right"}
-              size={22}
-              color={BrandColors.onPrimary}
-            />
-          </Pressable>
+              <MaterialCommunityIcons
+                name="cloud-alert-outline"
+                size={26}
+                color={theme.icon}
+              />
+              <ThemedText style={styles.statusText}>{catalogError}</ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={retryCatalog}
+                style={({ pressed }) => [
+                  styles.retryButton,
+                  { backgroundColor: accentColor },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <ThemedText
+                  lightColor={BrandColors.onPrimary}
+                  darkColor={BrandColors.onPrimary}
+                  style={styles.retryLabel}
+                >
+                  Reintentar
+                </ThemedText>
+              </Pressable>
+            </View>
+          )}
 
-          <View style={styles.integrationNote}>
-            <MaterialCommunityIcons
-              name="shield-check-outline"
-              size={19}
-              color={theme.icon}
-            />
-            <ThemedText style={[styles.integrationText, { color: theme.icon }]}>
-              Verifica que los valores coincidan con tu dispositivo antes de
-              continuar.
-            </ThemedText>
-          </View>
+          {catalog && (
+            <>
+            <View style={styles.sectionHeading}>
+              <View style={styles.stepBadge}>
+                <ThemedText
+                  lightColor={BrandColors.onPrimary}
+                  darkColor={BrandColors.onPrimary}
+                  style={styles.stepBadgeText}
+                >
+                  1
+                </ThemedText>
+              </View>
+              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+                Tipo de medición
+              </ThemedText>
+            </View>
+
+            <View accessibilityRole="radiogroup" style={styles.typeRow}>
+              {MEASUREMENT_OPTIONS.map((option) => {
+                const isSelected = measurementType === option.value;
+                const isAvailable = isTypeAvailable(option.value);
+                const optionColors = MeasurementColors[themeName][option.value];
+                return (
+                  <Pressable
+                    key={option.value}
+                    accessibilityLabel={option.label}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: isSelected,
+                      disabled: !isAvailable,
+                    }}
+                    disabled={!isAvailable}
+                    onPress={() => selectMeasurementType(option.value)}
+                    style={({ pressed }) => [
+                      styles.typeCard,
+                      {
+                        backgroundColor: surfaceColor,
+                        borderColor: isSelected
+                          ? optionColors.accent
+                          : borderColor,
+                      },
+                      isSelected && styles.typeCardSelected,
+                      !isAvailable && styles.typeCardDisabled,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.typeIcon,
+                        { backgroundColor: optionColors.background },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={option.icon}
+                        size={25}
+                        color={optionColors.accent}
+                      />
+                    </View>
+                    <ThemedText style={styles.typeLabel}>
+                      {option.label}
+                    </ThemedText>
+                    {isSelected && (
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={19}
+                        color={optionColors.accent}
+                        style={styles.checkIcon}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.sectionHeading}>
+              <View style={styles.stepBadge}>
+                <ThemedText
+                  lightColor={BrandColors.onPrimary}
+                  darkColor={BrandColors.onPrimary}
+                  style={styles.stepBadgeText}
+                >
+                  2
+                </ThemedText>
+              </View>
+              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+                Ingresa los valores
+              </ThemedText>
+            </View>
+
+            <View
+              style={[
+                styles.formCard,
+                { backgroundColor: surfaceColor, borderColor },
+              ]}
+            >
+              {!typeAvailable && (
+                <ThemedText style={[styles.fieldHelp, { color: theme.icon }]}>
+                  Este tipo de medición no está disponible en el catálogo actual.
+                </ThemedText>
+              )}
+
+              {typeAvailable && measurementType === "blood_pressure" && (
+                <>
+                  <View style={styles.twoColumns}>
+                    {renderParameterInput("SBP", systolic, setSystolic, "120")}
+                    {renderParameterInput("DBP", diastolic, setDiastolic, "80")}
+                  </View>
+                  {renderParameterInput("HEART_RATE", heartRate, setHeartRate, "72")}
+                </>
+              )}
+
+              {typeAvailable && measurementType === "glucose" && (
+                <>
+                  {renderParameterInput("GLUCOSE", glucose, setGlucose, "105")}
+                  <View style={styles.fieldGroup}>
+                    <ThemedText style={styles.inputLabel}>
+                      Contexto de la medición
+                    </ThemedText>
+                    <ThemedText style={[styles.fieldHelp, { color: theme.icon }]}>
+                      Necesario para interpretar correctamente la glucosa.
+                    </ThemedText>
+                    <View
+                      accessibilityRole="radiogroup"
+                      style={styles.contextOptions}
+                    >
+                      {GLUCOSE_CONTEXTS.map((item) => {
+                        const isSelected = glucoseContext === item.value;
+                        return (
+                          <Pressable
+                            key={item.value}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: isSelected }}
+                            onPress={() => setGlucoseContext(item.value)}
+                            style={({ pressed }) => [
+                              styles.contextButton,
+                              {
+                                backgroundColor: isSelected
+                                  ? accentColor
+                                  : inputColor,
+                                borderColor: isSelected
+                                  ? accentColor
+                                  : borderColor,
+                              },
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <ThemedText
+                              lightColor={
+                                isSelected ? theme.onPrimary : theme.text
+                              }
+                              darkColor={
+                                isSelected ? theme.onPrimary : theme.text
+                              }
+                              style={[
+                                styles.contextLabel,
+                                isSelected && styles.contextLabelSelected,
+                              ]}
+                            >
+                              {item.label}
+                            </ThemedText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {typeAvailable && measurementType === "weight" &&
+                renderParameterInput("WEIGHT", weight, setWeight, "78,5", true)}
+            </View>
+
+            <View style={styles.sectionHeading}>
+              <View style={styles.stepBadge}>
+                <ThemedText
+                  lightColor={BrandColors.onPrimary}
+                  darkColor={BrandColors.onPrimary}
+                  style={styles.stepBadgeText}
+                >
+                  3
+                </ThemedText>
+              </View>
+              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+                Fecha y hora
+              </ThemedText>
+            </View>
+
+            <View
+              style={[
+                styles.formCard,
+                styles.dateCard,
+                { backgroundColor: surfaceColor, borderColor },
+              ]}
+            >
+              <View style={styles.dateField}>
+                <ThemedText style={styles.inputLabel}>Fecha</ThemedText>
+                <View
+                  style={[
+                    styles.inputShell,
+                    { backgroundColor: inputColor, borderColor },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="calendar-outline"
+                    size={21}
+                    color={accentColor}
+                  />
+                  <TextInput
+                    accessibilityLabel="Fecha de la medición"
+                    onChangeText={setDate}
+                    placeholder="DD/MM/AAAA"
+                    placeholderTextColor={theme.icon}
+                    style={[styles.dateInput, { color: theme.text }]}
+                    value={date}
+                  />
+                </View>
+              </View>
+              <View style={styles.timeField}>
+                <ThemedText style={styles.inputLabel}>Hora</ThemedText>
+                <View
+                  style={[
+                    styles.inputShell,
+                    { backgroundColor: inputColor, borderColor },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="clock-outline"
+                    size={21}
+                    color={accentColor}
+                  />
+                  <TextInput
+                    accessibilityLabel="Hora de la medición"
+                    onChangeText={setTime}
+                    placeholder="HH:MM"
+                    placeholderTextColor={theme.icon}
+                    style={[styles.dateInput, { color: theme.text }]}
+                    value={time}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {showReview && formIsValid && (
+              <View
+                style={[
+                  styles.reviewCard,
+                  {
+                    backgroundColor: surfaceColor,
+                    borderColor: selectedColors.accent,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.reviewIcon,
+                    { backgroundColor: selectedColors.background },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={selectedOption.icon}
+                    size={25}
+                    color={selectedColors.accent}
+                  />
+                </View>
+                <View style={styles.reviewCopy}>
+                  <ThemedText style={styles.reviewEyebrow}>
+                    REVISA ANTES DE GUARDAR
+                  </ThemedText>
+                  <ThemedText style={styles.reviewTitle}>
+                    {selectedOption.label}
+                  </ThemedText>
+                  <ThemedText style={styles.reviewValue}>
+                    {getSummaryValue()}
+                  </ThemedText>
+                  {contextLabel && (
+                    <ThemedText
+                      style={[styles.reviewMeta, { color: theme.icon }]}
+                    >
+                      {contextLabel}
+                    </ThemedText>
+                  )}
+                  <ThemedText style={[styles.reviewMeta, { color: theme.icon }]}>
+                    {date} · {time}
+                  </ThemedText>
+                </View>
+              </View>
+            )}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !formIsValid }}
+              disabled={!formIsValid}
+              onPress={save}
+              style={({ pressed }) => [
+                styles.submitButton,
+                { backgroundColor: formIsValid ? accentColor : theme.disabled },
+                pressed && formIsValid && styles.pressed,
+              ]}
+            >
+              <ThemedText
+                lightColor={BrandColors.onPrimary}
+                darkColor={BrandColors.onPrimary}
+                style={styles.submitLabel}
+              >
+                {showReview ? "Guardar medición" : "Revisar medición"}
+              </ThemedText>
+              <MaterialCommunityIcons
+                name={showReview ? "check-circle-outline" : "arrow-right"}
+                size={22}
+                color={BrandColors.onPrimary}
+              />
+            </Pressable>
+
+            <View style={styles.integrationNote}>
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={19}
+                color={theme.icon}
+              />
+              <ThemedText style={[styles.integrationText, { color: theme.icon }]}>
+                Verifica que los valores coincidan con tu dispositivo antes de
+                continuar.
+              </ThemedText>
+            </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
@@ -634,6 +731,8 @@ type MeasurementInputProps = {
   textColor: string;
   placeholderColor: string;
   decimal?: boolean;
+  hint?: string;
+  error?: string;
 };
 
 function MeasurementInput({
@@ -647,6 +746,8 @@ function MeasurementInput({
   textColor,
   placeholderColor,
   decimal = false,
+  hint,
+  error,
 }: MeasurementInputProps) {
   return (
     <View style={styles.measurementField}>
@@ -654,11 +755,12 @@ function MeasurementInput({
       <View
         style={[
           styles.measurementInputShell,
-          { backgroundColor: inputColor, borderColor },
+          { backgroundColor: inputColor, borderColor: error ? "#C62828" : borderColor },
         ]}
       >
         <TextInput
           accessibilityLabel={`${label} en ${unit}`}
+          accessibilityHint={error ?? hint}
           keyboardType={decimal ? "decimal-pad" : "number-pad"}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -668,6 +770,11 @@ function MeasurementInput({
         />
         <ThemedText style={styles.unit}>{unit}</ThemedText>
       </View>
+      {error ? (
+        <ThemedText style={styles.fieldError}>{error}</ThemedText>
+      ) : hint ? (
+        <ThemedText style={styles.fieldHint}>{hint}</ThemedText>
+      ) : null}
     </View>
   );
 }
@@ -884,4 +991,22 @@ const styles = StyleSheet.create({
   },
   integrationText: { flex: 1, fontSize: 13, lineHeight: 19 },
   pressed: { opacity: 0.76 },
+  typeCardDisabled: { opacity: 0.45 },
+  fieldHint: { fontSize: 12, lineHeight: 16, opacity: 0.7 },
+  fieldError: { color: "#C62828", fontSize: 12, fontWeight: "600", lineHeight: 16 },
+  statusCard: {
+    alignItems: "center",
+    borderRadius: 17,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+    padding: 20,
+  },
+  statusText: { fontSize: 15, lineHeight: 21, textAlign: "center" },
+  retryButton: {
+    borderRadius: 12,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 22,
+  },
+  retryLabel: { fontSize: 15, fontWeight: "700" },
 });
