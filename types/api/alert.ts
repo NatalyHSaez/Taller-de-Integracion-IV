@@ -1,23 +1,12 @@
-import type { EvaluationStatus, ISODateTime, UUID } from './common';
-
-/**
- * Alerta generada por Evaluación Clínica.
- * status permanece como string porque la propuesta no enumera sus estados internos.
- */
+import type { ISODateTime, UUID } from './common';
+/** AlertOut: GET /patients/{patientId}/alerts. No contiene patientId, version ni evaluationId. */
 export type AlertResponse = {
-  alertId: UUID;
-  patientId: UUID;
+  id: UUID;
   readingId: UUID;
-  measurementId: UUID | null;
-  evaluationId: UUID;
-  ruleProfileId: UUID;
-  ruleProfileVersion: number;
   ruleCode: string;
-  severity: EvaluationStatus;
+  severity: string;
   explanation: string;
-  status: string;
+  status: 'OPEN' | 'READ';
   createdAt: ISODateTime;
-  updatedAt: ISODateTime;
   readAt: ISODateTime | null;
-  closedAt: ISODateTime | null;
 };

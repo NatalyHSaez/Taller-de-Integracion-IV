@@ -1,78 +1,41 @@
-import { AuthUser, getMe } from '@/services/api';
-import { clearTokens, getAccessToken } from '@/services/token-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useState, } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react';
+import type { CurrentUserResponse } from '@/types/api';
+import { authSession } from '@/services/auth-session';
+import { authService } from '@/services/authservice';
 
 type AuthContextValue = {
-  user: AuthUser | null;
+  user: CurrentUserResponse | null;
   loading: boolean;
   authenticated: boolean;
-  setUser: (user: AuthUser | null) => void;
+  setUser: (user: CurrentUserResponse | null) => void;
   restoreSession: () => Promise<void>;
   signOut: () => Promise<void>;
 };
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const session = useSyncExternalStore(authSession.subscribe, authSession.snapshot, authSession.snapshot);
   const [loading, setLoading] = useState(true);
 
-  async function restoreSession() {
-    try {
-        setLoading(true);
+  const restoreSession = useCallback(async () => {
+    setLoading(true);
+    try { await authService.restore(); } finally { setLoading(false); }
+  }, []);
 
-        const accessToken = await getAccessToken();
+  useEffect(() => { void restoreSession(); }, [restoreSession]);
 
-        if (!accessToken) {
-        setUser(null);
-        return;
-        }
-
-        const currentUser = await getMe();
-
-        setUser(currentUser);
-    } catch (error) {
-        // TEMPORALMENTE no borramos el token
-        // para poder diagnosticar qué está ocurriendo.
-        setUser(null);
-    } finally {
-        setLoading(false);
-    }
-    }
-
-  async function signOut() {
-    await clearTokens();
-    setUser(null);
-  }
-
-  useEffect(() => {
-  void restoreSession();
-  return () => {
-  };
-}, []);
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        authenticated: user !== null,
-        setUser,
-        restoreSession,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{
+    user: session.user,
+    loading,
+    authenticated: Boolean(session.user),
+    setUser: (user) => authSession.setUser(user),
+    restoreSession,
+    signOut: () => authService.logout(),
+  }}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth debe utilizarse dentro de AuthProvider.');
-  }
-
-  return context;
+export function useAuth(): AuthContextValue {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error('useAuth debe utilizarse dentro de AuthProvider.');
+  return value;
 }

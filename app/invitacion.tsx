@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { RealInvitation } from '@/components/real-invitation';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Action, Card, Copy, Field, FlowPage } from '@/components/flow-ui';
 import { useAppState } from '@/hooks/use-app-state';
 import { useDemo } from '@/hooks/use-demo';
 import { demo, type Invitation } from '@/services/demo-store';
-export default function InvitationScreen() {
+function MockInvitationScreen() {
   const router = useRouter(); const params = useLocalSearchParams<{ token?: string }>();
   const { user, selectedPatient } = useAppState();
   const { pendingToken, profiles, invitations } = useDemo();
@@ -21,4 +22,9 @@ export default function InvitationScreen() {
     {preview && <Card><Copy>{profiles.find((p) => p.id === preview.patientId)?.name} te invita a acompañarle.</Copy><Copy>Vence: {new Date(preview.expires).toLocaleString('es-CL')}</Copy>{!user ? <><Action label="Iniciar sesión para continuar" onPress={() => router.push('/(auth)/login')} /><Action secondary label="Crear cuenta de cuidador" onPress={() => router.push('/(auth)/register')} /><Action secondary label="Simular que no tengo la app" onPress={() => setInstall(true)} />{install && <><Copy>En producción, este enlace te orientará a instalar Domicilia. Aquí simulamos la instalación y conservamos la invitación.</Copy><Action label="Simular instalación y retomar invitación" onPress={() => { setInstall(false); router.push('/(auth)/register'); }} /></>}</> : user.role === 'caregiver' ? <Action label="Solicitar vínculo" onPress={() => { try { demo.request(preview.token); router.replace('/(auth)/select-patient'); } catch (e) { setError((e as Error).message); } }} /> : <Copy>Estás usando una cuenta de paciente. Cierra sesión para continuar como cuidador.</Copy>}</Card>}
     <Action secondary label={user ? 'Volver a mi cuenta' : 'Volver al acceso'} onPress={() => router.replace(user ? selectedPatient ? '/(tabs)' : '/(auth)/select-patient' : '/(auth)/login')} />
   </FlowPage>;
+}
+
+export default function InvitationScreen() {
+  const { sessionMode } = useAppState();
+  return sessionMode === 'backend' ? <RealInvitation /> : <MockInvitationScreen />;
 }

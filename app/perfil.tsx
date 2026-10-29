@@ -5,7 +5,10 @@ import { Colors } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
+import { useAppState } from "@/hooks/use-app-state";
 import { demo } from "@/services/demo-store";
+import { authService } from "@/services/authservice";
+import { getApiErrorMessage } from "@/services/errors";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
@@ -22,7 +25,9 @@ import {
 } from "react-native";
 
 export default function Profile() {
-  const { user: demoUser, patients } = useDemo();
+  const { user: demoUser } = useDemo();
+  const { patients, sessionMode, selectPatient, patientsLoading, patientsError } = useAppState();
+  const [selectError, setSelectError] = useState("");
 
   const { user: authUser, authenticated, signOut } = useAuth();
 
@@ -38,22 +43,22 @@ export default function Profile() {
 
   /*
    * Si existe una sesión real utilizamos primero
-   * los datos entregados por /auth/me.
+   * los datos entregados por /me.
    *
    * Si estamos utilizando una cuenta mock,
    * recurrimos a demo-store.
    */
   const displayName: string =
-    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
+    authUser?.fullName ?? demoUser?.name ?? "Usuario";
 
-  const displayEmail: string = authUser?.correo ?? demoUser?.email ?? "";
+  const displayEmail: string = authUser?.email ?? demoUser?.email ?? "";
 
   const realRole = authUser?.roles?.[0];
 
   const displayRole: string =
-    realRole === "paciente" || demoUser?.role === "patient"
+    realRole === "PATIENT" || (sessionMode === "mock" && demoUser?.role === "patient")
       ? "Paciente"
-      : realRole === "cuidador" || demoUser?.role === "caregiver"
+      : realRole === "CAREGIVER" || (sessionMode === "mock" && demoUser?.role === "caregiver")
         ? "Cuidador"
         : "Usuario";
 
@@ -76,26 +81,8 @@ export default function Profile() {
   const [birthDate, setBirthDate] = useState("");
 
   const startEditing = () => {
-    /*
-     * Todavía no existe un endpoint integrado
-     * para modificar el perfil real.
-     *
-     * Evitamos guardar accidentalmente información
-     * proveniente del backend dentro de demo-store.
-     */
-    if (authenticated) {
-      Alert.alert(
-        "Edición de perfil",
-        "Tus datos están conectados con tu cuenta real. La edición se habilitará cuando conectemos el endpoint de actualización del perfil.",
-      );
-
-      return;
-    }
-
     setName(displayName === "Usuario" ? "" : displayName);
-
     setEmail(displayEmail);
-
     setEditing(true);
   };
 
@@ -106,34 +93,18 @@ export default function Profile() {
     setEmail("");
   };
 
-  const saveProfile = () => {
-    if (authenticated) {
-      Alert.alert(
-        "Edición de perfil",
-        "No se realizaron cambios porque esta cuenta está conectada al backend.",
-      );
-
-      setEditing(false);
-
-      return;
-    }
-
+  const saveProfile = async () => {
     try {
-      demo.updateProfile(name.trim(), email.trim());
-
+      if (authenticated) {
+        // PATCH /me solo admite fullName: correo y fecha de nacimiento son de solo lectura.
+        await authService.updateName(name);
+      } else {
+        demo.updateProfile(name.trim(), email.trim());
+      }
       setEditing(false);
-
-      Alert.alert(
-        "Perfil actualizado",
-        "Tus datos se guardaron correctamente.",
-      );
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "No se pudieron guardar los cambios.",
-      );
+      Alert.alert("Perfil actualizado", "Tus datos se guardaron correctamente.");
+    } catch (cause) {
+      Alert.alert("Error", getApiErrorMessage(cause, "No se pudieron guardar los cambios."));
     }
   };
 
@@ -143,10 +114,7 @@ export default function Profile() {
 
   const performLogout = async () => {
     try {
-      // Limpia cualquier sesión mock.
-      demo.logout();
-
-      // Limpia la sesión real y sus tokens.
+      // El servicio revoca refresh y limpia cualquier sesión mock o real.
       await signOut();
 
       // Volvemos al login.
@@ -373,7 +341,7 @@ export default function Profile() {
                 />
               </FormField>
 
-              <FormField label="Correo electrónico">
+              <FormField label={authenticated ? "Correo electrónico (no editable)" : "Correo electrónico"}>
                 <TextInput
                   style={[
                     styles.input,
@@ -387,6 +355,7 @@ export default function Profile() {
                   ]}
                   value={email}
                   onChangeText={setEmail}
+                  editable={!authenticated}
                   placeholder="Ingresa tu correo"
                   placeholderTextColor={theme.mutedText}
                   keyboardType="email-address"
@@ -396,7 +365,7 @@ export default function Profile() {
                 />
               </FormField>
 
-              <FormField label="Fecha de nacimiento">
+              <FormField label={authenticated ? "Fecha de nacimiento (no editable)" : "Fecha de nacimiento"}>
                 <TextInput
                   style={[
                     styles.input,
@@ -410,6 +379,7 @@ export default function Profile() {
                   ]}
                   value={birthDate}
                   onChangeText={setBirthDate}
+                  editable={!authenticated}
                   placeholder="DD/MM/AAAA"
                   placeholderTextColor={theme.mutedText}
                   keyboardType="numeric"
@@ -467,7 +437,7 @@ export default function Profile() {
         </View>
 
         {/* INFORMACIÓN DE SALUD */}
-        {displayRole === "Paciente" && (
+        {displayRole === "Paciente" && sessionMode === "mock" && (
           <>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>
@@ -531,6 +501,9 @@ export default function Profile() {
                 },
               ]}
             >
+              {!!selectError && <ThemedText>{selectError}</ThemedText>}
+              {!!patientsError && <ThemedText>{patientsError}</ThemedText>}
+              {patientsLoading && <ThemedText>Consultando tus pacientes...</ThemedText>}
               {patients.length > 0 ? (
                 patients.map((patient) => (
                   <Pressable
@@ -542,21 +515,9 @@ export default function Profile() {
                        * Guardamos el paciente
                        * seleccionado.
                        */
-                      demo.select(patient.id);
-
-                      /*
-                       * La antigua ruta:
-                       *
-                       * /paciente-vinculado
-                       *
-                       * no existe en el proyecto
-                       * actual.
-                       *
-                       * Entramos al área principal
-                       * utilizando al paciente
-                       * seleccionado.
-                       */
-                      router.replace("/(tabs)");
+                      void selectPatient(patient.id)
+                        .then(() => router.replace('/(tabs)'))
+                        .catch((cause) => setSelectError(getApiErrorMessage(cause)));
                     }}
                     style={({ pressed }) => [
                       styles.patientRow,

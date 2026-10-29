@@ -9,6 +9,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { BrandColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
+import { useAppState } from '@/hooks/use-app-state';
 
 type TabIconName = ComponentProps<typeof Feather>['name'];
 
@@ -39,15 +40,16 @@ function SharedHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { user, patient, relations } = useDemo();
+  const { relations } = useDemo();
+  const { user, selectedPatient } = useAppState();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const pendingCount = relations.filter((relation) =>
-    relation.status === 'pending' && relation.patientId === user?.patientId
+    user?.source === 'mock' && relation.status === 'pending' && relation.patientId === user?.id
   ).length;
   const date = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'long' }).format(new Date());
   const isCaregiver = user?.role === 'caregiver';
-  const patientName = patient?.name;
+  const patientName = selectedPatient?.name;
   let heading = `Hola, ${user?.name.split(' ')[0] ?? ''}`;
   let subtitle = isCaregiver && patientName ? `Acompañas a ${patientName}` : 'Resumen de salud';
   if (pathname === '/seguimiento') {

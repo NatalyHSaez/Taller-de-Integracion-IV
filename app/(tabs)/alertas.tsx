@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +8,8 @@ import { SEVERITY_STYLE } from '@/constants/severity';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getAlerts } from '@/services/alerts';
+import { getApiErrorMessage } from '@/services/errors';
+import { useAppState } from '@/hooks/use-app-state';
 
 export default function AlertasScreen() {
   const colorScheme = useColorScheme();
@@ -15,16 +17,42 @@ export default function AlertasScreen() {
   const [alertas, setAlertas] = useState<AlertaItem[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resolvedMode, setResolvedMode] = useState<'mock' | 'backend' | null>(null);
+  const { sessionMode } = useAppState();
+  const requestId = useRef(0);
 
-  const cargar = useCallback(() => {
-    return getAlerts().then((data) => {
+  const cargar = useCallback(async () => {
+    const id = ++requestId.current;
+    try {
+      const data = await getAlerts();
+      if (id !== requestId.current) return;
+      setError(null);
       setAlertas(data);
-      setCargando(false);
-    });
-  }, []);
+      setResolvedMode(sessionMode);
+    } catch (cause: unknown) {
+      if (id !== requestId.current) return;
+      setAlertas([]);
+      setError(getApiErrorMessage(cause));
+      setResolvedMode(sessionMode);
+    } finally {
+      if (id === requestId.current) setCargando(false);
+    }
+  }, [sessionMode]);
 
   useEffect(() => {
-    cargar();
+    let activo = true;
+    const contadorSolicitudes = requestId;
+
+    // Se inicia después del efecto para evitar actualizaciones síncronas de estado.
+    void Promise.resolve().then(() => {
+      if (activo) return cargar();
+    });
+
+    return () => {
+      activo = false;
+      contadorSolicitudes.current += 1;
+    };
   }, [cargar]);
 
   const onRefresh = useCallback(() => {
@@ -32,7 +60,7 @@ export default function AlertasScreen() {
     cargar().finally(() => setRefrescando(false));
   }, [cargar]);
 
-  if (cargando) {
+  if (cargando || resolvedMode !== sessionMode) {
     return (
       <ThemedView style={styles.emptyContainer}>
         <ActivityIndicator color={theme.primary} />
@@ -51,7 +79,9 @@ export default function AlertasScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContent}>
-            <ThemedText>No tienes alertas activas por ahora.</ThemedText>
+            <ThemedText accessibilityRole={error ? 'alert' : undefined}>
+              {error ?? 'No tienes alertas activas por ahora.'}
+            </ThemedText>
           </View>
         }
         renderItem={({ item }) => {
@@ -83,7 +113,7 @@ export default function AlertasScreen() {
         }}
       />
       <ThemedText style={styles.disclaimer}>
-        Las alertas se generan por tendencia sostenida, nunca por un valor aislado.
+        Las alertas informan sobre reglas de seguimiento configuradas y no sustituyen la evaluación médica.
       </ThemedText>
     </ThemedView>
   );

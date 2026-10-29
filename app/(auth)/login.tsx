@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BrandColors, Colors } from "@/constants/theme";
-import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
 import { appState } from "@/services/app-state";
@@ -26,7 +25,6 @@ import { getApiErrorMessage } from "@/services/errors";
 export default function LoginScreen() {
   const router = useRouter();
   const { pendingToken } = useDemo();
-  const { setUser } = useAuth();
   const theme = Colors[useColorScheme() === "dark" ? "dark" : "light"];
 
   const passwordInput = useRef<TextInput>(null);
@@ -40,6 +38,7 @@ export default function LoginScreen() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   async function submit() {
     if (loading) {
@@ -69,39 +68,20 @@ export default function LoginScreen() {
        * - una cuenta mock; o
        * - el backend real.
        */
-      await authService.login(cleanEmail, password);
+      await authService.login(cleanEmail, password, demoMode ? 'mock' : 'backend');
 
-      /*
-       * Recuperamos el usuario desde la misma capa de autenticación.
-       * Esto funciona tanto para una sesión mock como para backend.
-       */
-      const currentUser = await authService.me();
+      // authService.login ya consulta /me para cuentas reales y publica
+      // el usuario en la única sesión observable de la app.
 
-      /*
-       * appState reúne usuario, paciente seleccionado,
-       * permisos y origen de la sesión.
-       */
+      // El hook observa authSession; no requiere otro setUser local.
       const globalState = appState.snapshot();
-
-      /*
-       * AuthProvider de Sebastián representa principalmente
-       * la sesión real persistida mediante SecureStore.
-       *
-       * Las sesiones mock siguen administrándose mediante
-       * appState/demo-store.
-       */
-      if (globalState.sessionMode === "backend") {
-        setUser(currentUser);
-      } else {
-        setUser(null);
-      }
 
       /*
        * Si existe una invitación pendiente y el usuario
        * autenticado es cuidador, continuamos ese flujo.
        */
       if (
-        demo.snapshot().pendingToken &&
+        demoMode && demo.snapshot().pendingToken &&
         globalState.user?.role === "caregiver"
       ) {
         router.replace("/invitacion");
@@ -308,6 +288,18 @@ export default function LoginScreen() {
                   </Pressable>
                 </View>
               </View>
+
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: demoMode }}
+                disabled={loading}
+                onPress={() => setDemoMode((current) => !current)}
+                style={{ paddingVertical: 10 }}
+              >
+                <Text style={{ color: theme.text, fontSize: 14 }}>
+                  {demoMode ? '☑' : '☐'} Usar una cuenta de demostración (sin backend)
+                </Text>
+              </Pressable>
 
               {!!error && (
                 <Text style={[styles.error, { color: theme.danger }]}>

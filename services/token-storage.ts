@@ -4,11 +4,13 @@ import { Platform } from 'react-native';
 const ACCESS_TOKEN_KEY = 'auth_access_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 
+// En Expo nativo se utiliza SecureStore (Keystore/Keychain). En web,
+// sessionStorage es solo una alternativa de desarrollo: no equivale a SecureStore.
 const isWeb = Platform.OS === 'web';
 
 async function setItem(key: string, value: string): Promise<void> {
   if (isWeb) {
-    localStorage.setItem(key, value);
+    sessionStorage.setItem(key, value);
     return;
   }
   await SecureStore.setItemAsync(key, value);
@@ -16,13 +18,15 @@ async function setItem(key: string, value: string): Promise<void> {
 
 async function getItem(key: string): Promise<string | null> {
   if (isWeb) {
-    return localStorage.getItem(key);
+    return sessionStorage.getItem(key);
   }
   return SecureStore.getItemAsync(key);
 }
 
 async function deleteItem(key: string): Promise<void> {
   if (isWeb) {
+    sessionStorage.removeItem(key);
+    // Limpia la antigua persistencia web local de P3 al cerrar sesión.
     localStorage.removeItem(key);
     return;
   }

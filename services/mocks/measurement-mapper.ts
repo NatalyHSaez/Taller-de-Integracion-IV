@@ -18,53 +18,53 @@ export function readingsToMeasurements(readings: ReadingResponse[]): Measurement
     const heartRate = byCode.get('HEART_RATE');
 
     if (
-      sbp?.valueNumeric != null &&
-      dbp?.valueNumeric != null &&
-      heartRate?.valueNumeric != null
+      sbp?.value != null &&
+      dbp?.value != null &&
+      heartRate?.value != null
     ) {
       result.push({
         id: reading.readingId,
         readingId: reading.readingId,
         patientId: reading.patientId,
-        recordedById: reading.recordedByUserId,
+        recordedById: reading.recordedBy,
         recordedBy: 'Datos simulados',
         context: reading.context ?? undefined,
         measuredAt: reading.measuredAt,
         type: 'blood_pressure',
-        systolic: sbp.valueNumeric,
-        diastolic: dbp.valueNumeric,
-        heartRate: heartRate.valueNumeric,
+        systolic: sbp.value,
+        diastolic: dbp.value,
+        heartRate: heartRate.value,
       });
     }
 
     const glucose = byCode.get('GLUCOSE');
-    if (glucose?.valueNumeric != null) {
+    if (glucose?.value != null) {
       result.push({
         id: glucose.measurementId,
         readingId: reading.readingId,
         patientId: reading.patientId,
-        recordedById: reading.recordedByUserId,
+        recordedById: reading.recordedBy,
         recordedBy: 'Datos simulados',
         context: reading.context ?? undefined,
         measuredAt: reading.measuredAt,
         type: 'glucose',
-        value: glucose.valueNumeric,
+        value: glucose.value,
         unit: 'mg/dL',
       });
     }
 
     const weight = byCode.get('WEIGHT');
-    if (weight?.valueNumeric != null) {
+    if (weight?.value != null) {
       result.push({
         id: weight.measurementId,
         readingId: reading.readingId,
         patientId: reading.patientId,
-        recordedById: reading.recordedByUserId,
+        recordedById: reading.recordedBy,
         recordedBy: 'Datos simulados',
         context: reading.context ?? undefined,
         measuredAt: reading.measuredAt,
         type: 'weight',
-        value: weight.valueNumeric,
+        value: weight.value,
         unit: 'kg',
       });
     }

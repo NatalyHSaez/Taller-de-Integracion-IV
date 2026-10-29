@@ -1,49 +1,23 @@
-# Tipos del API móvil
+# Contratos del API (P2)
 
-Esta carpeta separa el **contrato del backend** de los modelos internos usados por la interfaz.
+Contrastados con `domicilia/services/{identidad,relaciones,seguimiento,evaluacion,notificaciones}` y `docs/api-contract.md`.
+Todas las rutas públicas van a través de `/api/v1` en el Gateway. JSON en **inglés y camelCase**.
 
-## Contrato ya contrastado con Integración II
+| Archivo | Contratos activos |
+| --- | --- |
+| auth.ts | `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/me` |
+| patient.ts | `/me/patients`, `/patients/{patientId}` |
+| relation.ts | QR temporal, vínculos, permisos y revocaciones |
+| condition.ts | `/health-conditions`, `/clinical-parameters`, `/parameter-limits` |
+| reading.ts | lecturas, confirmación, detalle, historial paginado, series de mediciones |
+| evaluation.ts | evaluación **anidada en lectura** |
+| alert.ts | alertas por paciente |
+| notification.ts | notificaciones paginadas del usuario |
+| error.ts | `detail` y `errorCode` (422 también tiene `detail` como arreglo) |
+| health.ts | estado del Gateway |
 
-Los siguientes tipos fueron actualizados contra el backend actual de `domicilia`:
+**Provisionales y sin endpoint funcional:** `clinical.ts`, `doctor.ts` y `PatientConditionResponse` en `condition.ts`.
+Los DTO describen respuestas del backend, no modelos visuales. `types/measurement.ts` sigue siendo modelo interno de interfaz.
+Los permisos de cuidador actualmente soportados son cuatro. No confundir las advertencias de una evaluación con alertas persistidas.
 
-- `auth.ts`: registro, login, refresh, logout y `/auth/me`.
-- `notification.ts`: listado paginado de `/notificaciones`.
-- `health.ts`: estado del API Gateway y microservicios.
-- `common.ts`: roles devueltos por Identidad y estados actuales de Notificaciones.
-
-Ejemplos relevantes del contrato real actual:
-
-```ts
-// POST /api/v1/auth/login
-{
-  correo: string;
-  password: string;
-}
-
-// Respuesta login / refresh
-{
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-}
-```
-
-```ts
-// GET /api/v1/auth/me
-{
-  id: string;
-  nombre_completo: string;
-  correo: string;
-  roles: ('paciente' | 'cuidador' | 'medico' | 'administrador')[];
-}
-```
-
-## Tipos que siguen provisionales
-
-Los DTO de pacientes, lecturas, evaluaciones, alertas, atención médica y otras áreas se mantienen
-por ahora porque sus endpoints todavía no están todos implementados o estabilizados. Los mocks
-siguen siendo válidos para continuar desarrollando esas pantallas.
-
-No se debe eliminar `types/measurement.ts`: sigue siendo el modelo interno de la interfaz y puede
-coexistir con los DTO recibidos desde la API.
+**Pendientes en tareas posteriores:** P3 completa manejo uniforme de errores; P4 login/refresh sincronizado, roles y registro con birthDate; P5 obtiene UUID reales, P6 aísla mocks; S1-S5 conectan pantallas y caché.

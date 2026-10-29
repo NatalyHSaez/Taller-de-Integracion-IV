@@ -12,7 +12,6 @@ import {
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
-import { register as registerWithBackend } from '@/services/api';
 import { authService } from '@/services/authservice';
 import { demo } from '@/services/demo-store';
 
@@ -42,6 +41,7 @@ export function AccountForm({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [birthDate, setBirthDate] = useState('');
 
   /*
    * Campo utilizado por el flujo antiguo de activación.
@@ -116,6 +116,15 @@ export function AccountForm({
       );
     }
 
+    if (role === 'paciente') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+        throw new Error('Ingresa tu fecha de nacimiento como AAAA-MM-DD.');
+      }
+      const parsed = new Date(`${birthDate}T12:00:00Z`);
+      if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== birthDate || parsed.getTime() > Date.now()) {
+        throw new Error('La fecha de nacimiento no es válida.');
+      }
+    }
     if (!privacyAccepted) {
       throw new Error(
         'Debes aceptar la Política de Privacidad para crear tu cuenta.'
@@ -152,20 +161,13 @@ export function AccountForm({
 
         setSubmitting(true);
 
-        if (role === 'cuidador') {
-          await authService.register({
-            name: cleanName,
-            email: cleanEmail,
-            password,
-          });
-        } else {
-          await registerWithBackend({
-            nombre_completo: cleanName,
-            correo: cleanEmail,
-            password,
-            rol: role,
-          });
-        }
+        await authService.register({
+          fullName: cleanName,
+          email: cleanEmail,
+          password,
+          role: role === 'paciente' ? 'PATIENT' : 'CAREGIVER',
+          ...(role === 'paciente' ? { birthDate } : {}),
+        });
 
         Alert.alert(
           'Cuenta creada',
@@ -195,7 +197,7 @@ export function AccountForm({
        * en la pantalla correspondiente.
        */
       if (mode === 'login') {
-        demo.login(email, password);
+        await authService.login(email, password, 'mock');
 
         router.replace(
           demo.snapshot().pendingToken &&
@@ -478,6 +480,18 @@ export function AccountForm({
               </Pressable>
             </View>
           </View>
+
+          {role === 'paciente' && (
+            <Field
+              label="Fecha de nacimiento (AAAA-MM-DD)"
+              icon="calendar-outline"
+              value={birthDate}
+              onChangeText={setBirthDate}
+              placeholder="2000-05-21"
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+            />
+          )}
 
           {/* Política de privacidad */}
           <Pressable

@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useLocalSearchParams } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -47,14 +47,10 @@ function formatDate(value: string) {
 }
 
 function formatValue(measurement: MeasurementResponse) {
-  if (measurement.valueNumeric != null) {
-    const value = Number.isInteger(measurement.valueNumeric)
-      ? String(measurement.valueNumeric)
-      : String(measurement.valueNumeric).replace('.', ',');
-    return `${value}${measurement.unit ? ` ${measurement.unit}` : ''}`;
-  }
-
-  return measurement.valueText?.trim() || 'Sin valor';
+  const value = Number.isInteger(measurement.value)
+    ? String(measurement.value)
+    : String(measurement.value).replace('.', ',');
+  return `${value}${measurement.unit ? ` ${measurement.unit}` : ''}`;
 }
 
 function formatContext(context: string | null) {
@@ -89,68 +85,66 @@ function formatSource(source: string) {
   }
 }
 
-function validationLabel(status: MeasurementResponse['validationStatus']) {
+/** El backend publica el estado en ReadingOut, no en cada MeasurementOut. */
+function readingStatusLabel(status: ReadingResponse['status']) {
   switch (status) {
-    case 'PENDING':
-      return 'Pendiente';
-    case 'PLAUSIBLE':
-      return 'Plausible';
-    case 'REQUIRES_CONFIRMATION':
-      return 'Requiere confirmación';
-    case 'CONFIRMED':
-      return 'Confirmada';
+    case 'PENDING': return 'Evaluación pendiente';
+    case 'REQUIRES_CONFIRMATION': return 'Requiere confirmación';
+    case 'EVALUATED': return 'Evaluada';
   }
 }
 
-function validationColors(status: MeasurementResponse['validationStatus']) {
+function readingStatusColors(status: ReadingResponse['status']) {
   switch (status) {
-    case 'PLAUSIBLE':
-    case 'CONFIRMED':
-      return StatusColors.normal;
-    case 'REQUIRES_CONFIRMATION':
-      return StatusColors.warning;
+    case 'REQUIRES_CONFIRMATION': return StatusColors.warning;
     case 'PENDING':
-      return StatusColors.neutral;
+    case 'EVALUATED': return StatusColors.neutral;
   }
 }
 
 export default function ReadingDetailScreen() {
   const { readingId: rawReadingId } = useLocalSearchParams<{ readingId: string | string[] }>();
   const readingId = Array.isArray(rawReadingId) ? rawReadingId[0] : rawReadingId;
-  const { selectedPatient, sessionMode } = useAppState();
+  const { selectedPatient } = useAppState();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
 
-  const [reading, setReading] = useState<ReadingResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadReading = useCallback(async () => {
-    if (!selectedPatient || !readingId) {
-      setReading(null);
-      setError('No fue posible identificar la lectura o el paciente seleccionado.');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const detail = await readingsService.detail(selectedPatient.id, readingId);
-      setReading(detail);
-    } catch (cause) {
-      setReading(null);
-      setError(getApiErrorMessage(cause, 'No fue posible cargar el detalle de la lectura.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [readingId, selectedPatient]);
+  const patientId = selectedPatient?.id;
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{
+    patientId: string;
+    readingId: string;
+    attempt: number;
+    reading?: ReadingResponse;
+    error?: string;
+  } | null>(null);
+  const hasTarget = Boolean(patientId && readingId);
+  const current = result?.patientId === patientId && result?.readingId === readingId &&
+    result?.attempt === attempt;
+  const loading = hasTarget && !current;
+  const reading = current ? result?.reading : undefined;
+  const error = !hasTarget
+    ? 'No fue posible identificar la lectura o el paciente seleccionado.'
+    : current ? result?.error : undefined;
 
   useEffect(() => {
-    void loadReading();
-  }, [loadReading]);
+    if (!patientId || !readingId) return;
+    let active = true;
+    readingsService.detail(patientId, readingId)
+      .then((detail) => {
+        if (active) setResult({ patientId, readingId, attempt, reading: detail });
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setResult({
+            patientId, readingId, attempt,
+            error: getApiErrorMessage(cause, 'No fue posible cargar el detalle de la lectura.'),
+          });
+        }
+      });
+    return () => { active = false; };
+  }, [patientId, readingId, attempt]);
 
   if (loading) {
     return (
@@ -176,7 +170,7 @@ export default function ReadingDetailScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Reintentar carga de lectura"
-          onPress={() => void loadReading()}
+          onPress={() => setAttempt((value) => value + 1)}
           style={({ pressed }) => [
             styles.retryButton,
             { backgroundColor: theme.primary },
@@ -230,8 +224,8 @@ export default function ReadingDetailScreen() {
 
         <View style={styles.measurements}>
           {reading.measurements.map((measurement) => {
-            const presentation = PARAMETER_PRESENTATION[measurement.parameterCode];
-            const statusColors = validationColors(measurement.validationStatus);
+            const presentation = PARAMETER_PRESENTATION[measurement.parameterCode as keyof typeof PARAMETER_PRESENTATION] ?? {icon:'chart-line' as IconName, label: measurement.parameterCode};
+            const statusColors = readingStatusColors(reading.status);
 
             return (
               <View
@@ -261,7 +255,7 @@ export default function ReadingDetailScreen() {
                 <View style={styles.measurementFooter}>
                   <View style={[styles.statusBadge, { backgroundColor: statusColors.background }]}>
                     <ThemedText style={[styles.statusText, { color: statusColors.foreground }]}>
-                      {validationLabel(measurement.validationStatus)}
+                      {readingStatusLabel(reading.status)}
                     </ThemedText>
                   </View>
                   {measurement.confirmedByUser && (
@@ -278,14 +272,7 @@ export default function ReadingDetailScreen() {
           })}
         </View>
 
-        {sessionMode === 'backend' && reading.source === 'MOCK_FALLBACK' && (
-          <View style={[styles.notice, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
-            <MaterialCommunityIcons name="information-outline" size={21} color={theme.primary} />
-            <ThemedText style={styles.noticeText}>
-              El detalle se muestra con datos locales de desarrollo porque el endpoint de lecturas aún no está disponible en el backend actual.
-            </ThemedText>
-          </View>
-        )}
+
       </ScrollView>
     </ThemedView>
   );

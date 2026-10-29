@@ -4,6 +4,11 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
+import { useAppState } from '@/hooks/use-app-state';
+import { patientAccess } from '@/services/patient-access';
+import { getApiErrorMessage } from '@/services/errors';
+import type { PatientProfileResponse } from '@/types/api';
+import { Card, Copy, FlowPage } from '@/components/flow-ui';
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
@@ -18,7 +23,7 @@ import {
     View,
 } from 'react-native';
 
-export default function LinkedPatientScreen() {
+function MockLinkedPatientScreen() {
   const router = useRouter();
 
   const { patient } = useDemo();
@@ -687,3 +692,45 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
 });
+/** La fecha y los demás atributos reales son de solo lectura: no existe PATCH /patients/{id}. */
+function RealLinkedPatientScreen() {
+  const { selectedPatient, permissions } = useAppState();
+  const [profile, setProfile] = useState<PatientProfileResponse | null>(null);
+  const patientId = selectedPatient?.id;
+  // El componente se remonta cuando cambia el paciente o el permiso de ficha.
+  // Así el estado inicial no muestra datos de un paciente anterior.
+  const [loading, setLoading] = useState(() => Boolean(patientId && permissions.profile));
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!patientId || !permissions.profile) return;
+    let active = true;
+    void patientAccess.getProfile(patientId)
+      .then((result) => { if (active) setProfile(result); })
+      .catch((cause) => { if (active) setError(getApiErrorMessage(cause)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [patientId, permissions.profile]);
+  return <FlowPage title="Ficha del paciente" subtitle="Datos recibidos desde Integra II.">
+    {!patientId && <Copy>Selecciona un paciente autorizado para continuar.</Copy>}
+    {!permissions.profile && !!patientId && <Copy>Tu vínculo no tiene permiso para consultar la ficha.</Copy>}
+    {loading && <Copy>Cargando ficha…</Copy>}
+    {!!error && <Card><Copy>{error}</Copy></Card>}
+    {profile && <Card>
+      <Copy>Nombre: {profile.fullName}</Copy>
+      <Copy>Fecha de nacimiento: {profile.birthDate ?? 'No registrada'}</Copy>
+      <Copy>Edad: {profile.age ?? 'No disponible'}</Copy>
+      <Copy>Sexo biológico: {profile.biologicalSex ?? 'No registrado'}</Copy>
+      <Copy>Modalidad: {profile.managementMode ?? 'No registrada'}</Copy>
+      <Copy>La edición de estos datos no está disponible en el backend actual.</Copy>
+    </Card>}
+  </FlowPage>;
+}
+
+export default function LinkedPatientScreen() {
+  const { sessionMode, user, selectedPatient, permissions } = useAppState();
+  return sessionMode === 'backend' ? (
+    <RealLinkedPatientScreen
+      key={`${user?.id ?? 'anon'}:${selectedPatient?.id ?? 'sin-paciente'}:${permissions.profile}`}
+    />
+  ) : <MockLinkedPatientScreen />;
+}

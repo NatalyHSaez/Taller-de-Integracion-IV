@@ -76,7 +76,7 @@ function isPositiveNumber(value: string) {
 
 export default function RegisterMeasurementScreen() {
   const router = useRouter();
-  const { selectedPatient: patient, user } = useAppState();
+  const { selectedPatient: patient, user, sessionMode } = useAppState();
   const [saveError, setSaveError] = useState("");
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -209,6 +209,12 @@ export default function RegisterMeasurementScreen() {
     } catch (e) {
       setSaveError((e as Error).message);
     }
+  }
+
+  if (sessionMode === 'backend') {
+    return <ThemedView style={styles.screen}>
+      <ThemedText>El registro de mediciones reales todavía no está conectado al backend. No se guardarán datos simulados en una sesión real.</ThemedText>
+    </ThemedView>;
   }
 
   return (

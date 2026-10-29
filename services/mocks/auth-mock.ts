@@ -35,11 +35,11 @@ export function isMockAccountEmail(email: string): boolean {
 function mockRoleToApiRole(role: MockAccount['role']): UserRole {
   switch (role) {
     case 'PATIENT':
-      return 'paciente';
+      return 'PATIENT';
     case 'CAREGIVER':
-      return 'cuidador';
+      return 'CAREGIVER';
     case 'DOCTOR':
-      return 'medico';
+      return 'DOCTOR';
   }
 }
 
@@ -66,12 +66,12 @@ export async function mockLogin(
 
   return {
     ...MOCK_AUTH_TOKENS,
-    access_token: `${MOCK_AUTH_TOKENS.access_token}-${account.userId}`,
-    refresh_token: `${MOCK_AUTH_TOKENS.refresh_token}-${account.userId}`,
+    accessToken: `${MOCK_AUTH_TOKENS.accessToken}-${account.userId}`,
+    refreshToken: `${MOCK_AUTH_TOKENS.refreshToken}-${account.userId}`,
   };
 }
 
-/** Simula GET /api/v1/auth/me con el contrato real actual. */
+/** Simula GET /api/v1/me con el contrato real actual. */
 export async function mockMe(): Promise<CurrentUserResponse> {
   if (!currentAccount) {
     throw new ApiError({
@@ -84,8 +84,8 @@ export async function mockMe(): Promise<CurrentUserResponse> {
 
   return {
     id: currentAccount.userId,
-    nombre_completo: `${currentAccount.firstName} ${currentAccount.lastName}`,
-    correo: currentAccount.email,
+    fullName: `${currentAccount.firstName} ${currentAccount.lastName}`,
+    email: currentAccount.email,
     roles: [mockRoleToApiRole(currentAccount.role)],
   };
 }

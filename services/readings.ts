@@ -7,21 +7,19 @@ import { demo } from './demo-store';
 import { ApiError, normalizeApiError } from './errors';
 
 const DETAIL_CACHE_MS = 30_000;
-const DETAIL_STALE_MS = 5 * 60_000;
+const DETAIL_STALE_MS = 0;
 
 function parameter(
   measurementId: string,
   parameterCode: MeasurementResponse['parameterCode'],
-  valueNumeric: number,
+  value: number,
   unit: MeasurementResponse['unit'],
 ): MeasurementResponse {
   return {
     measurementId,
     parameterCode,
-    valueNumeric,
-    valueText: null,
+    value,
     unit,
-    validationStatus: 'PLAUSIBLE',
     confirmedByUser: false,
   };
 }
@@ -51,9 +49,7 @@ function toApiMeasurements(measurement: Measurement): MeasurementResponse[] {
 /**
  * Construye una lectura desde el estado demo actual.
  *
- * Esto permite que la pantalla de detalle funcione mientras Integración II aún
- * no expone GET /readings/{readingId}. También cubre mediciones creadas dentro
- * de la propia aplicación durante el desarrollo.
+ * Solo se utiliza en sesiones de demostración; nunca sustituye un error real.
  */
 function localReading(patientId: string, readingId: string): ReadingResponse | null {
   const related = demo
@@ -69,10 +65,13 @@ function localReading(patientId: string, readingId: string): ReadingResponse | n
   return {
     readingId,
     patientId,
-    recordedByUserId: first.recordedById ?? 'mock-user',
-    context: first.context ?? null,
+    recordedBy: first.recordedById ?? 'mock-user',
+    context: first.context === 'PREPRANDIAL' || first.context === 'POSTPRANDIAL' ? first.context : null,
     measuredAt: first.measuredAt,
-    source: authSession.mode() === 'backend' ? 'MOCK_FALLBACK' : 'MOCK',
+    source: 'MOCK',
+    status: 'EVALUATED',
+    confirmationReasons: [],
+    evaluation: null,
     measurements: related.flatMap(toApiMeasurements),
   };
 }
@@ -81,14 +80,11 @@ export const readingsService = {
   /**
    * Obtiene el detalle de una lectura.
    *
-   * En sesión backend intenta primero GET /readings/{readingId}. Si el endpoint
-   * todavía no está disponible pero la lectura pertenece a los datos locales de
-   * desarrollo, usa esa copia para mantener navegable la pantalla.
+   * En sesión backend usa el detalle real vinculado al paciente autorizado.
    */
   async detail(patientId: string, readingId: string): Promise<ReadingResponse> {
-    const local = localReading(patientId, readingId);
-
-    if (authSession.mode() !== 'backend') {
+    if (authSession.mode() === 'mock') {
+      const local = localReading(patientId, readingId);
       if (local) return local;
 
       throw new ApiError({
@@ -99,8 +95,13 @@ export const readingsService = {
       });
     }
 
+    if (authSession.mode() !== 'backend') {
+      throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401,
+        message: 'Inicia sesión para consultar una lectura.', details: {} });
+    }
+
     try {
-      return await dataClient.get<ReadingResponse>(`/readings/${readingId}`, {
+      return await dataClient.get<ReadingResponse>(`/patients/${encodeURIComponent(patientId)}/readings/${encodeURIComponent(readingId)}`, {
         cache: {
           key: `reading-detail:${patientId}:${readingId}`,
           ttlMs: DETAIL_CACHE_MS,
@@ -108,10 +109,6 @@ export const readingsService = {
         },
       });
     } catch (cause) {
-      // El backend actual de Integración II aún no expone esta ruta. Si la
-      // lectura ya existe en el estado demo que alimenta el historial, se usa
-      // únicamente como respaldo de desarrollo.
-      if (local) return local;
       throw normalizeApiError(cause);
     }
   },

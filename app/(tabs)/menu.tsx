@@ -15,7 +15,6 @@ import { BrandColors, Colors } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
-import { demo } from "@/services/demo-store";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -79,13 +78,13 @@ export default function MenuScreen() {
 
   /*
    * Usuario real:
-   * nombre_completo proviene de /auth/me.
+   * nombre_completo proviene de /me.
    *
    * Usuario mock:
    * name proviene de demo-store.
    */
   const displayName: string =
-    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
+    authUser?.fullName ?? demoUser?.name ?? "Usuario";
 
   const initials = displayName
     .trim()
@@ -120,8 +119,6 @@ export default function MenuScreen() {
       /*
        * Limpiamos cualquier estado mock/local.
        */
-      demo.logout();
-
       /*
        * Limpia la sesión real:
        * - elimina los tokens persistidos;

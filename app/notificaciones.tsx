@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getApiErrorMessage } from '@/services/errors';
 import { getNotifications } from '@/services/notifications';
 
 export default function NotificacionesScreen() {
@@ -17,23 +18,39 @@ export default function NotificacionesScreen() {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
-  const cargar = useCallback(() => {
-    return getNotifications().then((data) => {
-      setNotificaciones(data);
-      setCargando(false);
-    });
+  const cargar = useCallback(async (forceRefresh = false) => {
+    const current = ++requestId.current;
+    setError(null);
+    try {
+      const data = await getNotifications(forceRefresh);
+      if (current === requestId.current) setNotificaciones(data);
+    } catch (cause) {
+      if (current === requestId.current) {
+        setNotificaciones([]);
+        setError(getApiErrorMessage(cause, 'No fue posible cargar las notificaciones.'));
+      }
+    } finally {
+      if (current === requestId.current) {
+        setCargando(false);
+        setRefrescando(false);
+      }
+    }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      cargar();
+      setCargando(true);
+      void cargar(true);
+      return () => { requestId.current += 1; };
     }, [cargar])
   );
 
   const onRefresh = useCallback(() => {
     setRefrescando(true);
-    cargar().finally(() => setRefrescando(false));
+    void cargar(true);
   }, [cargar]);
 
   if (cargando) {
@@ -56,7 +73,14 @@ export default function NotificacionesScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContent}>
             <ThemedText type="title">Notificaciones</ThemedText>
-            <ThemedText>No tienes notificaciones por ahora.</ThemedText>
+            <ThemedText accessibilityRole={error ? 'alert' : undefined}>
+              {error ?? 'No tienes notificaciones por ahora.'}
+            </ThemedText>
+            {error ? (
+              <Pressable accessibilityRole="button" onPress={onRefresh} disabled={refrescando}>
+                <ThemedText style={{ color: theme.primary }}>Reintentar</ThemedText>
+              </Pressable>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (

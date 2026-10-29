@@ -1,7 +1,9 @@
 import { API_V1_URL } from "@/config/api";
+import { authSession } from "@/services/auth-session";
+import { demo } from "@/services/demo-store";
+import { dataClient } from "@/services/data";
 import {
   clearTokens,
-  getAccessToken,
   getRefreshToken,
   saveTokens,
 } from "@/services/token-storage";
@@ -79,14 +81,14 @@ export const API_BASE_URL = API_V1_URL;
  * auth-session podrá reemplazar este proveedor
  * mientras exista una sesión activa.
  */
-let accessTokenProvider: AccessTokenProvider = () => getAccessToken();
+let accessTokenProvider: AccessTokenProvider = () => authSession.accessToken();
 
 export function setApiAccessTokenProvider(provider: AccessTokenProvider): void {
   accessTokenProvider = provider;
 }
 
 export function clearApiAccessTokenProvider(): void {
-  accessTokenProvider = () => getAccessToken();
+  accessTokenProvider = () => authSession.accessToken();
 }
 
 function createCorrelationId(): UUID {
@@ -300,52 +302,66 @@ async function parseSuccessfulResponse<T>(response: Response): Promise<T> {
   return text as T;
 }
 
-/*
- * Renovación del access token utilizando el
- * refresh token almacenado con SecureStore.
- */
-export async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = await getRefreshToken();
+/* El backend rota el refresh token: una sola renovación puede estar en vuelo. */
+let pendingRefresh: Promise<string | null> | null = null;
 
-  if (!refreshToken || !API_V1_URL) {
-    return null;
+export async function refreshAccessToken(failedAccessToken?: string | null): Promise<string | null> {
+  if (authSession.mode() !== "backend" || !API_V1_URL) return null;
+
+  // Otra solicitud ya renovó la sesión mientras esta recibía su respuesta 401.
+  const currentAccessToken = authSession.accessToken();
+  if (failedAccessToken && currentAccessToken && failedAccessToken !== currentAccessToken) {
+    return currentAccessToken;
   }
+  if (pendingRefresh) return pendingRefresh;
 
-  try {
+  const generation = authSession.generation();
+  const action = (async (): Promise<string | null> => {
+    const refreshToken = authSession.refreshToken() ?? await getRefreshToken();
+    if (!refreshToken || authSession.generation() !== generation) return null;
+
     const response = await fetch(`${API_V1_URL}/auth/refresh`, {
       method: "POST",
-
       headers: {
         Accept: "application/json",
-
         "Content-Type": "application/json",
-
         "X-Correlation-ID": createCorrelationId(),
       },
-
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-      }),
+      body: JSON.stringify({ refreshToken }),
     });
 
+    if (authSession.generation() !== generation) return null;
+    if (response.status === 401) {
+      // Token revocado/vencido. No conservar acceso local a una sesión inválida.
+      authSession.clear();
+      demo.logout();
+      dataClient.clearCache();
+      await clearTokens();
+      return null;
+    }
+    // Una caída del Gateway NO debe borrar el refresh token válido.
     if (!response.ok) {
-      await clearTokens();
-      return null;
+      throw await apiErrorFromResponse(response);
     }
-
     const tokens = await parseSuccessfulResponse<AuthTokensResponse>(response);
-
-    if (!tokens?.access_token || !tokens?.refresh_token) {
+    if (!tokens?.accessToken || !tokens?.refreshToken) {
+      throw new ApiError({
+        code: "INVALID_API_RESPONSE",
+        message: "El servidor devolvió una renovación inválida.",
+        details: {},
+      });
+    }
+    if (authSession.generation() !== generation) return null;
+    await saveTokens(tokens.accessToken, tokens.refreshToken);
+    if (authSession.generation() !== generation) {
       await clearTokens();
       return null;
     }
-
-    await saveTokens(tokens.access_token, tokens.refresh_token);
-
-    return tokens.access_token;
-  } catch {
-    return null;
-  }
+    authSession.rotateBackendTokens(tokens);
+    return tokens.accessToken;
+  })();
+  pendingRefresh = action;
+  try { return await action; } finally { if (pendingRefresh === action) pendingRefresh = null; }
 }
 
 async function executeFetch(
@@ -393,6 +409,12 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
+  const requestHeaders = new Headers(options.headers);
+  if (!requestHeaders.get("X-Correlation-ID")?.trim()) {
+    requestHeaders.set("X-Correlation-ID", createCorrelationId());
+  }
+  const requestCorrelationId = requestHeaders.get("X-Correlation-ID")!;
+  const requestOptions = { ...options, headers: requestHeaders };
   const controller = new AbortController();
 
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -416,8 +438,18 @@ export async function apiRequest<T>(
     }
   }
 
+  const requestGeneration = options.auth !== false && authSession.mode() === 'backend'
+    ? authSession.generation()
+    : null;
+
   try {
-    let response = await executeFetch(method, path, options, controller.signal);
+    // Capturamos el token del intento inicial para no renovar dos veces ante dos 401.
+    const sentAccessToken = options.auth === false
+      ? null
+      : options.accessToken !== undefined
+        ? options.accessToken
+        : await resolveAccessToken(undefined);
+    let response = await executeFetch(method, path, requestOptions, controller.signal, sentAccessToken);
 
     /*
      * Si expira el access token:
@@ -425,14 +457,14 @@ export async function apiRequest<T>(
      * 2. almacenamos tokens nuevos;
      * 3. repetimos una sola vez.
      */
-    if (response.status === 401 && options.auth !== false) {
-      const refreshedAccessToken = await refreshAccessToken();
+    if (response.status === 401 && options.auth !== false && authSession.mode() === "backend") {
+      const refreshedAccessToken = await refreshAccessToken(sentAccessToken);
 
       if (refreshedAccessToken) {
         response = await executeFetch(
           method,
           path,
-          options,
+          requestOptions,
           controller.signal,
           refreshedAccessToken,
         );
@@ -440,10 +472,18 @@ export async function apiRequest<T>(
     }
 
     if (!response.ok) {
-      throw await apiErrorFromResponse(response);
+      throw await apiErrorFromResponse(response, requestCorrelationId);
     }
 
-    return await parseSuccessfulResponse<T>(response);
+    const result = await parseSuccessfulResponse<T>(response);
+    if (requestGeneration !== null && authSession.generation() !== requestGeneration) {
+      throw new ApiError({
+        code: 'SESSION_CHANGED',
+        message: 'Esta respuesta pertenece a una sesión anterior.',
+        details: {},
+      });
+    }
+    return result;
   } catch (cause) {
     if (cause instanceof ApiError) {
       throw cause;
@@ -453,6 +493,7 @@ export async function apiRequest<T>(
       if (timedOut) {
         throw new ApiError({
           code: "REQUEST_TIMEOUT",
+          correlationId: requestCorrelationId,
 
           message: "La solicitud tardó demasiado tiempo en responder.",
 
@@ -464,6 +505,7 @@ export async function apiRequest<T>(
 
       throw new ApiError({
         code: "REQUEST_CANCELLED",
+        correlationId: requestCorrelationId,
 
         message: "La solicitud fue cancelada.",
 
@@ -487,7 +529,7 @@ export async function apiRequest<T>(
 
       details: normalized.details,
 
-      correlationId: normalized.correlationId,
+      correlationId: requestCorrelationId,
 
       status: normalized.status,
     });
@@ -536,14 +578,14 @@ export const apiClient = {
  */
 export async function register(data: RegisterData): Promise<RegisterResponse> {
   return apiClient.post<RegisterResponse>(
-    "/auth/registro",
+    "/auth/register",
 
     {
       ...data,
 
-      nombre_completo: data.nombre_completo.trim(),
+      fullName: data.fullName.trim(),
 
-      correo: data.correo.trim().toLowerCase(),
+      email: data.email.trim().toLowerCase(),
     },
 
     {
@@ -559,14 +601,14 @@ export async function register(data: RegisterData): Promise<RegisterResponse> {
  * mediante SecureStore.
  */
 export async function login(
-  correo: string,
+  email: string,
   password: string,
 ): Promise<AuthTokensResponse> {
   const tokens = await apiClient.post<AuthTokensResponse>(
     "/auth/login",
 
     {
-      correo: correo.trim().toLowerCase(),
+      email: email.trim().toLowerCase(),
 
       password,
     },
@@ -576,7 +618,7 @@ export async function login(
     },
   );
 
-  if (!tokens?.access_token || !tokens?.refresh_token) {
+  if (!tokens?.accessToken || !tokens?.refreshToken) {
     throw new ApiError({
       code: "INVALID_API_RESPONSE",
 
@@ -586,7 +628,7 @@ export async function login(
     });
   }
 
-  await saveTokens(tokens.access_token, tokens.refresh_token);
+  await saveTokens(tokens.accessToken, tokens.refreshToken);
 
   return tokens;
 }
@@ -595,7 +637,7 @@ export async function login(
  * Usuario real autenticado.
  */
 export async function getMe(): Promise<CurrentUserResponse> {
-  return apiClient.get<CurrentUserResponse>("/auth/me");
+  return apiClient.get<CurrentUserResponse>("/me");
 }
 
 /*
@@ -609,7 +651,7 @@ export async function fetchWithAuth(
 ): Promise<Response> {
   const url = `${requireApiBaseUrl()}${normalizePath(endpoint)}`;
 
-  let accessToken = await getAccessToken();
+  let accessToken = authSession.accessToken();
 
   const headers = new Headers(options.headers ?? {});
 
@@ -638,7 +680,7 @@ export async function fetchWithAuth(
     return response;
   }
 
-  accessToken = await refreshAccessToken();
+  accessToken = await refreshAccessToken(accessToken);
 
   if (!accessToken) {
     return response;
@@ -658,5 +700,6 @@ export async function fetchWithAuth(
  * Cierre local de la sesión real.
  */
 export async function logoutLocal(): Promise<void> {
+  authSession.clear();
   await clearTokens();
 }

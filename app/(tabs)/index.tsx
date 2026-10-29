@@ -62,11 +62,12 @@ function formatMeasurementDate(date: string) {
 }
 
 export default function ResumenScreen() {
-  const { user, selectedPatient } = useAppState();
-  const { measurements, permissions, relations } = useDemo();
-  const pendingCount = relations.filter(
+  const { user, selectedPatient, permissions, sessionMode } = useAppState();
+  const { measurements: mockMeasurements, relations } = useDemo();
+  const measurements = sessionMode === 'mock' ? mockMeasurements : [];
+  const pendingCount = sessionMode === 'mock' ? relations.filter(
     (relation) => relation.patientId === selectedPatient?.id && relation.status === 'pending',
-  ).length;
+  ).length : 0;
   const router = useRouter();
   const colorScheme = useColorScheme();
   const themeName = colorScheme === 'dark' ? 'dark' : 'light';
@@ -76,7 +77,7 @@ export default function ResumenScreen() {
     .map((type) => getMeasurementSummary(type, measurements))
     .filter((summary): summary is MeasurementSummary => Boolean(summary));
   const priorityAlert =
-    permissions.alerts ? getDemoAlerts()[0] : undefined;
+    sessionMode === 'mock' && permissions.alerts ? getDemoAlerts()[0] : undefined;
 
   const handleEmergencyPress = () => {
     Alert.alert(
@@ -107,11 +108,11 @@ export default function ResumenScreen() {
           <View style={styles.actions}>
           <Pressable
             accessibilityLabel="Registrar medición"
-            disabled={!permissions.write}
-            accessibilityState={{ disabled: !permissions.write }}
+            disabled={!permissions.write || sessionMode === 'backend'}
+            accessibilityState={{ disabled: !permissions.write || sessionMode === 'backend' }}
             accessibilityRole="button"
             onPress={() => router.push('/registrar-medicion')}
-            style={({ pressed }) => [styles.registerButton, !permissions.write && { opacity: 0.45 }, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.registerButton, (!permissions.write || sessionMode === 'backend') && { opacity: 0.45 }, pressed && styles.pressed]}>
             <MaterialCommunityIcons color={theme.primary} name="plus-circle-outline" size={22} />
             <ThemedText
               lightColor={theme.primary}
@@ -155,10 +156,10 @@ export default function ResumenScreen() {
             </View>
             <View style={styles.emptyCopy}>
               <ThemedText style={styles.emptyTitle}>
-                {permissions.read ? 'Aún no hay mediciones' : 'Mediciones no disponibles'}
+                {sessionMode === 'backend' ? 'Mediciones reales pendientes de integración' : permissions.read ? 'Aún no hay mediciones' : 'Mediciones no disponibles'}
               </ThemedText>
               <ThemedText style={[styles.emptyDescription, { color: theme.mutedText }]}>
-                {permissions.read ? 'Registra la primera para verla aquí.' : 'El paciente aún no te ha dado acceso.'}
+                {sessionMode === 'backend' ? 'El resumen se conectará al historial del servidor en Sprint 2.' : permissions.read ? 'Registra la primera para verla aquí.' : 'El paciente aún no te ha dado acceso.'}
               </ThemedText>
             </View>
           </View>

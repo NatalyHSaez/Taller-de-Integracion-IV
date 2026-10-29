@@ -1,430 +1,225 @@
-import { IS_API_CONFIGURED } from "@/config/api";
-import type { AuthTokensResponse, CurrentUserResponse } from "@/types/api";
+import { IS_API_CONFIGURED } from '@/config/api';
+import type { AuthTokensResponse, CurrentUserResponse, RegisterRequest } from '@/types/api';
+import { apiClient, login as apiLogin, refreshAccessToken, register as apiRegister } from './api';
+import { authSession } from './auth-session';
+import { dataClient } from './data';
+import { demo } from './demo-store';
+import { patientAccess } from './patient-access';
+import { ApiError, normalizeApiError } from './errors';
+import { findMockAccount } from './mocks/auth-mock';
+import { clearTokens, getAccessToken, getRefreshToken } from './token-storage';
 
-import { apiClient, login as apiLogin } from "./api";
-import { authSession } from "./auth-session";
-import { dataClient } from "./data";
-import { demo } from "./demo-store";
-import { ApiError } from "./errors";
-import { findMockAccount, isMockAccountEmail } from "./mocks/auth-mock";
-import { clearTokens, saveTokens } from "./token-storage";
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-/**
- * La aplicación móvil actualmente soporta
- * pacientes y cuidadores.
- */
 function ensureMobileRole(user: CurrentUserResponse): void {
-  if (user.roles.includes("paciente") || user.roles.includes("cuidador")) {
-    return;
-  }
-
+  if (user.roles.includes('PATIENT') || user.roles.includes('CAREGIVER')) return;
   throw new ApiError({
-    code: "FLOW_NOT_AVAILABLE",
-    message:
-      "El acceso médico y administrador se prueba desde la aplicación web.",
-    details: {
-      roles: user.roles,
-    },
-    status: 409,
+    code: 'FLOW_NOT_AVAILABLE', status: 409,
+    message: 'El acceso médico y administrador se realiza desde la aplicación web.',
+    details: {},
   });
 }
 
-/**
- * Además de las cuentas mock originales,
- * demo-store puede contener cuentas creadas
- * durante la ejecución de la aplicación.
- *
- * Las cuentas provenientes del backend usan
- * password vacío, por lo que no se consideran
- * cuentas mock locales.
- */
-function isRuntimeMockAccountEmail(email: string): boolean {
-  const normalizedEmail = normalizeEmail(email);
-
-  return demo
-    .snapshot()
-    .accounts.some(
-      (account) =>
-        account.email.toLowerCase() === normalizedEmail &&
-        account.password.length > 0,
-    );
+function requireGateway(): void {
+  if (IS_API_CONFIGURED) return;
+  throw new ApiError({
+    code: 'API_NOT_CONFIGURED',
+    message: 'Configura EXPO_PUBLIC_API_URL para conectar con el servidor.',
+    details: {},
+  });
 }
 
-function localAccountToCurrentUser(): CurrentUserResponse {
-  const account = demo.user();
-
-  if (!account) {
-    throw new ApiError({
-      code: "AUTHENTICATION_REQUIRED",
-      message: "No fue posible iniciar la sesión mock.",
-      details: {},
-      status: 401,
-    });
-  }
-
-  return {
-    id: account.id,
-    nombre_completo: account.name,
-    correo: account.email,
-    roles: [account.role === "patient" ? "paciente" : "cuidador"],
-  };
-}
-
-function createRuntimeMockTokens(userId: string): AuthTokensResponse {
-  return {
-    access_token: `mock-access-token-${userId}`,
-    refresh_token: `mock-refresh-token-${userId}`,
-    token_type: "bearer",
-    expires_in: 900,
-  };
-}
-
-/**
- * Login utilizando las cuentas locales/mock.
- *
- * No se guardan estos tokens ficticios en
- * SecureStore porque solamente se utilizan
- * para desarrollo.
- */
-async function loginWithMock(
-  email: string,
-  password: string,
-): Promise<AuthTokensResponse> {
-  dataClient.clearCache();
-
-  /*
-   * Si anteriormente existía una sesión real,
-   * eliminamos sus tokens persistidos.
-   */
-  await clearTokens();
-
+function beginCleanSession(): void {
   authSession.clear();
+  patientAccess.clear();
   demo.logout();
+  dataClient.clearCache();
+}
 
-  const predefinedAccount = findMockAccount(email, password);
-
-  /*
-   * Un médico mock no debe entrar al flujo
-   * móvil de paciente/cuidador.
-   */
-  if (predefinedAccount?.role === "DOCTOR") {
-    throw new ApiError({
-      code: "FLOW_NOT_AVAILABLE",
-      message: "El acceso médico se probará desde el flujo profesional.",
-      details: {
-        role: "DOCTOR",
-      },
-      status: 409,
-    });
+async function loginMock(email: string, password: string): Promise<AuthTokensResponse> {
+  const known = findMockAccount(email, password);
+  const runtime = demo.snapshot().accounts.find(
+    (account) => account.email.toLowerCase() === email.toLowerCase() && account.password === password && password.length > 0,
+  );
+  if (known?.role === 'DOCTOR') {
+    throw new ApiError({ code: 'FLOW_NOT_AVAILABLE', status: 409,
+      message: 'El acceso médico solo está disponible en la web.', details: {} });
   }
-
-  /*
-   * demo.login conoce tanto las cuentas
-   * iniciales como aquellas creadas localmente.
-   */
-  demo.login(normalizeEmail(email), password);
-
-  const user = localAccountToCurrentUser();
-
-  const tokens = createRuntimeMockTokens(user.id);
-
+  if (!known && !runtime) {
+    throw new ApiError({ code: 'INVALID_CREDENTIALS', status: 401,
+      message: 'Correo o contraseña incorrectos en el modo de demostración.', details: {} });
+  }
+  beginCleanSession();
+  await clearTokens();
+  demo.login(email.trim().toLowerCase(), password);
+  const account = demo.user();
+  if (!account) throw new Error('No se pudo iniciar la sesión de demostración.');
+  const user: CurrentUserResponse = {
+    id: account.id, fullName: account.name, email: account.email,
+    roles: [account.role === 'patient' ? 'PATIENT' : 'CAREGIVER'],
+  };
+  const tokens: AuthTokensResponse = {
+    accessToken: `mock-access-${account.id}`, refreshToken: `mock-refresh-${account.id}`,
+    tokenType: 'bearer', expiresIn: 900,
+  };
   authSession.startMock(tokens, user);
-
   return tokens;
 }
 
-/**
- * Intenta cerrar una sesión real en el backend.
- *
- * Aunque falle la llamada, posteriormente
- * eliminaremos la sesión local igualmente.
- */
-async function revokeBackendSession(
-  refreshToken: string | null,
-): Promise<void> {
-  if (!refreshToken) {
-    return;
-  }
-
+async function revokeRemote(refreshToken: string | null): Promise<void> {
+  if (!refreshToken || !IS_API_CONFIGURED) return;
   try {
-    await apiClient.post<void>(
-      "/auth/logout",
-      {
-        refresh_token: refreshToken,
-      },
-      {
-        auth: false,
-      },
-    );
+    await apiClient.post<void>('/auth/logout', { refreshToken }, { auth: false, timeoutMs: 7_000 });
   } catch {
-    /*
-     * El logout local debe completarse aunque
-     * el backend no esté disponible.
-     */
+    // La desconexión no impide el cierre local. El token remoto expirará según backend.
   }
 }
 
-/**
- * Login contra el API Gateway real.
- */
-async function loginWithBackend(
-  email: string,
-  password: string,
-): Promise<AuthTokensResponse> {
-  dataClient.clearCache();
-
-  authSession.clear();
-  demo.logout();
-
-  /*
-   * Evita reutilizar tokens de una sesión
-   * anterior.
-   */
-  await clearTokens();
-
-  /*
-   * apiLogin realiza:
-   *
-   * POST /api/v1/auth/login
-   *
-   * y además guarda access + refresh token
-   * mediante SecureStore.
-   */
-  const tokens = await apiLogin(normalizeEmail(email), password);
-
-  /*
-   * También mantenemos la representación
-   * en memoria para AppState y apiClient.
-   */
-  authSession.startBackend(tokens);
-
-  try {
-    /*
-     * /auth/me utiliza el access token
-     * recientemente recibido.
-     */
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-      cache: false,
-      retry: {
-        attempts: 2,
-        initialDelayMs: 300,
-        maxDelayMs: 600,
-      },
-    });
-
-    ensureMobileRole(user);
-
-    authSession.setUser(user);
-
-    /*
-     * Mientras pacientes, relaciones,
-     * mediciones, etc. sigan utilizando mocks,
-     * proyectamos la identidad real sobre
-     * demo-store.
-     */
-    demo.startBackendSession(user);
-
-    return tokens;
-  } catch (error) {
-    await revokeBackendSession(tokens.refresh_token);
-
-    await clearTokens();
-
-    authSession.clear();
-    demo.logout();
-    dataClient.clearCache();
-
-    throw error;
-  }
-}
+let pendingRestore: Promise<CurrentUserResponse | null> | null = null;
 
 export const authService = {
-  /**
-   * Permite saber si un correo corresponde
-   * a una cuenta local/mock.
-   *
-   * Se conserva por compatibilidad con código
-   * desarrollado por Sebastián.
-   */
   hasLocalAccount(email: string): boolean {
-    return isMockAccountEmail(email) || isRuntimeMockAccountEmail(email);
+    const normalized = email.trim().toLowerCase();
+    return demo.snapshot().accounts.some((item) => item.email.toLowerCase() === normalized && item.password.length > 0);
   },
 
-  /**
-   * Decide automáticamente qué sistema de
-   * autenticación utilizar.
-   *
-   * Cuenta mock conocida
-   *      ↓
-   * demo-store
-   *
-   * Otro correo + API configurada
-   *      ↓
-   * API Gateway
-   */
-  async login(email: string, password: string): Promise<AuthTokensResponse> {
-    if (isMockAccountEmail(email) || isRuntimeMockAccountEmail(email)) {
-      return loginWithMock(email, password);
-    }
-
-    /*
-     * Si todavía no existe Gateway configurado,
-     * mantenemos el funcionamiento de desarrollo.
-     */
-    if (!IS_API_CONFIGURED) {
-      return loginWithMock(email, password);
-    }
-
-    return loginWithBackend(email, password);
-  },
-
-  /**
-   * Obtiene el usuario actualmente autenticado.
-   */
-  async me(): Promise<CurrentUserResponse> {
-    if (authSession.mode() === "backend") {
-      const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-        cache: false,
-        retry: {
-          attempts: 2,
-          initialDelayMs: 300,
-          maxDelayMs: 600,
-        },
-      });
-
-      ensureMobileRole(user);
-
-      authSession.setUser(user);
-      demo.startBackendSession(user);
-
-      return user;
-    }
-
-    const mockUser = authSession.user();
-
-    if (mockUser) {
-      return mockUser;
-    }
-
-    /*
-     * Respaldo para una cuenta que actualmente
-     * esté activa en demo-store.
-     */
-    return localAccountToCurrentUser();
-  },
-
-  /**
-   * Renueva explícitamente los tokens de una
-   * sesión real.
-   */
-  async refresh(): Promise<AuthTokensResponse> {
-    if (authSession.mode() !== "backend") {
-      throw new ApiError({
-        code: "FLOW_NOT_AVAILABLE",
-        message: "La renovación real solo aplica a una sesión del backend.",
-        details: {},
-        status: 409,
-      });
-    }
-
-    const refreshToken = authSession.refreshToken();
-
-    if (!refreshToken) {
-      throw new ApiError({
-        code: "AUTHENTICATION_REQUIRED",
-        message: "No existe un refresh token disponible.",
-        details: {},
-        status: 401,
-      });
-    }
-
-    const tokens = await apiClient.post<AuthTokensResponse>(
-      "/auth/refresh",
-      {
-        refresh_token: refreshToken,
-      },
-      {
-        auth: false,
-      },
-    );
-
-    /*
-     * A diferencia de tu implementación inicial,
-     * ahora también persistimos los tokens
-     * renovados mediante SecureStore.
-     */
-    await saveTokens(tokens.access_token, tokens.refresh_token);
-
+  /** El modo real es el predeterminado. El modo demo debe elegirse en la pantalla. */
+  async login(email: string, password: string, mode: 'backend' | 'mock' = 'backend'): Promise<AuthTokensResponse> {
+    if (mode === 'mock') return loginMock(email, password);
+    requireGateway();
+    beginCleanSession();
+    await clearTokens();
+    const tokens = await apiLogin(email, password);
     authSession.startBackend(tokens);
+    const generation = authSession.generation();
+    try {
+      const user = await dataClient.get<CurrentUserResponse>('/me', { cache: false });
+      if (authSession.generation() !== generation) {
+        throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió durante el inicio de sesión.', details: {} });
+      }
+      ensureMobileRole(user);
+      authSession.setUser(user);
+      // Compatibilidad de presentación: solo identidad real, sin mediciones o relaciones inventadas.
+      demo.startBackendSession(user);
+      return authSession.tokens() ?? tokens;
+    } catch (cause) {
+      if (authSession.generation() === generation) {
+        await revokeRemote(authSession.refreshToken());
+        beginCleanSession();
+        await clearTokens();
+      }
+      throw cause;
+    }
+  },
 
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-      cache: false,
-      retry: {
-        attempts: 2,
-        initialDelayMs: 300,
-        maxDelayMs: 600,
-      },
-    });
+  async restore(): Promise<CurrentUserResponse | null> {
+    if (pendingRestore) return pendingRestore;
+    const action = (async (): Promise<CurrentUserResponse | null> => {
+      // No sobrescribir una sesión que ya se inició desde la interfaz.
+      if (authSession.mode()) return authSession.user();
+      const [accessToken, refreshToken] = await Promise.all([getAccessToken(), getRefreshToken()]);
+      if (!refreshToken) {
+        if (accessToken) await clearTokens();
+        return null;
+      }
+      if (!IS_API_CONFIGURED) return null;
 
+      authSession.startBackend({ accessToken: accessToken ?? '', refreshToken, tokenType: 'bearer', expiresIn: 0 });
+      const generation = authSession.generation();
+      try {
+        // Si no hay access token, primero renovar. Con uno expirado /me activa el refresh automático.
+        if (!accessToken) {
+          const renewed = await refreshAccessToken();
+          if (!renewed) return null;
+        }
+        const user = await dataClient.get<CurrentUserResponse>('/me', { cache: false });
+        if (authSession.generation() !== generation) return null;
+        ensureMobileRole(user);
+        authSession.setUser(user);
+        demo.startBackendSession(user);
+        return user;
+      } catch (cause) {
+        const error = normalizeApiError(cause);
+        if (authSession.generation() === generation) {
+          // Sesión inválida: borrar. Fallo transitorio: conservar tokens para reintento futuro.
+          if (error.status === 401) {
+            beginCleanSession();
+            await clearTokens();
+          } else {
+            authSession.clear();
+            patientAccess.clear();
+            demo.logout();
+            dataClient.clearCache();
+          }
+        }
+        return null;
+      }
+    })();
+    pendingRestore = action;
+    try { return await action; }
+    finally { if (pendingRestore === action) pendingRestore = null; }
+  },
+  async me(): Promise<CurrentUserResponse> {
+    if (authSession.mode() === 'mock') {
+      const mock = authSession.user();
+      if (!mock) throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401,
+        message: 'No hay sesión de demostración.', details: {} });
+      return mock;
+    }
+    if (authSession.mode() !== 'backend') throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401,
+      message: 'Inicia sesión para continuar.', details: {} });
+    const generation = authSession.generation();
+    const user = await dataClient.get<CurrentUserResponse>('/me', { cache: false });
+    if (authSession.generation() !== generation || authSession.mode() !== 'backend') {
+      throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió durante la consulta.', details: {} });
+    }
     ensureMobileRole(user);
-
     authSession.setUser(user);
     demo.startBackendSession(user);
+    return user;
+  },
 
+  async refresh(): Promise<AuthTokensResponse> {
+    if (authSession.mode() !== 'backend') throw new ApiError({
+      code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'No hay sesión real activa.', details: {},
+    });
+    const token = await refreshAccessToken(authSession.accessToken());
+    const tokens = authSession.tokens();
+    if (!token || !tokens) throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401,
+      message: 'No fue posible renovar la sesión.', details: {} });
     return tokens;
   },
 
-  /**
-   * Cierra correctamente tanto una sesión real
-   * como una sesión mock.
-   */
-  async logout(): Promise<void> {
-    const mode = authSession.mode();
-
-    const refreshToken = authSession.refreshToken();
-
-    if (mode === "backend") {
-      await revokeBackendSession(refreshToken);
+  async updateName(fullName: string): Promise<CurrentUserResponse> {
+    if (authSession.mode() !== 'backend') throw new ApiError({
+      code: 'FLOW_NOT_AVAILABLE', status: 409, message: 'La edición real requiere una sesión del backend.', details: {},
+    });
+    const generation = authSession.generation();
+    const user = await apiClient.patch<CurrentUserResponse>('/me', { fullName: fullName.trim() });
+    if (authSession.generation() !== generation || authSession.mode() !== 'backend') {
+      throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió durante la actualización.', details: {} });
     }
-
-    /*
-     * SecureStore siempre se limpia.
-     */
-    await clearTokens();
-
-    demo.logout();
-    authSession.clear();
-    dataClient.clearCache();
+    authSession.setUser(user);
+    demo.startBackendSession(user);
+    return user;
   },
 
-  /**
-   * El cuidador continúa pudiendo registrarse
-   * localmente para los flujos mock.
-   *
-   * El formulario de Sebastián utiliza
-   * directamente services/api.ts para el
-   * registro real de paciente.
-   */
-  async register(data: { name: string; email: string; password: string }) {
-    demo.registerCaregiver(
-      data.name,
-      normalizeEmail(data.email),
-      data.password,
-    );
-
-    /*
-     * account-form vuelve al login después
-     * del registro, así que no dejamos la
-     * cuenta iniciada automáticamente.
-     */
-    demo.logout();
+  async register(data: RegisterRequest): Promise<CurrentUserResponse> {
+    requireGateway();
+    return apiRegister(data) as Promise<CurrentUserResponse>;
   },
 
+  async logout(): Promise<void> {
+    const token = authSession.mode() === 'backend' ? authSession.refreshToken() : null;
+    // Invalidar primero la memoria; así ninguna respuesta atrasada puede restaurar la sesión.
+    beginCleanSession();
+    try { await clearTokens(); } finally { await revokeRemote(token); }
+  },
+
+  /** P5: listado real para cuidadores, sin fabricar relaciones. */
   async getPatients() {
-    return demo.patients();
+    if (authSession.mode() === 'mock') return demo.patients();
+    if (authSession.mode() === 'backend' && authSession.user()?.roles.includes('CAREGIVER')) {
+      return patientAccess.ensureLoaded();
+    }
+    return [];
   },
 };

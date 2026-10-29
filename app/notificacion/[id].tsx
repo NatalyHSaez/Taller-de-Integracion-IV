@@ -8,6 +8,8 @@ import { ThemedView } from '@/components/themed-view';
 import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getApiErrorMessage } from '@/services/errors';
+import { authSession } from '@/services/auth-session';
 import { getNotificationById, markNotificationRead } from '@/services/notifications';
 
 export default function NotificacionDetalleScreen() {
@@ -15,23 +17,51 @@ export default function NotificacionDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const tint = Colors[colorScheme === 'dark' ? 'dark' : 'light'].tint;
-  const [notificacion, setNotificacion] = useState<Notificacion | undefined>();
-  const [cargando, setCargando] = useState(true);
+  const [intento, setIntento] = useState(0);
+  const [resultado, setResultado] = useState<{
+    id: string;
+    intento: number;
+    data?: Notificacion;
+    error?: string;
+  } | null>(null);
+  const vigente = resultado?.id === id && resultado.intento === intento;
+  const cargando = Boolean(id) && !vigente;
+  const notificacion = vigente ? resultado?.data : undefined;
+  const error = vigente ? resultado?.error : undefined;
 
   useEffect(() => {
     if (!id) return;
-    getNotificationById(id).then((data) => {
-      setNotificacion(data);
-      setCargando(false);
-      // Se marca como leída al abrirla; al volver, la lista se refresca sola.
-      markNotificationRead(id);
-    });
-  }, [id]);
+    let active = true;
+    getNotificationById(id)
+      .then(async (data) => {
+        if (!active) return;
+        if (data && authSession.mode() === 'mock') await markNotificationRead(id);
+        if (active) setResultado({ id, intento, data });
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setResultado({
+            id, intento,
+            error: getApiErrorMessage(cause, 'No fue posible cargar la notificación.'),
+          });
+        }
+      });
+    return () => { active = false; };
+  }, [id, intento]);
 
   if (cargando) {
     return (
       <ThemedView style={styles.container}>
         <ActivityIndicator color={tint} />
+      </ThemedView>
+    );
+  }
+
+  if (error) {
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedText accessibilityRole="alert">{error}</ThemedText>
+        <Action label="Reintentar" onPress={() => setIntento((value) => value + 1)} />
       </ThemedView>
     );
   }

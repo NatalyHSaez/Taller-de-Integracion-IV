@@ -1,13 +1,13 @@
-import { API_V1_URL } from "@/config/api";
 import type { Notificacion } from "@/constants/notifications-mock";
 import type {
   NotificationListResponse,
   NotificationResponse,
 } from "@/types/api";
 
+import { authSession } from "./auth-session";
 import { dataClient } from "./data";
 import { demo } from "./demo-store";
-import { normalizeApiError } from "./errors";
+import { ApiError, normalizeApiError } from "./errors";
 import { mockApi } from "./mocks/api-mock";
 
 const read = new Set<string>();
@@ -27,14 +27,14 @@ function describeMeasurement(
 }
 
 function toNotification(item: NotificationResponse): Notificacion {
-  const date = new Date(item.creada_en);
+  const date = new Date(item.createdAt);
 
   return {
     id: item.id,
 
-    titulo: item.titulo,
+    titulo: item.title,
 
-    descripcion: item.cuerpo,
+    descripcion: item.body,
 
     hora: new Intl.DateTimeFormat("es-CL", {
       hour: "2-digit",
@@ -42,7 +42,7 @@ function toNotification(item: NotificationResponse): Notificacion {
       hour12: false,
     }).format(date),
 
-    leida: item.estado === "read" || read.has(item.id),
+    leida: item.status === "read" || (authSession.mode() === "mock" && read.has(item.id)),
   };
 }
 
@@ -139,6 +139,7 @@ function getMeasurementNotifications(): Notificacion[] {
  * frontend durante el desarrollo.
  */
 export function getDemoNotifications(): Notificacion[] {
+  if (authSession.mode() !== "mock") return [];
   return [...getMeasurementNotifications(), ...getRelationNotifications()];
 }
 
@@ -160,82 +161,55 @@ async function getMockNotifications(): Promise<Notificacion[]> {
   return uniqueNotifications([...mockNotifications, ...getDemoNotifications()]);
 }
 
-/**
- * Obtiene notificaciones reales cuando el
- * API Gateway está disponible.
- *
- * Se utilizan:
- * - caché;
- * - reintentos;
- * - caché de respaldo;
- * - fallback a mocks.
- */
-export async function getNotifications(): Promise<Notificacion[]> {
-  if (!API_V1_URL) {
+/** En sesión backend se propagan los errores; los mocks son un modo explícito. */
+export async function getNotifications(forceRefresh = false): Promise<Notificacion[]> {
+  if (authSession.mode() === "mock") {
     return getMockNotifications();
+  }
+  if (authSession.mode() !== "backend") {
+    throw new ApiError({
+      code: "AUTHENTICATION_REQUIRED",
+      message: "Debes iniciar sesión para consultar tus notificaciones.",
+      status: 401,
+    });
   }
 
   try {
-    const response = await dataClient.get<NotificationListResponse>(
-      "/notificaciones",
-      {
-        query: {
-          page: 1,
-          size: 100,
-        },
-
-        cache: {
-          ttlMs: 30_000,
-
-          staleIfErrorMs: 5 * 60_000,
-        },
-
-        retry: {
-          attempts: 3,
-
-          initialDelayMs: 400,
-
-          maxDelayMs: 1_600,
-        },
+    const response = await dataClient.get<NotificationListResponse>("/notifications", {
+      query: { page: 1, size: 100 },
+      cache: {
+        ttlMs: 30_000,
+        // Esta pantalla aún no distingue visualmente una copia expirada.
+        staleIfErrorMs: 0,
+        forceRefresh,
       },
-    );
-
-    const backendNotifications = response.items.map(toNotification);
-
-    /*
-     * Mantenemos las notificaciones locales
-     * mientras algunos flujos sigan siendo
-     * simulados.
-     */
-    return uniqueNotifications([
-      ...backendNotifications,
-      ...getDemoNotifications(),
-    ]);
-  } catch (error) {
-    console.warn(
-      "[notifications] API real no disponible; usando datos simulados.",
-      normalizeApiError(error),
-    );
-
-    return getMockNotifications();
+      retry: { attempts: 3, initialDelayMs: 400, maxDelayMs: 1_600 },
+    });
+    return response.items.map(toNotification);
+  } catch (cause) {
+    throw normalizeApiError(cause);
   }
 }
 
 export async function getNotificationById(
   id: string,
 ): Promise<Notificacion | undefined> {
-  const notifications = await getNotifications();
+  const notifications = await getNotifications(true);
 
   return notifications.find((notification) => notification.id === id);
 }
 
 /**
- * El backend revisado todavía no posee una
- * ruta estable para marcar notificaciones
- * como leídas.
- *
- * Por ahora mantenemos el cambio local.
+ * Solo el modo demo marca localmente. En backend se requiere el endpoint
+ * POST /notifications/{id}/read, que se conectará en la tarea S5.
  */
 export async function markNotificationRead(id: string): Promise<void> {
-  read.add(id);
+  if (authSession.mode() === 'mock') { read.add(id); return; }
+  if (authSession.mode() !== 'backend') {
+    throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401,
+      message: 'Inicia sesión para revisar notificaciones.', details: {} });
+  }
+  // S5 implementará POST /notifications/{id}/read e invalidará la caché.
+  throw new ApiError({ code: 'FLOW_NOT_AVAILABLE', status: 409,
+    message: 'El marcado de notificaciones reales se integrará en el Sprint 2.', details: {} });
 }

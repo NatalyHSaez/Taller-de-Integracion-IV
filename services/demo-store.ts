@@ -67,6 +67,8 @@ type State = {
 
 type BackendUserLike = {
   id?: string;
+  fullName?: string;
+  email?: string;
   nombre_completo?: string;
   correo?: string;
   roles?: string[];
@@ -124,7 +126,7 @@ const structuredProfiles: Profile[] = MOCK_PATIENTS.map((patient) => {
 
   return {
     id: patient.patientId,
-    name: `${patient.firstName} ${patient.lastName}`,
+    name: patient.fullName,
     email: account?.email.toLowerCase() ?? `${patient.patientId}@mock.local`,
     code: "DEMO-ACTIVATED",
     expires: 0,
@@ -150,18 +152,20 @@ const initialProfiles: Profile[] = [
   ),
 ];
 
-const initialRelations: Relation[] = MOCK_CAREGIVER_RELATIONSHIPS.map(
-  (relationship) => ({
-    id: relationship.relationshipId,
-    patientId: relationship.patientId,
-    caregiverId: relationship.caregiverUserId,
-    status: relationship.status === "ACTIVE" ? "approved" : "revoked",
-    permissions: {
-      alerts: relationship.permissions.includes("ALERT_VIEW"),
-      read: relationship.permissions.includes("MEASUREMENT_VIEW"),
-      write: relationship.permissions.includes("MEASUREMENT_CREATE"),
-    },
-  }),
+const initialRelations: Relation[] = MOCK_CAREGIVER_RELATIONSHIPS.flatMap(
+  (relationship) => MOCK_PATIENTS
+    .filter((patient) => patient.relationshipId === relationship.relationshipId)
+    .map((patient) => ({
+      id: relationship.relationshipId,
+      patientId: patient.patientId,
+      caregiverId: relationship.userId,
+      status: "approved" as const,
+      permissions: {
+        alerts: relationship.permissions.includes("ALERT_VIEW"),
+        read: relationship.permissions.includes("MEASUREMENT_VIEW"),
+        write: relationship.permissions.includes("MEASUREMENT_CREATE"),
+      },
+    })),
 );
 
 let state: State = {
@@ -214,11 +218,11 @@ function credentials(email: string, password: string) {
 }
 
 function backendRole(user: CurrentUserResponse): Account["role"] | null {
-  if (user.roles.includes("paciente")) {
+  if (user.roles.includes("PATIENT")) {
     return "patient";
   }
 
-  if (user.roles.includes("cuidador")) {
+  if (user.roles.includes("CAREGIVER")) {
     return "caregiver";
   }
 
@@ -227,7 +231,7 @@ function backendRole(user: CurrentUserResponse): Account["role"] | null {
 
 function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
   const userId = requireValue(
-    user.id ?? user.correo,
+    user.id ?? user.email ?? user.correo,
     "El usuario del backend no contiene un identificador válido.",
   );
 
@@ -237,19 +241,19 @@ function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
     .map((role) => role.toLowerCase())
     .map((role): UserRole | null => {
       if (role === "paciente" || role === "patient") {
-        return "paciente";
+        return "PATIENT";
       }
 
       if (role === "cuidador" || role === "caregiver") {
-        return "cuidador";
+        return "CAREGIVER";
       }
 
       if (role === "medico" || role === "doctor") {
-        return "medico";
+        return "DOCTOR";
       }
 
       if (role === "administrador" || role === "admin") {
-        return "administrador";
+        return "ADMIN";
       }
 
       return null;
@@ -258,184 +262,39 @@ function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
 
   return {
     id: userId,
-    nombre_completo: user.nombre_completo ?? "Usuario",
-    correo: (user.correo ?? "").toLowerCase(),
+    fullName: user.fullName ?? user.nombre_completo ?? "Usuario",
+    email: (user.email ?? user.correo ?? "").toLowerCase(),
     roles,
   };
 }
 
 function openBackendDemoSession(user: CurrentUserResponse) {
-  const role = requireValue(
-    backendRole(user),
-    "La aplicación móvil actual solo admite pacientes y cuidadores.",
-  );
-
-  const existingAccount = state.accounts.find(
-    (account) => account.id === user.id,
-  );
-
-  if (role === "patient") {
-    const patientId = `backend-patient-${user.id}`;
-
-    const templatePatientId = initialProfiles[0]?.id;
-
-    const account: Account = existingAccount ?? {
-      id: user.id,
-      name: user.nombre_completo,
-      email: user.correo.toLowerCase(),
-      password: "",
-      role: "patient",
-      patientId,
-    };
-
-    const profileExists = state.profiles.some(
-      (profile) => profile.id === patientId,
-    );
-
-    const profile: Profile = {
-      id: patientId,
-      name: user.nombre_completo,
-      email: user.correo.toLowerCase(),
-      code: "BACKEND-SESSION",
-      expires: 0,
-      activated: true,
-    };
-
-    const hasMeasurements = state.measurements.some(
-      (measurement) => measurement.patientId === patientId,
-    );
-
-    const clonedMeasurements =
-      !hasMeasurements && templatePatientId
-        ? state.measurements
-            .filter(
-              (measurement) => measurement.patientId === templatePatientId,
-            )
-            .map((measurement) => ({
-              ...measurement,
-
-              id: `backend-${user.id}-${measurement.id}`,
-
-              readingId: measurement.readingId
-                ? `backend-${user.id}-${measurement.readingId}`
-                : undefined,
-
-              patientId,
-            }))
-        : [];
-
-    update({
-      accounts: existingAccount
-        ? state.accounts.map((item) =>
-            item.id === user.id
-              ? {
-                  ...item,
-
-                  name: user.nombre_completo,
-
-                  email: user.correo.toLowerCase(),
-
-                  password: "",
-
-                  role: "patient",
-
-                  patientId,
-                }
-              : item,
-          )
-        : [...state.accounts, account],
-
-      profiles: profileExists
-        ? state.profiles.map((item) => (item.id === patientId ? profile : item))
-        : [...state.profiles, profile],
-
-      measurements:
-        clonedMeasurements.length > 0
-          ? [...state.measurements, ...clonedMeasurements]
-          : state.measurements,
-
-      userId: user.id,
-
-      selectedId: patientId,
-    });
-
-    return;
-  }
-
-  const account: Account = existingAccount ?? {
+  const role = requireValue(backendRole(user), "La aplicación móvil solo admite pacientes y cuidadores.");
+  // Proyección mínima para las pantallas anteriores a P5: no se generan pacientes,
+  // relaciones ni lecturas de ejemplo para una cuenta autenticada en el backend.
+  const account: Account = {
     id: user.id,
-    name: user.nombre_completo,
-    email: user.correo.toLowerCase(),
+    name: user.fullName,
+    email: user.email.toLowerCase(),
     password: "",
-    role: "caregiver",
+    role,
+    patientId: role === "patient" ? user.id : undefined,
   };
-
-  const templateRelations = initialRelations.filter(
-    (relation) => relation.status === "approved",
-  );
-
-  const relationsToCreate: Relation[] = templateRelations
-    .filter(
-      (template) =>
-        !state.relations.some(
-          (relation) =>
-            relation.caregiverId === user.id &&
-            relation.patientId === template.patientId,
-        ),
-    )
-    .map((template) => ({
-      ...template,
-
-      id: `backend-${user.id}-${template.id}`,
-
-      caregiverId: user.id,
-
-      permissions: {
-        ...template.permissions,
-      },
-    }));
-
-  const nextAccounts: Account[] = existingAccount
-    ? state.accounts.map((item) =>
-        item.id === user.id
-          ? {
-              ...item,
-
-              name: user.nombre_completo,
-
-              email: user.correo.toLowerCase(),
-
-              password: "",
-
-              role: "caregiver",
-
-              patientId: undefined,
-            }
-          : item,
-      )
-    : [...state.accounts, account];
-
-  const nextRelations: Relation[] =
-    relationsToCreate.length > 0
-      ? [...state.relations, ...relationsToCreate]
-      : state.relations;
-
-  const availablePatientIds = nextRelations
-    .filter(
-      (relation) =>
-        relation.caregiverId === user.id && relation.status === "approved",
-    )
-    .map((relation) => relation.patientId);
-
+  const profile: Profile = {
+    id: user.id,
+    name: user.fullName,
+    email: user.email.toLowerCase(),
+    code: "",
+    expires: 0,
+    activated: true,
+  };
   update({
-    accounts: nextAccounts,
-
-    relations: nextRelations,
-
+    accounts: [...state.accounts.filter((item) => item.id !== user.id), account],
+    profiles: role === "patient"
+      ? [...state.profiles.filter((item) => item.id !== user.id), profile]
+      : state.profiles.filter((item) => item.id !== user.id),
     userId: user.id,
-
-    selectedId:
-      availablePatientIds.length === 1 ? availablePatientIds[0] : undefined,
+    selectedId: role === "patient" ? user.id : undefined,
   });
 }
 

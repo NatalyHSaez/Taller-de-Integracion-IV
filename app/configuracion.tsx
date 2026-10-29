@@ -5,6 +5,9 @@ import { Switch, View } from 'react-native';
 import { Action, Card, Copy, Field, FlowPage } from '@/components/flow-ui';
 import { useDemo } from '@/hooks/use-demo';
 import { demo } from '@/services/demo-store';
+import { useAppState } from '@/hooks/use-app-state';
+import { authService } from '@/services/authservice';
+import { verifyP7Integration, type P7Report } from '@/services/integration-check';
 
 function EditarCorreo() {
   const { user } = useDemo();
@@ -76,12 +79,53 @@ function CambiarContrasena() {
   );
 }
 
+
+/** P7: comprobación manual desde el dispositivo que ejecuta Expo. */
+function IntegrationCheck() {
+  const [checking, setChecking] = useState(false);
+  const [report, setReport] = useState<P7Report | null>(null);
+  const check = async () => {
+    if (checking) return;
+    setChecking(true);
+    setReport(null);
+    try { setReport(await verifyP7Integration()); }
+    catch (cause) { setReport({ ready: false, steps: [{ key: 'identity', status: 'error',
+      description: cause instanceof Error ? cause.message : 'Error inesperado en la comprobación.' }] }); }
+    finally { setChecking(false); }
+  };
+  return (
+    <Card>
+      <Copy>Verificación P7 (solo lectura): Gateway, sesión, paciente y lecturas disponibles.</Copy>
+      <Action secondary label={checking ? 'Comprobando conexión...' : 'Comprobar integración con backend'}
+        onPress={() => { void check(); }} />
+      {report && (
+        <>
+          <Copy>{report.ready ? 'Comprobación completa.' : 'Hay comprobaciones pendientes o con errores.'}</Copy>
+          {report.steps.map((step) => (
+            <Copy key={step.key}>{step.status === 'ok' ? 'OK' : step.status === 'warning' ? 'PENDIENTE' : 'ERROR'}: {step.description}</Copy>
+          ))}
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function Configuracion() {
   const router = useRouter();
+  const { sessionMode } = useAppState();
   const { notificationPrefs, vozActiva, vozVolumen } = useDemo();
   const [editandoCredenciales, setEditandoCredenciales] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [mostrarAcercaDe, setMostrarAcercaDe] = useState(false);
+
+  if (sessionMode === 'backend') {
+    return <FlowPage title="Configuración" subtitle="Configuración de tu cuenta real.">
+      <Card><Copy>El backend solo permite modificar tu nombre desde Perfil. El cambio de correo, contraseña y preferencias todavía no está disponible mediante la API.</Copy></Card>
+      <IntegrationCheck />
+      <Action secondary label="Ir a mi perfil" onPress={() => router.push('/perfil')} />
+      <Action label="Cerrar sesión" onPress={() => void authService.logout().then(() => router.replace('/(auth)/login'))} />
+    </FlowPage>;
+  }
 
   return (
     <FlowPage title="Configuración" subtitle="Administra tu cuenta y tus notificaciones.">

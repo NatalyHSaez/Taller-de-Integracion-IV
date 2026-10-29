@@ -1,3 +1,4 @@
+import { RealLinks } from '@/components/real-links';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -17,7 +18,7 @@ function RequestCard({ relation }: { relation: Relation }) {
     {!!error && <Copy>{error}</Copy>}
   </Card>;
 }
-export default function Links() {
+function MockLinks() {
   const router = useRouter(); const { user, selectedPatient } = useAppState(); const { relations, invitations } = useDemo(); const [showQr, setShowQr] = useState(false); const [error, setError] = useState('');
   const invitation = invitations.find((i) => i.patientId === selectedPatient?.id);
   const links = relations.filter((r) => r.patientId === selectedPatient?.id && ['pending', 'approved'].includes(r.status));
@@ -27,4 +28,9 @@ export default function Links() {
     {user?.role === 'patient' ? <><Card><Copy>Invitar cuidador</Copy><Copy>Comparte una invitación temporal. Tendrás que aprobar cada solicitud antes de dar acceso.</Copy><Action label={invitation ? 'Generar nueva invitación' : 'Invitar cuidador'} onPress={() => { demo.invite(); setShowQr(false); }} />{invitation && <><Copy>Código: {invitation.token}</Copy><Copy>Vence: {new Date(invitation.expires).toLocaleString('es-CL')}. Generar otra invalida la anterior.</Copy><Copy>{url}</Copy><Action label="Compartir enlace" onPress={() => { void Share.share({ message: `Te invito a acompañarme en Domicilia: ${url}` }).catch(() => setError('No se pudo compartir. Puedes copiar el enlace mostrado.')); }} /><Action secondary label="Mostrar código QR (simulación)" onPress={() => setShowQr(!showQr)} />{showQr && <><MaterialCommunityIcons name="qrcode" size={130} color="#0F4C81" /><Copy>QR ilustrativo de {invitation.token}. Usa el lector simulado en esta misma app; no es escaneable con una cámara.</Copy></>}<Action secondary label="Continuar como familiar (demostración)" onPress={() => { demo.remember(invitation.token); demo.logout(); router.replace({ pathname: '/invitacion', params: { token: invitation.token } }); }} /></>}</Card><Copy>Solicitudes y cuidadores ({links.length})</Copy>{links.length === 0 && <Copy>Aún no hay solicitudes ni cuidadores autorizados.</Copy>}{links.map((r) => <RequestCard key={r.id} relation={r} />)}</> : <><Copy>Consulta tus pacientes aprobados o solicita otro vínculo.</Copy><Action label="Mis pacientes y solicitudes" onPress={() => router.push('/(auth)/select-patient')} /></>}
     {!!error && <Copy>{error}</Copy>}
   </FlowPage>;
+}
+
+export default function Links() {
+  const { sessionMode } = useAppState();
+  return sessionMode === 'backend' ? <RealLinks /> : <MockLinks />;
 }

@@ -1,5 +1,6 @@
 import {
   createContext,
+  useEffect,
   type PropsWithChildren,
   useContext,
   useMemo,
@@ -7,9 +8,11 @@ import {
 } from 'react';
 
 import { appState, type GlobalAppState } from '@/services/app-state';
+import { patientAccess } from '@/services/patient-access';
 
 type AppStateContextValue = GlobalAppState & {
-  selectPatient: (patientId: string) => void;
+  selectPatient: (patientId: string) => Promise<void>;
+  refreshPatients: () => Promise<void>;
 };
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -21,10 +24,21 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     appState.snapshot,
   );
 
+  useEffect(() => {
+    if (state.sessionMode === 'backend' && state.user?.role === 'caregiver') {
+      void patientAccess.ensureLoaded().catch(() => {
+        // El estado observable ya contiene el error, y select-patient ofrece reintentar.
+      });
+    } else {
+      patientAccess.clear();
+    }
+  }, [state.sessionMode, state.user?.id, state.user?.role]);
+
   const value = useMemo<AppStateContextValue>(
     () => ({
       ...state,
       selectPatient: appState.selectPatient,
+      refreshPatients: appState.refreshPatients,
     }),
     [state],
   );

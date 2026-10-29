@@ -109,7 +109,7 @@ export const mockApi = {
     profile: async (patientId: string): Promise<PatientProfileResponse> => {
       const patient = findOrThrow(
         MOCK_PATIENT_PROFILES,
-        (item) => item.patientId === patientId,
+        (item) => item.id === patientId,
         'Paciente',
       );
       return mockResponse(patient);
@@ -140,7 +140,7 @@ export const mockApi = {
 
   alerts: {
     list: async (patientId: string): Promise<AlertResponse[]> =>
-      mockResponse(MOCK_ALERTS.filter((item) => item.patientId === patientId)),
+      mockResponse(MOCK_ALERTS.filter(() => patientId === '22222222-2222-4222-8222-222222222222')),
   },
 
   notifications: {

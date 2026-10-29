@@ -24,4 +24,13 @@ export const gatewayService = {
         maxDelayMs: 600,
       },
     }),
+
+  /** P7: diagnóstico real, sin caché ni reintentos que oculten una caída del Gateway. */
+  healthFresh: () =>
+    dataClient.get<HealthResponse>('/health', {
+      auth: false,
+      timeoutMs: 8_000,
+      cache: false,
+      retry: false,
+    }),
 };
