@@ -70,9 +70,10 @@ async function main() {
     await assert.rejects(getAlerts(), e => e.status === 401);
     await assert.rejects(readingsService.detail(two, MOCK_READINGS[0].readingId), e => e.status === 401);
   });
-  await check('Backend: alertas mock nunca sustituyen endpoint S4 pendiente', async () => {
+  await check('Backend: alertas sin paciente autorizado no usan mocks', async () => {
     backend(); assert.deepEqual(getDemoAlerts(), []);
-    await assert.rejects(getAlerts(), e => e.code === 'FLOW_NOT_AVAILABLE');
+    global.fetch = async () => issue(503, 'AUTHORIZATION_UNAVAILABLE');
+    await assert.rejects(getAlerts(), e => e.status === 503);
   });
   await check('Backend: marcado de notificación no inventa éxito local', async () => {
     backend();
