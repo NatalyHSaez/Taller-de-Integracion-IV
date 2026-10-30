@@ -136,6 +136,13 @@ export const dataClient = {
     dataCache.deleteMatching((key) => key.startsWith(prefix));
   },
 
+  /** Invalida todas las páginas y filtros de una misma ruta tras una mutación. */
+  invalidatePath(path: string): void {
+    const route = `${sessionScope()}::GET:${path}`;
+    invalidatePending();
+    dataCache.deleteMatching((key) => key.startsWith(`${route}?`) || key.startsWith(`${route}::`));
+  },
+
   /** Invalida las lecturas clínicas de un paciente después de una mutación. */
   invalidatePatient(patientId: string): void {
     const prefix = `${sessionScope()}::GET:/patients/${encodeURIComponent(patientId)}`;

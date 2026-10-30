@@ -208,13 +208,24 @@ async function main() {
     await assert.rejects(pending, rejectsCode('SESSION_CHANGED'));
   });
   await check('Notificaciones: 403 se propaga y no genera mocks', async () => {
-    backend(); let calls = 0;
+    // Desde S5, las notificaciones reales exigen una sesión con usuario identificado.
+    // Autenticar el fixture permite comprobar el 403 verdadero del Gateway simulado.
+    backend();
+    authSession.setUser({ id: '25b78bc3-8a8d-48d0-8a7c-c9346beae2ed',
+      fullName: 'Paciente de prueba', email: 'paciente@p3.invalid', roles: ['PATIENT'] });
+    let calls = 0;
     global.fetch = async () => { calls++; return json({ detail: 'Sin permiso', errorCode: 'FORBIDDEN' }, 403); };
-    await assert.rejects(getNotifications(), rejectsCode('FORBIDDEN', 403)); assert.equal(calls, 1);
+    await assert.rejects(getNotifications(), rejectsCode('FORBIDDEN', 403));
+    assert.equal(calls, 1, 'Debe llegar realmente al Gateway simulado.');
   });
   await check('Notificaciones: éxito real no mezcla notificaciones demo', async () => {
-    backend(); global.fetch = async () => json({ items: [] });
+    backend();
+    authSession.setUser({ id: '25b78bc3-8a8d-48d0-8a7c-c9346beae2ed',
+      fullName: 'Paciente de prueba', email: 'paciente@p3.invalid', roles: ['PATIENT'] });
+    let calls = 0;
+    global.fetch = async () => { calls++; return json({ total: 0, page: 1, size: 100, items: [] }); };
     assert.deepEqual(await getNotifications(), []);
+    assert.equal(calls, 1, 'Una lista real vacía debe provenir del Gateway simulado.');
   });
   await check('Notificaciones: sesión cerrada no habilita mocks', async () => {
     authSession.clear(); await assert.rejects(getNotifications(), rejectsCode('AUTHENTICATION_REQUIRED', 401));

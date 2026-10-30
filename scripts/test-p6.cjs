@@ -77,7 +77,8 @@ async function main() {
   });
   await check('Backend: marcado de notificación no inventa éxito local', async () => {
     backend();
-    await assert.rejects(markNotificationRead('id'), e => e.code === 'FLOW_NOT_AVAILABLE');
+    global.fetch = async () => issue(503, 'AUTHORIZATION_UNAVAILABLE');
+    await assert.rejects(markNotificationRead('dddddddd-dddd-4ddd-8ddd-ddddddddddd1'), e => e.status === 503);
   });
   await check('Backend: un 503 de notificaciones se propaga', async () => {
     backend(); global.fetch = async () => issue(503, 'AUTHORIZATION_UNAVAILABLE');
