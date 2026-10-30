@@ -42,8 +42,8 @@ export const authSession = {
   mode: () => state.mode,
   tokens: () => state.tokens,
   user: () => state.user,
-  accessToken: () => state.tokens?.access_token ?? null,
-  refreshToken: () => state.tokens?.refresh_token ?? null,
+  accessToken: () => state.tokens?.accessToken ?? null,
+  refreshToken: () => state.tokens?.refreshToken ?? null,
 
   startBackend(tokens: AuthTokensResponse) {
     replaceState({

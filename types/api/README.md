@@ -6,7 +6,7 @@ Esta carpeta separa el **contrato del backend** de los modelos internos usados p
 
 Los siguientes tipos fueron actualizados contra el backend actual de `domicilia`:
 
-- `auth.ts`: registro, login, refresh, logout y `/auth/me`.
+- `auth.ts`: registro, login, refresh, logout y `/me`.
 - `notification.ts`: listado paginado de `/notificaciones`.
 - `health.ts`: estado del API Gateway y microservicios.
 - `common.ts`: roles devueltos por Identidad y estados actuales de Notificaciones.
@@ -16,26 +16,26 @@ Ejemplos relevantes del contrato real actual:
 ```ts
 // POST /api/v1/auth/login
 {
-  correo: string;
+  email: string;
   password: string;
 }
 
 // Respuesta login / refresh
 {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
 }
 ```
 
 ```ts
-// GET /api/v1/auth/me
+// GET /api/v1/me
 {
   id: string;
-  nombre_completo: string;
-  correo: string;
-  roles: ('paciente' | 'cuidador' | 'medico' | 'administrador')[];
+  fullName: string;
+  email: string;
+  roles: ('PATIENT' | 'CAREGIVER' | 'DOCTOR' | 'ADMIN')[];
 }
 ```
 

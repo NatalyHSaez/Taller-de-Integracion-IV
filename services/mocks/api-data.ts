@@ -76,10 +76,10 @@ export const MOCK_ACCOUNTS = [
 ] satisfies MockAccount[];
 
 export const MOCK_AUTH_TOKENS = {
-  access_token: 'mock-access-token',
-  refresh_token: 'mock-refresh-token',
-  token_type: 'bearer',
-  expires_in: 900,
+  accessToken: 'mock-access-token',
+  refreshToken: 'mock-refresh-token',
+  tokenType: 'bearer',
+  expiresIn: 900,
 } satisfies AuthTokensResponse;
 
 export const MOCK_PATIENTS = [

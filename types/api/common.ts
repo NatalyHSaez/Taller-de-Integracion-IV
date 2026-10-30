@@ -10,8 +10,8 @@ export type UUID = string;
 export type ISODateTime = string;
 export type ISODate = string;
 
-/** Roles que devuelve actualmente el backend de Integración II. */
-export type UserRole = 'paciente' | 'cuidador' | 'medico' | 'administrador';
+/** Roles que devuelve el contrato vigente del API Gateway. */
+export type UserRole = 'PATIENT' | 'CAREGIVER' | 'DOCTOR' | 'ADMIN';
 
 /** Se conserva para DTO provisionales que todavía lo requieran. */
 export type UserStatus = 'ACTIVE' | 'DISABLED';

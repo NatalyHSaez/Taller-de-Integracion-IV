@@ -38,22 +38,22 @@ export default function Profile() {
 
   /*
    * Si existe una sesión real utilizamos primero
-   * los datos entregados por /auth/me.
+   * los datos entregados por /me.
    *
    * Si estamos utilizando una cuenta mock,
    * recurrimos a demo-store.
    */
   const displayName: string =
-    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
+    authUser?.fullName ?? demoUser?.name ?? "Usuario";
 
-  const displayEmail: string = authUser?.correo ?? demoUser?.email ?? "";
+  const displayEmail: string = authUser?.email ?? demoUser?.email ?? "";
 
   const realRole = authUser?.roles?.[0];
 
   const displayRole: string =
-    realRole === "paciente" || demoUser?.role === "patient"
+    realRole === "PATIENT" || demoUser?.role === "patient"
       ? "Paciente"
-      : realRole === "cuidador" || demoUser?.role === "caregiver"
+      : realRole === "CAREGIVER" || demoUser?.role === "caregiver"
         ? "Cuidador"
         : "Usuario";
 

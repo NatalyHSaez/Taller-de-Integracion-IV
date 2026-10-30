@@ -332,7 +332,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       },
 
       body: JSON.stringify({
-        refresh_token: refreshToken,
+        refreshToken,
       }),
     });
 
@@ -343,14 +343,14 @@ export async function refreshAccessToken(): Promise<string | null> {
 
     const tokens = await parseSuccessfulResponse<AuthTokensResponse>(response);
 
-    if (!tokens?.access_token || !tokens?.refresh_token) {
+    if (!tokens?.accessToken || !tokens?.refreshToken) {
       await clearTokens();
       return null;
     }
 
-    await saveTokens(tokens.access_token, tokens.refresh_token);
+    await saveTokens(tokens.accessToken, tokens.refreshToken);
 
-    return tokens.access_token;
+    return tokens.accessToken;
   } catch {
     return null;
   }
@@ -547,14 +547,14 @@ export const apiClient = {
  */
 export async function register(data: RegisterData): Promise<RegisterResponse> {
   return apiClient.post<RegisterResponse>(
-    "/auth/registro",
+    "/auth/register",
 
     {
       ...data,
 
-      nombre_completo: data.nombre_completo.trim(),
+      fullName: data.fullName.trim(),
 
-      correo: data.correo.trim().toLowerCase(),
+      email: data.email.trim().toLowerCase(),
     },
 
     {
@@ -570,14 +570,14 @@ export async function register(data: RegisterData): Promise<RegisterResponse> {
  * mediante SecureStore.
  */
 export async function login(
-  correo: string,
+  email: string,
   password: string,
 ): Promise<AuthTokensResponse> {
   const tokens = await apiClient.post<AuthTokensResponse>(
     "/auth/login",
 
     {
-      correo: correo.trim().toLowerCase(),
+      email: email.trim().toLowerCase(),
 
       password,
     },
@@ -587,7 +587,7 @@ export async function login(
     },
   );
 
-  if (!tokens?.access_token || !tokens?.refresh_token) {
+  if (!tokens?.accessToken || !tokens?.refreshToken) {
     throw new ApiError({
       code: "INVALID_API_RESPONSE",
 
@@ -597,7 +597,7 @@ export async function login(
     });
   }
 
-  await saveTokens(tokens.access_token, tokens.refresh_token);
+  await saveTokens(tokens.accessToken, tokens.refreshToken);
 
   return tokens;
 }
@@ -606,7 +606,7 @@ export async function login(
  * Usuario real autenticado.
  */
 export async function getMe(): Promise<CurrentUserResponse> {
-  return apiClient.get<CurrentUserResponse>("/auth/me");
+  return apiClient.get<CurrentUserResponse>("/me");
 }
 
 /*

@@ -1,4 +1,8 @@
-import type { ApiErrorResponse, UUID } from '@/types/api';
+import type {
+  ApiErrorResponse,
+  ClientApiErrorResponse,
+  UUID,
+} from '../../types/api';
 
 export type ApiErrorInit = {
   code: string;
@@ -8,18 +12,11 @@ export type ApiErrorInit = {
   status?: number;
 };
 
-type BackendDetailErrorResponse = {
-  detail: unknown;
-  codigo_error?: unknown;
-};
-
 /**
  * Error único utilizado por la aplicación para representar fallos de API.
  *
- * La app conserva una sola estructura interna aunque el backend responda hoy
- * con el formato de FastAPI (`detail`) o, progresivamente, con un código estable
- * (`codigo_error`). También sigue aceptando el formato común definido
- * originalmente en la propuesta.
+ * La app conserva una sola estructura interna aunque el backend responda con
+ * `detail` como texto o como la lista de validaciones automáticas de FastAPI.
  */
 export class ApiError extends Error {
   readonly code: string;
@@ -43,7 +40,7 @@ export class ApiError extends Error {
   }
 
   /** Devuelve el error con la forma común utilizada internamente por el móvil. */
-  toResponse(): ApiErrorResponse {
+  toResponse(): ClientApiErrorResponse {
     return {
       error: {
         code: this.code,
@@ -67,8 +64,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-/** Comprueba si un JSON respeta el formato común original de la propuesta. */
-export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
+/** Comprueba si un valor ya usa la representación interna de la aplicación. */
+export function isClientApiErrorResponse(
+  value: unknown,
+): value is ClientApiErrorResponse {
   if (!isRecord(value) || !isRecord(value.error)) {
     return false;
   }
@@ -84,16 +83,13 @@ export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
 }
 
 /**
- * Formato que utiliza actualmente FastAPI y que el contrato de Integración II
- * está extendiendo con `codigo_error` estable.
+ * Formato que utiliza FastAPI y el contrato actual del backend.
  *
  * Ejemplos:
  *   { "detail": "Credenciales inválidas" }
- *   { "detail": "El código expiró.", "codigo_error": "CODIGO_EXPIRADO" }
+ *   { "detail": "El código expiró.", "errorCode": "CODE_EXPIRED" }
  */
-function isBackendDetailErrorResponse(
-  value: unknown,
-): value is BackendDetailErrorResponse {
+export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   return isRecord(value) && Object.prototype.hasOwnProperty.call(value, 'detail');
 }
 
@@ -190,9 +186,9 @@ function detailsFromBackendDetail(detail: unknown): Record<string, unknown> {
   return {};
 }
 
-/** Convierte el formato común original en una instancia uniforme para la app. */
-export function apiErrorFromPayload(
-  payload: ApiErrorResponse,
+/** Convierte la representación interna serializada nuevamente en ApiError. */
+export function apiErrorFromClientPayload(
+  payload: ClientApiErrorResponse,
   status?: number,
 ): ApiError {
   return new ApiError({
@@ -205,17 +201,17 @@ export function apiErrorFromPayload(
 }
 
 /**
- * Convierte la respuesta de error usada actualmente por Integración II
- * (`detail` + `codigo_error` opcional) al ApiError interno.
+ * Convierte la respuesta del backend (`detail` + `errorCode` opcional) al
+ * ApiError interno.
  */
-function apiErrorFromBackendDetailPayload(
-  payload: BackendDetailErrorResponse,
+export function apiErrorFromPayload(
+  payload: ApiErrorResponse,
   status?: number,
   correlationId?: UUID,
 ): ApiError {
   const stableCode =
-    typeof payload.codigo_error === 'string' && payload.codigo_error.trim()
-      ? payload.codigo_error.trim()
+    typeof payload.errorCode === 'string' && payload.errorCode.trim()
+      ? payload.errorCode.trim()
       : fallbackCodeForStatus(status);
 
   return new ApiError({
@@ -254,8 +250,8 @@ async function readResponseBody(
  * Convierte una respuesta HTTP fallida en ApiError.
  *
  * Orden de interpretación:
- * 1. formato común original `{ error: ... }`;
- * 2. formato actual del backend `{ detail, codigo_error? }`;
+ * 1. representación interna `{ error: ... }`;
+ * 2. formato actual del backend `{ detail, errorCode? }`;
  * 3. cuerpo de texto simple;
  * 4. mensaje genérico según el código HTTP.
  */
@@ -263,12 +259,12 @@ export async function apiErrorFromResponse(response: Response): Promise<ApiError
   const { payload, text } = await readResponseBody(response);
   const responseCorrelationId = correlationIdFromResponse(response);
 
-  if (isApiErrorResponse(payload)) {
-    return apiErrorFromPayload(payload, response.status);
+  if (isClientApiErrorResponse(payload)) {
+    return apiErrorFromClientPayload(payload, response.status);
   }
 
-  if (isBackendDetailErrorResponse(payload)) {
-    return apiErrorFromBackendDetailPayload(
+  if (isApiErrorResponse(payload)) {
+    return apiErrorFromPayload(
       payload,
       response.status,
       responseCorrelationId,
@@ -297,12 +293,12 @@ export function normalizeApiError(
     return cause;
   }
 
-  if (isApiErrorResponse(cause)) {
-    return apiErrorFromPayload(cause);
+  if (isClientApiErrorResponse(cause)) {
+    return apiErrorFromClientPayload(cause);
   }
 
-  if (isBackendDetailErrorResponse(cause)) {
-    return apiErrorFromBackendDetailPayload(cause);
+  if (isApiErrorResponse(cause)) {
+    return apiErrorFromPayload(cause);
   }
 
   if (cause instanceof Error) {

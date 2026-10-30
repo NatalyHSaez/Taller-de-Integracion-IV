@@ -79,13 +79,13 @@ export default function MenuScreen() {
 
   /*
    * Usuario real:
-   * nombre_completo proviene de /auth/me.
+   * fullName proviene de /me.
    *
    * Usuario mock:
    * name proviene de demo-store.
    */
   const displayName: string =
-    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
+    authUser?.fullName ?? demoUser?.name ?? "Usuario";
 
   const initials = displayName
     .trim()

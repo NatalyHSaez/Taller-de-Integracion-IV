@@ -67,10 +67,10 @@ type State = {
 
 type BackendUserLike = {
   id?: string;
-  nombre_completo?: string;
-  correo?: string;
+  fullName?: string;
+  email?: string;
   roles?: string[];
-  rol?: string;
+  role?: string;
 };
 
 const emptyPermissions = (): Permissions => ({
@@ -214,11 +214,11 @@ function credentials(email: string, password: string) {
 }
 
 function backendRole(user: CurrentUserResponse): Account["role"] | null {
-  if (user.roles.includes("paciente")) {
+  if (user.roles.includes("PATIENT")) {
     return "patient";
   }
 
-  if (user.roles.includes("cuidador")) {
+  if (user.roles.includes("CAREGIVER")) {
     return "caregiver";
   }
 
@@ -227,29 +227,29 @@ function backendRole(user: CurrentUserResponse): Account["role"] | null {
 
 function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
   const userId = requireValue(
-    user.id ?? user.correo,
+    user.id ?? user.email,
     "El usuario del backend no contiene un identificador válido.",
   );
 
-  const rawRoles = user.roles ?? (user.rol ? [user.rol] : []);
+  const rawRoles = user.roles ?? (user.role ? [user.role] : []);
 
   const roles = rawRoles
-    .map((role) => role.toLowerCase())
+    .map((role) => role.trim().toUpperCase())
     .map((role): UserRole | null => {
-      if (role === "paciente" || role === "patient") {
-        return "paciente";
+      if (role === "PATIENT") {
+        return "PATIENT";
       }
 
-      if (role === "cuidador" || role === "caregiver") {
-        return "cuidador";
+      if (role === "CAREGIVER") {
+        return "CAREGIVER";
       }
 
-      if (role === "medico" || role === "doctor") {
-        return "medico";
+      if (role === "DOCTOR") {
+        return "DOCTOR";
       }
 
-      if (role === "administrador" || role === "admin") {
-        return "administrador";
+      if (role === "ADMIN") {
+        return "ADMIN";
       }
 
       return null;
@@ -258,8 +258,8 @@ function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
 
   return {
     id: userId,
-    nombre_completo: user.nombre_completo ?? "Usuario",
-    correo: (user.correo ?? "").toLowerCase(),
+    fullName: user.fullName ?? "Usuario",
+    email: (user.email ?? "").toLowerCase(),
     roles,
   };
 }
@@ -281,8 +281,8 @@ function openBackendDemoSession(user: CurrentUserResponse) {
 
     const account: Account = existingAccount ?? {
       id: user.id,
-      name: user.nombre_completo,
-      email: user.correo.toLowerCase(),
+      name: user.fullName,
+      email: user.email.toLowerCase(),
       password: "",
       role: "patient",
       patientId,
@@ -294,8 +294,8 @@ function openBackendDemoSession(user: CurrentUserResponse) {
 
     const profile: Profile = {
       id: patientId,
-      name: user.nombre_completo,
-      email: user.correo.toLowerCase(),
+      name: user.fullName,
+      email: user.email.toLowerCase(),
       code: "BACKEND-SESSION",
       expires: 0,
       activated: true,
@@ -331,9 +331,9 @@ function openBackendDemoSession(user: CurrentUserResponse) {
               ? {
                   ...item,
 
-                  name: user.nombre_completo,
+                  name: user.fullName,
 
-                  email: user.correo.toLowerCase(),
+                  email: user.email.toLowerCase(),
 
                   password: "",
 
@@ -364,8 +364,8 @@ function openBackendDemoSession(user: CurrentUserResponse) {
 
   const account: Account = existingAccount ?? {
     id: user.id,
-    name: user.nombre_completo,
-    email: user.correo.toLowerCase(),
+    name: user.fullName,
+    email: user.email.toLowerCase(),
     password: "",
     role: "caregiver",
   };
@@ -401,9 +401,9 @@ function openBackendDemoSession(user: CurrentUserResponse) {
           ? {
               ...item,
 
-              name: user.nombre_completo,
+              name: user.fullName,
 
-              email: user.correo.toLowerCase(),
+              email: user.email.toLowerCase(),
 
               password: "",
 

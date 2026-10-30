@@ -2,47 +2,52 @@ import type { ISODate, UUID, UserRole } from './common';
 
 /** Body real de POST /api/v1/auth/login. */
 export type LoginRequest = {
-  correo: string;
+  email: string;
   password: string;
 };
 
 /** Body real de POST /api/v1/auth/refresh y /auth/logout. */
 export type RefreshTokenRequest = {
-  refresh_token: string;
+  refreshToken: string;
 };
 
 /**
- * Body real de POST /api/v1/auth/registro.
- * - paciente exige fecha_nacimiento;
- * - medico puede enviar rut y profesion;
- * - administrador no se registra desde esta ruta.
+ * Body real de POST /api/v1/auth/register.
+ * - PATIENT exige birthDate;
+ * - DOCTOR puede enviar rut y profession;
+ * - ADMIN no se registra desde esta ruta.
  */
 export type RegisterRequest = {
-  nombre_completo: string;
-  correo: string;
+  fullName: string;
+  email: string;
   password: string;
-  rol: Exclude<UserRole, 'administrador'>;
-  fecha_nacimiento?: ISODate;
+  role: Exclude<UserRole, 'ADMIN'>;
+  birthDate?: ISODate;
   rut?: string;
-  profesion?: string;
+  profession?: string;
 };
 
 /** Respuesta real de POST /api/v1/auth/login y /auth/refresh. */
 export type AuthTokensResponse = {
-  access_token: string;
-  refresh_token: string;
-  token_type: 'bearer' | string;
-  expires_in: number;
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
 };
 
 /**
  * Respuesta real de:
- * - POST /api/v1/auth/registro
- * - GET /api/v1/auth/me
+ * - POST /api/v1/auth/register
+ * - GET/PATCH /api/v1/me
  */
 export type CurrentUserResponse = {
   id: UUID;
-  nombre_completo: string;
-  correo: string;
+  fullName: string;
+  email: string;
   roles: UserRole[];
+};
+
+/** Body real de PATCH /api/v1/me. */
+export type UpdateMeRequest = {
+  fullName?: string;
 };

@@ -18,7 +18,7 @@ function normalizeEmail(email: string): string {
  * pacientes y cuidadores.
  */
 function ensureMobileRole(user: CurrentUserResponse): void {
-  if (user.roles.includes("paciente") || user.roles.includes("cuidador")) {
+  if (user.roles.includes("PATIENT") || user.roles.includes("CAREGIVER")) {
     return;
   }
 
@@ -68,18 +68,18 @@ function localAccountToCurrentUser(): CurrentUserResponse {
 
   return {
     id: account.id,
-    nombre_completo: account.name,
-    correo: account.email,
-    roles: [account.role === "patient" ? "paciente" : "cuidador"],
+    fullName: account.name,
+    email: account.email,
+    roles: [account.role === "patient" ? "PATIENT" : "CAREGIVER"],
   };
 }
 
 function createRuntimeMockTokens(userId: string): AuthTokensResponse {
   return {
-    access_token: `mock-access-token-${userId}`,
-    refresh_token: `mock-refresh-token-${userId}`,
-    token_type: "bearer",
-    expires_in: 900,
+    accessToken: `mock-access-token-${userId}`,
+    refreshToken: `mock-refresh-token-${userId}`,
+    tokenType: "bearer",
+    expiresIn: 900,
   };
 }
 
@@ -154,7 +154,7 @@ async function revokeBackendSession(
     await apiClient.post<void>(
       "/auth/logout",
       {
-        refresh_token: refreshToken,
+        refreshToken,
       },
       {
         auth: false,
@@ -204,10 +204,10 @@ async function loginWithBackend(
 
   try {
     /*
-     * /auth/me utiliza el access token
+     * /me utiliza el access token
      * recientemente recibido.
      */
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
+    const user = await dataClient.get<CurrentUserResponse>("/me", {
       cache: false,
       retry: {
         attempts: 2,
@@ -230,7 +230,7 @@ async function loginWithBackend(
 
     return tokens;
   } catch (error) {
-    await revokeBackendSession(tokens.refresh_token);
+    await revokeBackendSession(tokens.refreshToken);
 
     await clearTokens();
 
@@ -272,11 +272,17 @@ export const authService = {
     }
 
     /*
-     * Si todavía no existe Gateway configurado,
-     * mantenemos el funcionamiento de desarrollo.
+     * Las cuentas mock conocidas continúan disponibles para desarrollo, pero
+     * una cuenta real nunca debe caer silenciosamente al flujo simulado.
      */
     if (!IS_API_CONFIGURED) {
-      return loginWithMock(email, password);
+      throw new ApiError({
+        code: "API_NOT_CONFIGURED",
+        message: "La URL del API Gateway no está configurada.",
+        details: {
+          variable: "EXPO_PUBLIC_API_URL",
+        },
+      });
     }
 
     return loginWithBackend(email, password);
@@ -287,7 +293,7 @@ export const authService = {
    */
   async me(): Promise<CurrentUserResponse> {
     if (authSession.mode() === "backend") {
-      const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
+      const user = await dataClient.get<CurrentUserResponse>("/me", {
         cache: false,
         retry: {
           attempts: 2,
@@ -345,7 +351,7 @@ export const authService = {
     const tokens = await apiClient.post<AuthTokensResponse>(
       "/auth/refresh",
       {
-        refresh_token: refreshToken,
+        refreshToken,
       },
       {
         auth: false,
@@ -357,11 +363,11 @@ export const authService = {
      * ahora también persistimos los tokens
      * renovados mediante SecureStore.
      */
-    await saveTokens(tokens.access_token, tokens.refresh_token);
+    await saveTokens(tokens.accessToken, tokens.refreshToken);
 
     authSession.startBackend(tokens);
 
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
+    const user = await dataClient.get<CurrentUserResponse>("/me", {
       cache: false,
       retry: {
         attempts: 2,

@@ -160,10 +160,10 @@ export function AccountForm({
           });
         } else {
           await registerWithBackend({
-            nombre_completo: cleanName,
-            correo: cleanEmail,
+            fullName: cleanName,
+            email: cleanEmail,
             password,
-            rol: role,
+            role: 'PATIENT',
           });
         }
 
