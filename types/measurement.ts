@@ -1,4 +1,4 @@
-export type MeasurementType = 'blood_pressure' | 'glucose' | 'weight';
+export type MeasurementType = 'blood_pressure' | 'glucose' | 'weight' | 'heart_rate' | 'single_pressure';
 
 type BaseMeasurement = {
   patientId?: string;
@@ -6,6 +6,7 @@ type BaseMeasurement = {
   recordedBy?: string;
   recordedById?: string;
   context?: string;
+  readingStatus?: 'PENDING' | 'REQUIRES_CONFIRMATION' | 'EVALUATED';
   id: string;
   measuredAt: string;
 };
@@ -14,7 +15,7 @@ export type BloodPressureMeasurement = BaseMeasurement & {
   type: 'blood_pressure';
   systolic: number;
   diastolic: number;
-  heartRate: number;
+  heartRate?: number;
 };
 
 export type GlucoseMeasurement = BaseMeasurement & {
@@ -29,7 +30,13 @@ export type WeightMeasurement = BaseMeasurement & {
   unit: 'kg';
 };
 
+export type HeartRateMeasurement = BaseMeasurement & { type: 'heart_rate'; value: number; unit: 'bpm' };
+
+export type SinglePressureMeasurement = BaseMeasurement & { type: 'single_pressure'; parameter: 'SBP' | 'DBP'; value: number; unit: 'mmHg' };
+
 export type Measurement =
+  | HeartRateMeasurement
+  | SinglePressureMeasurement
   | BloodPressureMeasurement
   | GlucoseMeasurement
   | WeightMeasurement;

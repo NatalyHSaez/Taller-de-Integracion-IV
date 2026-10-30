@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useLocalSearchParams } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -17,6 +17,8 @@ import { BrandColors, Colors, StatusColors } from '@/constants/theme';
 import { useAppState } from '@/hooks/use-app-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getApiErrorMessage } from '@/services/errors';
+import { authSession } from '@/services/auth-session';
+import { confirmationReasonLabel, evaluationStatusLabel } from '@/services/reading-detail';
 import { readingsService } from '@/services/readings';
 import type { MeasurementResponse, ReadingResponse } from '@/types/api';
 
@@ -27,7 +29,7 @@ type ParameterPresentation = {
   label: string;
 };
 
-const PARAMETER_PRESENTATION: Record<MeasurementResponse['parameterCode'], ParameterPresentation> = {
+const PARAMETER_PRESENTATION: Record<string, ParameterPresentation> = {
   SBP: { icon: 'heart-pulse', label: 'Presión sistólica' },
   DBP: { icon: 'heart-pulse', label: 'Presión diastólica' },
   HEART_RATE: { icon: 'heart-outline', label: 'Frecuencia cardíaca' },
@@ -105,59 +107,59 @@ function readingStatusColors(status: ReadingResponse['status']) {
 export default function ReadingDetailScreen() {
   const { readingId: rawReadingId } = useLocalSearchParams<{ readingId: string | string[] }>();
   const readingId = Array.isArray(rawReadingId) ? rawReadingId[0] : rawReadingId;
-  const { selectedPatient } = useAppState();
+  const { selectedPatient, permissions, sessionMode, user } = useAppState();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
-
-  const patientId = selectedPatient?.id;
-  const [attempt, setAttempt] = useState(0);
+  const patientId = selectedPatient?.id ?? null;
+  const canRead = Boolean(patientId && permissions.read);
+  const viewKey = JSON.stringify([sessionMode, user?.id, authSession.generation(), patientId, canRead, readingId]);
   const [result, setResult] = useState<{
-    patientId: string;
-    readingId: string;
-    attempt: number;
-    reading?: ReadingResponse;
-    error?: string;
-  } | null>(null);
-  const hasTarget = Boolean(patientId && readingId);
-  const current = result?.patientId === patientId && result?.readingId === readingId &&
-    result?.attempt === attempt;
-  const loading = hasTarget && !current;
-  const reading = current ? result?.reading : undefined;
-  const error = !hasTarget
-    ? 'No fue posible identificar la lectura o el paciente seleccionado.'
-    : current ? result?.error : undefined;
+    key: string; reading: ReadingResponse | null; loading: boolean; error: string | null;
+  }>({ key: '', reading: null, loading: true, error: null });
+  const requestSerial = useRef(0);
+  const visible = result.key === viewKey ? result : { key: viewKey, reading: null, loading: true, error: null };
+
+  const loadReading = useCallback(async (forceRefresh: boolean) => {
+    const serial = ++requestSerial.current;
+    setResult({ key: viewKey, reading: null, loading: true, error: null });
+    if (!patientId || !readingId || !canRead || !sessionMode) {
+      setResult({ key: viewKey, reading: null, loading: false,
+        error: 'Selecciona un paciente con permiso para consultar sus mediciones.' });
+      return;
+    }
+    try {
+      const detail = await readingsService.detail(patientId, readingId, forceRefresh);
+      if (serial !== requestSerial.current) return;
+      setResult({ key: viewKey, reading: detail, loading: false, error: null });
+    } catch (cause) {
+      if (serial !== requestSerial.current) return;
+      setResult({ key: viewKey, reading: null, loading: false,
+        error: getApiErrorMessage(cause, 'No fue posible cargar el detalle de la lectura.') });
+    }
+  }, [viewKey, patientId, readingId, canRead, sessionMode]);
 
   useEffect(() => {
-    if (!patientId || !readingId) return;
+    // Diferir la carga evita setState sincrónico desde efectos y permite cancelar la respuesta anterior.
     let active = true;
-    readingsService.detail(patientId, readingId)
-      .then((detail) => {
-        if (active) setResult({ patientId, readingId, attempt, reading: detail });
-      })
-      .catch((cause: unknown) => {
-        if (active) {
-          setResult({
-            patientId, readingId, attempt,
-            error: getApiErrorMessage(cause, 'No fue posible cargar el detalle de la lectura.'),
-          });
-        }
-      });
-    return () => { active = false; };
-  }, [patientId, readingId, attempt]);
+    requestSerial.current += 1;
+    void Promise.resolve().then(() => {
+      if (active) void loadReading(false);
+    });
+    return () => { active = false; requestSerial.current += 1; };
+  }, [loadReading]);
 
-  if (loading) {
+  const reading = visible.reading;
+  if (visible.loading) {
     return (
       <ThemedView style={styles.centered}>
         <ActivityIndicator color={theme.primary} size="large" />
-        <ThemedText style={[styles.centeredText, { color: theme.icon }]}>
-          Cargando lectura...
-        </ThemedText>
+        <ThemedText style={[styles.centeredText, { color: theme.icon }]}>Cargando detalle de lectura...</ThemedText>
       </ThemedView>
     );
   }
 
-  if (!reading || error) {
+  if (!reading || visible.error) {
     return (
       <ThemedView style={styles.centered}>
         <View style={[styles.errorIcon, { backgroundColor: theme.dangerBackground }]}>
@@ -165,33 +167,25 @@ export default function ReadingDetailScreen() {
         </View>
         <ThemedText style={styles.errorTitle}>No se pudo mostrar la lectura</ThemedText>
         <ThemedText style={[styles.centeredText, { color: theme.icon }]}>
-          {error ?? 'La lectura solicitada no se encuentra disponible.'}
+          {visible.error ?? 'La lectura solicitada no está disponible.'}
         </ThemedText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Reintentar carga de lectura"
-          onPress={() => setAttempt((value) => value + 1)}
-          style={({ pressed }) => [
-            styles.retryButton,
-            { backgroundColor: theme.primary },
-            pressed && styles.pressed,
-          ]}>
+        {canRead && <Pressable accessibilityRole="button" accessibilityLabel="Reintentar detalle"
+          onPress={() => void loadReading(true)}
+          style={[styles.retryButton, { backgroundColor: theme.primary }]}>
           <MaterialCommunityIcons name="refresh" size={20} color={theme.onPrimary} />
-          <ThemedText lightColor={theme.onPrimary} darkColor={theme.onPrimary} style={styles.retryText}>
-            Reintentar
-          </ThemedText>
-        </Pressable>
+          <ThemedText lightColor={theme.onPrimary} darkColor={theme.onPrimary} style={styles.retryText}>Reintentar</ThemedText>
+        </Pressable>}
       </ThemedView>
     );
   }
 
+  const statusColors = readingStatusColors(reading.status);
+  const evaluation = reading.evaluation;
+  const evaluationColors = evaluation?.status === 'ALERTA' ? StatusColors.danger :
+    evaluation?.status === 'ADVERTENCIA' ? StatusColors.warning : StatusColors.normal;
   return (
     <ThemedView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: Math.max(insets.bottom + 24, 36) },
-        ]}
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 24, 36) }]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroDecoration} />
@@ -210,69 +204,84 @@ export default function ReadingDetailScreen() {
           <InfoRow icon="account-outline" label="Paciente" value={selectedPatient?.name ?? reading.patientId} />
           <InfoRow icon="tag-outline" label="Contexto" value={formatContext(reading.context)} />
           <InfoRow icon="cellphone" label="Origen" value={formatSource(reading.source)} />
+          <InfoRow icon="account-check-outline" label="Registrado por (ID)" value={reading.recordedBy} compact />
           <InfoRow icon="identifier" label="ID de lectura" value={reading.readingId} compact />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-            Mediciones de esta lectura
-          </ThemedText>
-          <ThemedText style={[styles.sectionCount, { color: theme.icon }]}>
-            {reading.measurements.length}
-          </ThemedText>
+        <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Estado de la lectura</ThemedText>
+          <View style={[styles.statusBadge, { alignSelf: 'flex-start', backgroundColor: statusColors.background }]}>
+            <ThemedText style={[styles.statusText, { color: statusColors.foreground }]}>
+              {readingStatusLabel(reading.status)}
+            </ThemedText>
+          </View>
+          {reading.status === 'PENDING' && <ThemedText style={{ color: theme.icon }}>
+            La evaluación del servidor está pendiente. Pulsa «Actualizar lectura» para consultar si ya terminó.
+          </ThemedText>}
+          {reading.status === 'REQUIRES_CONFIRMATION' && <>
+            <ThemedText>El servidor requiere que se revise esta lectura antes de evaluarla.</ThemedText>
+            {reading.confirmationReasons.length > 0 ? reading.confirmationReasons.map((reason, index) =>
+              <ThemedText key={`${reason}-${index}`} style={{ color: theme.icon }}>
+                • {confirmationReasonLabel(reason)}
+              </ThemedText>) :
+              <ThemedText style={{ color: theme.icon }}>El servidor no indicó un motivo específico.</ThemedText>}
+            <ThemedText style={{ color: theme.icon }}>
+              Esta pantalla no confirma mediciones automáticamente. La confirmación se abordará en un flujo separado.
+            </ThemedText>
+          </>}
+          {reading.status === 'EVALUATED' && !evaluation && <ThemedText style={{ color: theme.icon }}>
+            La lectura figura como evaluada, pero el servidor no entregó detalles de evaluación.
+          </ThemedText>}
+          <Pressable accessibilityRole="button" accessibilityLabel="Actualizar lectura"
+            onPress={() => void loadReading(true)} style={[styles.retryButton, { backgroundColor: theme.primary, alignSelf: 'flex-start' }]}>
+            <MaterialCommunityIcons name="refresh" size={20} color={theme.onPrimary} />
+            <ThemedText lightColor={theme.onPrimary} darkColor={theme.onPrimary} style={styles.retryText}>Actualizar lectura</ThemedText>
+          </Pressable>
         </View>
 
+        {evaluation && <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Evaluación del servidor</ThemedText>
+          <View style={[styles.statusBadge, { alignSelf: 'flex-start', backgroundColor: evaluationColors.background }]}>
+            <ThemedText style={[styles.statusText, { color: evaluationColors.foreground }]}>
+              {evaluationStatusLabel(evaluation.status)}
+            </ThemedText>
+          </View>
+          {evaluation.severity != null && <InfoRow icon="alert-outline" label="Severidad" value={evaluation.severity} />}
+          <ThemedText>{evaluation.explanation || 'Sin explicación entregada por el servidor.'}</ThemedText>
+          <InfoRow icon="clock-outline" label="Fecha de evaluación"
+            value={evaluation.evaluatedAt ? formatDate(evaluation.evaluatedAt) : 'Sin fecha informada'} />
+        </View>}
+
+        <View style={styles.sectionHeader}>
+          <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Mediciones de esta lectura</ThemedText>
+          <ThemedText style={[styles.sectionCount, { color: theme.icon }]}>{reading.measurements.length}</ThemedText>
+        </View>
         <View style={styles.measurements}>
           {reading.measurements.map((measurement) => {
-            const presentation = PARAMETER_PRESENTATION[measurement.parameterCode as keyof typeof PARAMETER_PRESENTATION] ?? {icon:'chart-line' as IconName, label: measurement.parameterCode};
-            const statusColors = readingStatusColors(reading.status);
-
+            const presentation = PARAMETER_PRESENTATION[measurement.parameterCode] ??
+              { icon: 'chart-line' as IconName, label: measurement.parameterCode };
             return (
-              <View
-                key={measurement.measurementId}
-                style={[
-                  styles.measurementCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}>
+              <View key={measurement.measurementId} style={[styles.measurementCard, {
+                backgroundColor: theme.surface, borderColor: theme.border,
+              }]}>
                 <View style={styles.measurementTopRow}>
                   <View style={[styles.parameterIcon, { backgroundColor: theme.primarySoft }]}>
-                    <MaterialCommunityIcons
-                      name={presentation.icon}
-                      size={24}
-                      color={theme.primary}
-                    />
+                    <MaterialCommunityIcons name={presentation.icon} size={24} color={theme.primary} />
                   </View>
                   <View style={styles.parameterCopy}>
                     <ThemedText style={styles.parameterLabel}>{presentation.label}</ThemedText>
-                    <ThemedText style={[styles.parameterCode, { color: theme.icon }]}>
-                      {measurement.parameterCode}
-                    </ThemedText>
+                    <ThemedText style={[styles.parameterCode, { color: theme.icon }]}>{measurement.parameterCode}</ThemedText>
                   </View>
                 </View>
-
                 <ThemedText style={styles.measurementValue}>{formatValue(measurement)}</ThemedText>
-
-                <View style={styles.measurementFooter}>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColors.background }]}>
-                    <ThemedText style={[styles.statusText, { color: statusColors.foreground }]}>
-                      {readingStatusLabel(reading.status)}
-                    </ThemedText>
-                  </View>
-                  {measurement.confirmedByUser && (
-                    <View style={styles.confirmedRow}>
-                      <MaterialCommunityIcons name="check-circle" size={16} color={StatusColors.normal.foreground} />
-                      <ThemedText style={[styles.confirmedText, { color: StatusColors.normal.foreground }]}>
-                        Confirmada
-                      </ThemedText>
-                    </View>
-                  )}
-                </View>
+                {measurement.confirmedByUser && <View style={styles.confirmedRow}>
+                  <MaterialCommunityIcons name="check-circle" size={16} color={StatusColors.normal.foreground} />
+                  <ThemedText style={[styles.confirmedText, { color: StatusColors.normal.foreground }]}>Confirmada por usuario</ThemedText>
+                </View>}
               </View>
             );
           })}
         </View>
-
-
       </ScrollView>
     </ThemedView>
   );

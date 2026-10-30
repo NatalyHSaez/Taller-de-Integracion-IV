@@ -226,8 +226,21 @@ async function main() {
     assert.ok(Array.isArray(await getNotifications()));
   });
   await check('Detalle de lectura: error backend no se reemplaza por lectura local', async () => {
-    backend(); global.fetch = async () => json({ detail: 'Lectura no encontrada', errorCode: 'READING_NOT_FOUND' }, 404);
-    await assert.rejects(readingsService.detail('patient-test', 'reading-test'), rejectsCode('READING_NOT_FOUND', 404));
+    // Desde S2 el detalle solo consulta la API con un paciente autorizado y UUID válidos.
+    // La prueba P3 debe llegar a la respuesta HTTP 404, no detenerse en el control 401.
+    const patientId = '25b78bc3-8a8d-48d0-8a7c-c9346beae2ed';
+    const readingId = '88888888-8888-4888-8888-888888888881';
+    backend();
+    authSession.setUser({ id: patientId, fullName: 'Paciente de prueba',
+      email: 'paciente@p3.invalid', roles: ['PATIENT'] });
+    let calls = 0;
+    global.fetch = async (url) => {
+      calls += 1;
+      assert.ok(String(url).includes(`/patients/${patientId}/readings/${readingId}`));
+      return json({ detail: 'Lectura no encontrada', errorCode: 'READING_NOT_FOUND' }, 404);
+    };
+    await assert.rejects(readingsService.detail(patientId, readingId), rejectsCode('READING_NOT_FOUND', 404));
+    assert.equal(calls, 1, 'La prueba debe haber consultado realmente el Gateway simulado.');
   });
   console.log(`\n${checks} comprobaciones P3 correctas.`);
 }

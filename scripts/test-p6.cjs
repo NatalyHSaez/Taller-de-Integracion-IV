@@ -83,7 +83,7 @@ async function main() {
     await assert.rejects(getNotifications(), e => e.status === 503);
   });
   await check('Backend: detalle no recupera datos mock tras un 404', async () => {
-    backend(); global.fetch = async () => issue(404, 'READING_NOT_FOUND');
+    backend(two); global.fetch = async () => issue(404, 'READING_NOT_FOUND');
     await assert.rejects(readingsService.detail(two, MOCK_READINGS[0].readingId), e => e.status === 404);
   });
   await check('Claves de caché distinguen pacientes sin claves manuales', async () => {
