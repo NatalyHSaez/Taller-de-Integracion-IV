@@ -40,7 +40,7 @@ export function AccessBoundary({ children }: PropsWithChildren) {
    * por ella.
    */
   if (user && isAuthRoute && !isSelectPatient) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={selectedPatient ? '/(tabs)' : '/(auth)/select-patient'} />;
   }
 
   /*

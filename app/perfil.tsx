@@ -496,7 +496,9 @@ export default function Profile() {
                 },
               ]}
             >
-              <HealthInformation />
+              {authenticated ? (
+                <ThemedText>La información de salud estará disponible cuando se complete su integración.</ThemedText>
+              ) : <HealthInformation />}
             </View>
           </>
         )}

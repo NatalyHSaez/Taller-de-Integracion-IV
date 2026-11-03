@@ -16,18 +16,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BrandColors, Colors } from "@/constants/theme";
 import { GatewayHealthCard } from "@/components/gateway-health-card";
-import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
 import { appState } from "@/services/app-state";
 import { authService } from "@/services/authservice";
 import { demo } from "@/services/demo-store";
-import { getApiErrorMessage } from "@/services/errors";
+import { loginErrorMessage } from "@/services/login-validation";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { pendingToken } = useDemo();
-  const { setUser } = useAuth();
+  const [demoMode, setDemoMode] = useState(false);
+  const submitting = useRef(false);
   const theme = Colors[useColorScheme() === "dark" ? "dark" : "light"];
 
   const passwordInput = useRef<TextInput>(null);
@@ -43,89 +43,33 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   async function submit() {
-    if (loading) {
-      return;
-    }
-
+    if (submitting.current) return;
     const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail) {
-      setError("Ingresa tu correo electrónico.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("Ingresa un correo electrónico válido.");
       return;
     }
-
     if (!password) {
       setError("Ingresa tu contraseña.");
       return;
     }
-
+    submitting.current = true;
+    setLoading(true);
+    setError("");
     try {
-      setLoading(true);
-      setError("");
-
-      /*
-       * authService será el punto único de autenticación.
-       *
-       * Él decidirá si corresponde utilizar:
-       * - una cuenta mock; o
-       * - el backend real.
-       */
-      await authService.login(cleanEmail, password);
-
-      /*
-       * Recuperamos el usuario desde la misma capa de autenticación.
-       * Esto funciona tanto para una sesión mock como para backend.
-       */
-      const currentUser = await authService.me();
-
-      /*
-       * appState reúne usuario, paciente seleccionado,
-       * permisos y origen de la sesión.
-       */
-      const globalState = appState.snapshot();
-
-      /*
-       * AuthProvider de Sebastián representa principalmente
-       * la sesión real persistida mediante SecureStore.
-       *
-       * Las sesiones mock siguen administrándose mediante
-       * appState/demo-store.
-       */
-      if (globalState.sessionMode === "backend") {
-        setUser(currentUser);
-      } else {
-        setUser(null);
-      }
-
-      /*
-       * Si existe una invitación pendiente y el usuario
-       * autenticado es cuidador, continuamos ese flujo.
-       */
-      if (
-        demo.snapshot().pendingToken &&
-        globalState.user?.role === "caregiver"
-      ) {
-        router.replace("/invitacion");
-        return;
-      }
-
-      /*
-       * Si ya existe un paciente seleccionado, entramos
-       * directamente a la aplicación.
-       */
-      if (globalState.selectedPatient) {
-        router.replace("/(tabs)");
-        return;
-      }
-
-      /*
-       * Si el cuidador todavía debe seleccionar paciente,
-       * lo enviamos a esa pantalla.
-       */
-      router.replace("/(auth)/select-patient");
+      await authService.login(cleanEmail, password, demoMode ? 'mock' : 'backend');
+      const state = appState.snapshot();
+      // /me ya fue consultado por login: no duplicar ni publicar una sesión a medias.
+      setPassword("");
+      router.replace(
+        demoMode && state.user?.role === 'caregiver' && demo.snapshot().pendingToken
+          ? '/invitacion'
+          : state.selectedPatient ? '/(tabs)' : '/(auth)/select-patient'
+      );
     } catch (cause) {
-      setError(getApiErrorMessage(cause, "No fue posible iniciar sesión."));
+      setError(loginErrorMessage(cause));
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
@@ -176,7 +120,15 @@ export default function LoginScreen() {
               </Text>
             </View>
 
-            {pendingToken && (
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: demoMode }}
+              disabled={loading} onPress={() => { setDemoMode(!demoMode); setError(''); }}>
+              <Text style={{ color: theme.primary, paddingVertical: 12 }}>
+                {demoMode ? 'Modo demostración activado · Cambiar a cuenta real' : 'Usar cuentas de demostración'}
+              </Text>
+            </Pressable>
+            {demoMode && <Text style={{ color: theme.mutedText }}>Este acceso utiliza cuentas ficticias y datos de ejemplo.</Text>}
+
+            {demoMode && pendingToken && (
               <View
                 style={[
                   styles.invitationNotice,
@@ -311,7 +263,7 @@ export default function LoginScreen() {
               </View>
 
               {!!error && (
-                <Text style={[styles.error, { color: theme.danger }]}>
+                <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.error, { color: theme.danger }]}>
                   {error}
                 </Text>
               )}
@@ -356,7 +308,8 @@ export default function LoginScreen() {
 
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push("/(auth)/activate")}
+                disabled={loading}
+                onPress={() => router.push(demoMode ? '/(auth)/activate' : '/(auth)/register')}
                 style={({ pressed }) => [
                   styles.accountLink,
                   pressed && styles.pressed,
@@ -371,7 +324,7 @@ export default function LoginScreen() {
                 <Text
                   style={[styles.accountLinkText, { color: theme.primary }]}
                 >
-                  Activar cuenta de paciente
+                  {demoMode ? 'Activar cuenta de demostración' : 'Crear cuenta de paciente'}
                 </Text>
               </Pressable>
 
@@ -382,6 +335,7 @@ export default function LoginScreen() {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push("/(auth)/register")}
+                disabled={loading}
                 style={({ pressed }) => [
                   styles.accountLink,
                   pressed && styles.pressed,

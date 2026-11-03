@@ -28,5 +28,5 @@ Endpoint conectado: `POST /api/v1/auth/register`, público, sin Bearer.
 
 La discrepancia de roles de usuarios antiguos sigue pendiente del equipo backend. Este cambio
 usa el contrato actual PATIENT/CAREGIVER; no modifica las tablas ni el código backend.
-El éxito de estas pruebas no cierra toda TI4-61: queda la validación completa del flujo de login
-desde la interfaz, y las tareas de sesión y perfil TI4-62/TI4-63 continúan separadas.
+Los ajustes posteriores del login y su evidencia están en [TI4-61-login.md](TI4-61-login.md).
+Las tareas de sesión y perfil TI4-62/TI4-63 continúan separadas.

@@ -1,4 +1,5 @@
 import { AuthUser, getMe } from '@/services/api';
+import { authSession } from '@/services/auth-session';
 import { clearTokens, getAccessToken } from '@/services/token-storage';
 import { createContext, PropsWithChildren, useContext, useEffect, useState, } from 'react';
 
@@ -17,10 +18,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Publica la identidad del login sin depender de que la pantalla siga montada.
+  useEffect(() => authSession.subscribe(() => {
+    setUser(authSession.mode() === 'backend' ? authSession.user() : null);
+  }), []);
+
   async function restoreSession() {
     try {
-        setLoading(true);
-
         const accessToken = await getAccessToken();
 
         if (!accessToken) {
@@ -31,7 +35,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const currentUser = await getMe();
 
         setUser(currentUser);
-    } catch (error) {
+    } catch {
         // TEMPORALMENTE no borramos el token
         // para poder diagnosticar qué está ocurriendo.
         setUser(null);
@@ -46,10 +50,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   useEffect(() => {
-  void restoreSession();
-  return () => {
-  };
-}, []);
+    // La actualización ocurre después de leer almacenamiento/red de forma asíncrona.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void restoreSession();
+  }, []);
 
   return (
     <AuthContext.Provider

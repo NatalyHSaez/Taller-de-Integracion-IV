@@ -6,6 +6,7 @@ import { authSession } from "./auth-session";
 import { dataClient } from "./data";
 import { demo } from "./demo-store";
 import { ApiError } from "./errors";
+import { validateLoginUser } from './login-validation';
 import { findMockAccount, isMockAccountEmail } from "./mocks/auth-mock";
 import { clearTokens, saveTokens } from "./token-storage";
 
@@ -18,6 +19,7 @@ function normalizeEmail(email: string): string {
  * pacientes y cuidadores.
  */
 function ensureMobileRole(user: CurrentUserResponse): void {
+  validateLoginUser(user);
   if (user.roles.includes("PATIENT") || user.roles.includes("CAREGIVER")) {
     return;
   }
@@ -255,19 +257,11 @@ export const authService = {
   },
 
   /**
-   * Decide automáticamente qué sistema de
-   * autenticación utilizar.
-   *
-   * Cuenta mock conocida
-   *      ↓
-   * demo-store
-   *
-   * Otro correo + API configurada
-   *      ↓
-   * API Gateway
+   * Usa el backend por defecto. Las cuentas de demostración requieren
+   * seleccionar explícitamente el modo mock, aunque coincida el correo.
    */
-  async login(email: string, password: string): Promise<AuthTokensResponse> {
-    if (isMockAccountEmail(email) || isRuntimeMockAccountEmail(email)) {
+  async login(email: string, password: string, mode: 'backend' | 'mock' = 'backend'): Promise<AuthTokensResponse> {
+    if (mode === 'mock') {
       return loginWithMock(email, password);
     }
 
