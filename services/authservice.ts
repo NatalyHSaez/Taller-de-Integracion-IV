@@ -1,7 +1,7 @@
 import { IS_API_CONFIGURED } from "@/config/api";
-import type { AuthTokensResponse, CurrentUserResponse } from "@/types/api";
+import type { AuthTokensResponse, CurrentUserResponse, RegisterRequest } from "@/types/api";
 
-import { apiClient, login as apiLogin } from "./api";
+import { apiClient, login as apiLogin, register as apiRegister } from "./api";
 import { authSession } from "./auth-session";
 import { dataClient } from "./data";
 import { demo } from "./demo-store";
@@ -407,27 +407,9 @@ export const authService = {
     dataClient.clearCache();
   },
 
-  /**
-   * El cuidador continúa pudiendo registrarse
-   * localmente para los flujos mock.
-   *
-   * El formulario de Sebastián utiliza
-   * directamente services/api.ts para el
-   * registro real de paciente.
-   */
-  async register(data: { name: string; email: string; password: string }) {
-    demo.registerCaregiver(
-      data.name,
-      normalizeEmail(data.email),
-      data.password,
-    );
-
-    /*
-     * account-form vuelve al login después
-     * del registro, así que no dejamos la
-     * cuenta iniciada automáticamente.
-     */
-    demo.logout();
+  /** Registro real; crear una cuenta no abre ni reemplaza una sesión. */
+  async register(data: RegisterRequest): Promise<CurrentUserResponse> {
+    return apiRegister(data);
   },
 
   async getPatients() {

@@ -21,11 +21,12 @@ export type RegisterRequest = {
   fullName: string;
   email: string;
   password: string;
-  role: Exclude<UserRole, 'ADMIN'>;
-  birthDate?: ISODate;
   rut?: string;
   profession?: string;
-};
+} & ({ role: 'PATIENT'; birthDate: ISODate } | {
+  role: Exclude<UserRole, 'ADMIN' | 'PATIENT'>;
+  birthDate?: ISODate;
+});
 
 /** Respuesta real de POST /api/v1/auth/login y /auth/refresh. */
 export type AuthTokensResponse = {

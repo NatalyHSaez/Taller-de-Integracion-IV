@@ -66,7 +66,7 @@ export type AuthUser = CurrentUserResponse;
 
 export type RegisterData = RegisterRequest;
 
-export type RegisterResponse = CurrentUserResponse | Record<string, unknown>;
+export type RegisterResponse = CurrentUserResponse;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const API_PREFIX = "/api/v1";
@@ -546,7 +546,7 @@ export const apiClient = {
  * account-form.tsx de Sebastián ya la utiliza.
  */
 export async function register(data: RegisterData): Promise<RegisterResponse> {
-  return apiClient.post<RegisterResponse>(
+  const user = await apiClient.post<RegisterResponse>(
     "/auth/register",
 
     {
@@ -561,6 +561,15 @@ export async function register(data: RegisterData): Promise<RegisterResponse> {
       auth: false,
     },
   );
+  if (!user || typeof user.id !== 'string' || !user.id ||
+      typeof user.fullName !== 'string' || typeof user.email !== 'string' ||
+      !Array.isArray(user.roles) || !user.roles.includes(data.role)) {
+    throw new ApiError({
+      code: 'INVALID_API_RESPONSE',
+      message: 'El servidor no confirmó correctamente la cuenta. Intenta iniciar sesión antes de registrarte nuevamente.',
+    });
+  }
+  return user;
 }
 
 /*
