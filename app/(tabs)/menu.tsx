@@ -15,7 +15,6 @@ import { BrandColors, Colors } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
-import { demo } from "@/services/demo-store";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -120,7 +119,6 @@ export default function MenuScreen() {
       /*
        * Limpiamos cualquier estado mock/local.
        */
-      demo.logout();
 
       /*
        * Limpia la sesión real:

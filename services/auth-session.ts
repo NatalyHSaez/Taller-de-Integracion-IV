@@ -1,5 +1,5 @@
 import type { AuthTokensResponse, CurrentUserResponse } from '@/types/api';
-import { setApiAccessTokenProvider } from './api';
+import { setApiAccessTokenProvider, invalidateApiSession } from './api';
 
 export type AuthSessionMode = 'backend' | 'mock';
 
@@ -25,9 +25,8 @@ function replaceState(nextState: SessionState) {
 /**
  * Sesión temporal de autenticación.
  *
- * Por ahora los tokens quedan solo en memoria. Además de exponer el token al
- * cliente HTTP, la sesión publica cambios para que el estado global de la app
- * pueda reaccionar cuando cambia entre backend, mock o sesión cerrada.
+ * Representación en memoria de los tokens persistidos por token-storage.
+ * Publica cambios de identidad y renovación para el resto de la aplicación.
  */
 export const authSession = {
   snapshot: () => state,
@@ -46,6 +45,7 @@ export const authSession = {
   refreshToken: () => state.tokens?.refreshToken ?? null,
 
   startBackend(tokens: AuthTokensResponse) {
+    invalidateApiSession();
     replaceState({
       mode: 'backend',
       tokens,
@@ -54,11 +54,16 @@ export const authSession = {
   },
 
   startMock(tokens: AuthTokensResponse, user: CurrentUserResponse) {
+    invalidateApiSession();
     replaceState({
       mode: 'mock',
       tokens,
       user,
     });
+  },
+
+  updateTokens(tokens: AuthTokensResponse) {
+    if (state.mode === 'backend') replaceState({ ...state, tokens });
   },
 
   setUser(user: CurrentUserResponse) {
@@ -69,6 +74,7 @@ export const authSession = {
   },
 
   clear() {
+    invalidateApiSession();
     replaceState({
       mode: null,
       tokens: null,

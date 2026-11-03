@@ -1,3 +1,4 @@
+import { authService } from '@/services/authservice';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
@@ -198,8 +199,7 @@ export default function Configuracion() {
         secondary
         label="Cerrar sesión"
         onPress={() => {
-          demo.logout();
-          router.replace('/(auth)/login');
+          void authService.logout().then(() => router.replace('/(auth)/login')).catch(() => console.error('No se pudo limpiar el almacenamiento de sesion.'));
         }}
       />
     </FlowPage>

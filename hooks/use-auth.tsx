@@ -1,6 +1,6 @@
-import { AuthUser, getMe } from '@/services/api';
+import { AuthUser } from '@/services/api';
 import { authSession } from '@/services/auth-session';
-import { clearTokens, getAccessToken } from '@/services/token-storage';
+import { authService } from '@/services/authservice';
 import { createContext, PropsWithChildren, useContext, useEffect, useState, } from 'react';
 
 type AuthContextValue = {
@@ -25,33 +25,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function restoreSession() {
     try {
-        const accessToken = await getAccessToken();
-
-        if (!accessToken) {
-        setUser(null);
-        return;
-        }
-
-        const currentUser = await getMe();
-
-        setUser(currentUser);
+      await authService.restore();
     } catch {
-        // TEMPORALMENTE no borramos el token
-        // para poder diagnosticar qué está ocurriendo.
-        setUser(null);
+      // El servicio limpia memoria; conserva tokens si solo falla la red.
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    }
+  }
 
   async function signOut() {
-    await clearTokens();
-    setUser(null);
+    await authService.logout();
   }
 
   useEffect(() => {
     // La actualización ocurre después de leer almacenamiento/red de forma asíncrona.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void restoreSession();
   }, []);
 

@@ -1,3 +1,4 @@
+import { authService } from '@/services/authservice';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Action, Card, Copy, Field, FlowPage } from '@/components/flow-ui';
@@ -12,6 +13,6 @@ export default function DemoScreen() {
     <Copy>4. Cierra sesión e ingresa como paciente. En Vínculos, acepta o rechaza la solicitud y elige los permisos.</Copy>
     <Copy>5. Ingresa como cuidador y abre el paciente autorizado. Para probar varios pacientes, repite el registro con otro correo y vincula al mismo cuidador.</Copy>
     <Copy>El apoyo del centro para activar cuentas o autorizar vínculos requiere un procedimiento acordado con el equipo; no se simula una autorización en nombre del paciente.</Copy>
-    <Action label="Ir al acceso" onPress={() => { demo.logout(); router.replace('/(auth)/login'); }} />
+    <Action label="Ir al acceso" onPress={() => { void authService.logout().then(() => router.replace('/(auth)/login')).catch(() => setError('No se pudo cerrar la sesion. Intenta nuevamente.')); }} />
   </FlowPage>;
 }

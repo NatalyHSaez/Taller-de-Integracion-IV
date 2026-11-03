@@ -9,7 +9,8 @@ import { demo } from "@/services/demo-store";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { updateMyProfile, profileErrorMessage } from "@/services/profile";
 
 import {
   Alert,
@@ -75,65 +76,43 @@ export default function Profile() {
    */
   const [birthDate, setBirthDate] = useState("");
 
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileNotice, setProfileNotice] = useState("");
+
   const startEditing = () => {
-    /*
-     * Todavía no existe un endpoint integrado
-     * para modificar el perfil real.
-     *
-     * Evitamos guardar accidentalmente información
-     * proveniente del backend dentro de demo-store.
-     */
-    if (authenticated) {
-      Alert.alert(
-        "Edición de perfil",
-        "Tus datos están conectados con tu cuenta real. La edición se habilitará cuando conectemos el endpoint de actualización del perfil.",
-      );
-
-      return;
-    }
-
     setName(displayName === "Usuario" ? "" : displayName);
-
     setEmail(displayEmail);
-
+    setProfileError("");
+    setProfileNotice("");
     setEditing(true);
   };
 
   const cancelEditing = () => {
+    if (savingRef.current) return;
     setEditing(false);
-
-    setName("");
-    setEmail("");
+    setProfileError("");
   };
 
-  const saveProfile = () => {
-    if (authenticated) {
-      Alert.alert(
-        "Edición de perfil",
-        "No se realizaron cambios porque esta cuenta está conectada al backend.",
-      );
-
-      setEditing(false);
-
-      return;
-    }
-
+  const saveProfile = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setProfileError("");
     try {
-      demo.updateProfile(name.trim(), email.trim());
-
+      if (authenticated) {
+        await updateMyProfile(name);
+      } else {
+        demo.updateProfile(name.trim(), email.trim());
+      }
       setEditing(false);
-
-      Alert.alert(
-        "Perfil actualizado",
-        "Tus datos se guardaron correctamente.",
-      );
+      setProfileNotice("Perfil actualizado correctamente.");
     } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "No se pudieron guardar los cambios.",
-      );
+      setProfileError(profileErrorMessage(error));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -144,7 +123,6 @@ export default function Profile() {
   const performLogout = async () => {
     try {
       // Limpia cualquier sesión mock.
-      demo.logout();
 
       // Limpia la sesión real y sus tokens.
       await signOut();
@@ -300,6 +278,8 @@ export default function Profile() {
             },
           ]}
         >
+          {!!profileNotice && <ThemedText accessibilityLiveRegion="polite">{profileNotice}</ThemedText>}
+          {!!profileError && <ThemedText accessibilityRole="alert" style={{ color: theme.danger }}>{profileError}</ThemedText>}
           {!editing ? (
             <>
               <InfoRow
@@ -364,12 +344,14 @@ export default function Profile() {
                       color: theme.text,
                     },
                   ]}
+                  accessibilityLabel="Nombre"
+                  editable={!saving}
                   value={name}
                   onChangeText={setName}
                   placeholder="Ingresa tu nombre"
                   placeholderTextColor={theme.mutedText}
                   autoCapitalize="words"
-                  maxLength={100}
+                  maxLength={200}
                 />
               </FormField>
 
@@ -385,6 +367,8 @@ export default function Profile() {
                       color: theme.text,
                     },
                   ]}
+                  accessibilityLabel="Correo electrónico"
+                  editable={!authenticated && !saving}
                   value={email}
                   onChangeText={setEmail}
                   placeholder="Ingresa tu correo"
@@ -396,7 +380,7 @@ export default function Profile() {
                 />
               </FormField>
 
-              <FormField label="Fecha de nacimiento">
+              {authenticated ? <ThemedText>Solo puedes editar tu nombre. El correo y la fecha de nacimiento no se modifican desde este perfil.</ThemedText> : <FormField label="Fecha de nacimiento">
                 <TextInput
                   style={[
                     styles.input,
@@ -408,16 +392,18 @@ export default function Profile() {
                       color: theme.text,
                     },
                   ]}
+                  editable={!saving}
                   value={birthDate}
                   onChangeText={setBirthDate}
                   placeholder="DD/MM/AAAA"
                   placeholderTextColor={theme.mutedText}
                   keyboardType="numeric"
                 />
-              </FormField>
+              </FormField>}
 
               <Pressable
                 accessibilityRole="button"
+                disabled={saving}
                 onPress={saveProfile}
                 style={({ pressed }) => [
                   styles.primaryButton,
@@ -435,12 +421,13 @@ export default function Profile() {
                 />
 
                 <ThemedText style={styles.primaryButtonText}>
-                  Guardar cambios
+                  {saving ? "Guardando..." : "Guardar cambios"}
                 </ThemedText>
               </Pressable>
 
               <Pressable
                 accessibilityRole="button"
+                disabled={saving}
                 onPress={cancelEditing}
                 style={({ pressed }) => [
                   styles.secondaryButton,
@@ -621,7 +608,7 @@ export default function Profile() {
                       },
                     ]}
                   >
-                    No tienes pacientes vinculados.
+                    {authenticated ? "La consulta de pacientes vinculados aún no está disponible." : "No tienes pacientes vinculados."}
                   </ThemedText>
                 </View>
               )}

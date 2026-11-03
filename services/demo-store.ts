@@ -758,6 +758,16 @@ export const demo = {
     });
   },
 
+  syncBackendIdentity(user: CurrentUserResponse) {
+    if (state.userId !== user.id) return;
+    update({
+      accounts: state.accounts.map(account => account.id === user.id
+        ? { ...account, name: user.fullName, email: user.email } : account),
+      profiles: state.profiles.map(profile => profile.id === user.id
+        ? { ...profile, name: user.fullName, email: user.email } : profile),
+    });
+  },
+
   updateProfile(name: string, email: string) {
     const user = requireValue(getCurrentUser(), "Debes iniciar sesión.");
 

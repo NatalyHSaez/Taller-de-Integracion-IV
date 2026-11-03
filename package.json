@@ -12,7 +12,9 @@
     "test:registration": "node scripts/test-registration.cjs",
     "test:login": "node scripts/test-login.cjs",
     "test:onboarding": "tsc --ignoreConfig --module commonjs --target es2020 --skipLibCheck --outDir tmp/onboarding-tests services/demo-store.ts types/measurement.ts && node scripts/test-onboarding.cjs",
-    "test:api-errors": "tsc --ignoreConfig --module commonjs --target es2022 --lib es2022,dom --skipLibCheck --outDir tmp/api-error-tests services/errors/api-error.ts && node scripts/test-api-errors.cjs"
+    "test:api-errors": "tsc --ignoreConfig --module commonjs --target es2022 --lib es2022,dom --skipLibCheck --outDir tmp/api-error-tests services/errors/api-error.ts && node scripts/test-api-errors.cjs",
+    "test:profile": "node scripts/test-profile.cjs",
+    "test:session": "node scripts/test-session.cjs && node scripts/test-token-storage.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
