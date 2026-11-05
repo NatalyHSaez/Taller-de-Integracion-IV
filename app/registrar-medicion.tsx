@@ -1,8 +1,9 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Speech from "expo-speech";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,19 +20,31 @@ import { BrandColors, Colors, MeasurementColors } from "@/constants/theme";
 import { useAppState } from "@/hooks/use-app-state";
 import { useClinicalParameters } from "@/hooks/use-clinical-parameters";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { validateAgainstParameter } from "@/services/clinical-parameters";
+import {
+  clinicalParametersService,
+  validateAgainstParameter,
+} from "@/services/clinical-parameters";
+import { authSession } from "@/services/auth-session";
 import { demo } from "@/services/demo-store";
-import { buildCreateReadingRequest } from "@/services/readings";
+import {
+  type ReadingFormErrors,
+  readingErrorsFromApi,
+} from "@/services/reading-errors";
+import {
+  buildCreateReadingRequest,
+  READING_CONTEXT_LABELS,
+  readingsService,
+  resolveActivePatientId,
+} from "@/services/readings";
 import type {
-  CanonicalUnit,
   ClinicalParameterCode,
   ClinicalParameterResponse,
   CreateReadingRequest,
+  ReadingContext,
 } from "@/types/api";
 import type { MeasurementType } from "@/types/measurement";
 import { useRouter } from "expo-router";
 
-type GlucoseContext = "fasting" | "before_meal" | "after_meal";
 
 type MeasurementOption = {
   value: MeasurementType;
@@ -73,30 +86,10 @@ function rangeHint(parameter: ClinicalParameterResponse) {
   return undefined;
 }
 
-/**
- * Obtiene una medición del cuerpo ya armado y comprueba que su unidad canónica
- * sea la que el almacenamiento local de la app sabe representar.
- */
-function measurementFrom<U extends CanonicalUnit>(
-  request: CreateReadingRequest,
-  code: ClinicalParameterCode,
-  localUnit: U,
-): { value: number; unit: U } {
-  const item = request.measurements.find((m) => m.parameterCode === code);
-  if (!item) throw new Error("Falta un valor de la medición.");
-  if (item.unit !== localUnit) {
-    throw new Error(
-      `La API indica la unidad ${item.unit} para ${code}, que esta versión de la app aún no puede guardar.`,
-    );
-  }
-  return { value: item.value, unit: localUnit };
-}
-
-const GLUCOSE_CONTEXTS: { value: GlucoseContext; label: string }[] = [
-  { value: "fasting", label: "En ayunas" },
-  { value: "before_meal", label: "Antes de comer" },
-  { value: "after_meal", label: "Después de comer" },
-];
+/** El backend exige PREPRANDIAL o POSTPRANDIAL para glucosa. */
+const GLUCOSE_CONTEXTS: { value: ReadingContext; label: string }[] = (
+  ["PREPRANDIAL", "POSTPRANDIAL"] as const
+).map((value) => ({ value, label: READING_CONTEXT_LABELS[value] }));
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("es-CL", {
@@ -131,13 +124,17 @@ export default function RegisterMeasurementScreen() {
   const [diastolic, setDiastolic] = useState("");
   const [heartRate, setHeartRate] = useState("");
   const [glucose, setGlucose] = useState("");
-  const [glucoseContext, setGlucoseContext] = useState<GlucoseContext | null>(
+  const [glucoseContext, setGlucoseContext] = useState<ReadingContext | null>(
     null,
   );
   const [weight, setWeight] = useState("");
   const [date, setDate] = useState(formatDate(now));
   const [time, setTime] = useState(formatTime(now));
   const [showReview, setShowReview] = useState(false);
+  const [serverErrors, setServerErrors] = useState<ReadingFormErrors["fields"]>({});
+  const [submitting, setSubmitting] = useState(false);
+  // Bloqueo síncrono: evita un segundo envío antes de que React re-renderice.
+  const submittingRef = useRef(false);
   const {
     catalog,
     loading: catalogLoading,
@@ -179,6 +176,15 @@ export default function RegisterMeasurementScreen() {
   }
   const hasFieldErrors = Object.keys(fieldErrors).length > 0;
 
+  /** Al editar cualquier dato se descartan los errores devueltos por el servidor. */
+  function edited<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setter(value);
+      setServerErrors({});
+      setSaveError("");
+    };
+  }
+
   const accentColor = theme.primary;
   const surfaceColor = theme.surface;
   const borderColor = theme.border;
@@ -204,6 +210,8 @@ export default function RegisterMeasurementScreen() {
   function selectMeasurementType(value: MeasurementType) {
     setMeasurementType(value);
     setShowReview(false);
+    setServerErrors({});
+    setSaveError("");
   }
 
   function getSummaryValue() {
@@ -231,10 +239,10 @@ export default function RegisterMeasurementScreen() {
         key={code}
         label={definition.name}
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={edited(onChangeText)}
         unit={definition.unit}
         hint={rangeHint(definition)}
-        error={fieldErrors[code]}
+        error={fieldErrors[code] ?? serverErrors[code]}
         placeholder={placeholder}
         inputColor={inputColor}
         borderColor={borderColor}
@@ -245,92 +253,110 @@ export default function RegisterMeasurementScreen() {
     );
   }
 
-  function save() {
-    if (!formIsValid) return;
+  function parseMeasuredAt(): Date {
+    const [day, month, year] = date.split(/[/-]/).map(Number);
+    const [hour, minute] = time.split(":").map(Number);
+    const measured = new Date(year, month - 1, day, hour, minute);
+    if (
+      !/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(date) ||
+      !/^\d{2}:\d{2}$/.test(time) ||
+      measured.getFullYear() !== year ||
+      measured.getMonth() !== month - 1 ||
+      measured.getDate() !== day ||
+      hour > 23 ||
+      minute > 59 ||
+      !Number.isFinite(measured.getTime())
+    ) {
+      throw Object.assign(new Error("Revisa la fecha (dd/mm/aaaa) y la hora (hh:mm)."), {
+        field: "measuredAt" as const,
+      });
+    }
+    if (measured.getTime() > Date.now()) {
+      throw Object.assign(new Error("La fecha y hora no pueden ser futuras."), {
+        field: "measuredAt" as const,
+      });
+    }
+    return measured;
+  }
+
+  function announce(measured: Date) {
+    if (!demo.snapshot().vozActiva) return;
+    const detalle =
+      measurementType === "blood_pressure"
+        ? `Presión arterial: ${systolic} sobre ${diastolic}, frecuencia cardíaca ${heartRate}`
+        : measurementType === "glucose"
+          ? `Glucosa: ${glucose} ${unitOf("GLUCOSE")}`
+          : `Peso: ${weight.replace(".", ",")} ${unitOf("WEIGHT")}`;
+    const diaSemana = measured.toLocaleDateString("es-CL", { weekday: "long" });
+    const fecha = measured.toLocaleDateString("es-CL", { day: "numeric", month: "long" });
+    const hora = measured.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    Speech.speak(
+      `Datos registrados correctamente. ${detalle}. ${diaSemana} ${fecha}, a las ${hora}.`,
+      { language: "es-CL", volume: demo.snapshot().vozVolumen },
+    );
+  }
+
+  async function save() {
+    if (!formIsValid || submittingRef.current) return;
     if (!showReview) {
       setShowReview(true);
       return;
     }
+
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSaveError("");
+    setServerErrors({});
+
+    let request: CreateReadingRequest | null = null;
     try {
-      const [day, month, year] = date.split(/[/-]/).map(Number);
-      const [hour, minute] = time.split(":").map(Number);
-      const measured = new Date(year, month - 1, day, hour, minute);
-      if (
-        !/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(date) ||
-        !/^\d{2}:\d{2}$/.test(time) ||
-        measured.getFullYear() !== year ||
-        measured.getMonth() !== month - 1 ||
-        measured.getDate() !== day ||
-        hour > 23 ||
-        minute > 59 ||
-        !Number.isFinite(measured.getTime()) ||
-        measured.getTime() > Date.now()
-      )
-        throw new Error(
-          "Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.",
-        );
-      // Cuerpo con la unidad canónica indicada por la API (CreateReadingRequest).
-      // Cuando exista el POST de lecturas, este es el cuerpo a enviar y sus
-      // errores de validación deben mostrarse tal cual: el backend es la
-      // autoridad final.
-      const request = buildCreateReadingRequest({
+      const measured = parseMeasuredAt();
+      const patientId = resolveActivePatientId();
+      request = buildCreateReadingRequest({
         codes: REQUIRED_PARAMETERS[measurementType],
         values: fieldValues,
         catalog: catalog ?? {},
         context: measurementType === "glucose" ? glucoseContext : null,
-        measuredAt: measured.toISOString(),
+        measuredAt: measured,
       });
-      const base = { id: "", measuredAt: request.measuredAt };
-      demo.save(
-        measurementType === "blood_pressure"
-          ? {
-              ...base,
-              type: "blood_pressure",
-              systolic: measurementFrom(request, "SBP", "mmHg").value,
-              diastolic: measurementFrom(request, "DBP", "mmHg").value,
-              heartRate: measurementFrom(request, "HEART_RATE", "bpm").value,
-            }
-          : measurementType === "glucose"
-            ? {
-                ...base,
-                type: "glucose",
-                ...measurementFrom(request, "GLUCOSE", "mg/dL"),
-                context: contextLabel,
-              }
-            : {
-                ...base,
-                type: "weight",
-                ...measurementFrom(request, "WEIGHT", "kg"),
-              },
-      );
 
-      if (demo.snapshot().vozActiva) {
-        const detalle =
-          measurementType === "blood_pressure"
-            ? `Presión arterial: ${systolic} sobre ${diastolic}, frecuencia cardíaca ${heartRate}`
-            : measurementType === "glucose"
-              ? `Glucosa: ${glucose} miligramos por decilitro`
-              : `Peso: ${weight.replace(".", ",")} kilos`;
-        const diaSemana = measured.toLocaleDateString("es-CL", {
-          weekday: "long",
-        });
-        const fecha = measured.toLocaleDateString("es-CL", {
-          day: "numeric",
-          month: "long",
-        });
-        const hora = measured.toLocaleTimeString("es-CL", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        Speech.speak(
-          `Datos registrados correctamente. ${detalle}. ${diaSemana} ${fecha}, a las ${hora}.`,
-          { language: "es-CL", volume: demo.snapshot().vozVolumen },
+      const result = await readingsService.create(patientId, request);
+      announce(measured);
+
+      const isBackend = authSession.mode() === "backend";
+      // En sesión backend el historial de esta rama aún es local, por eso se
+      // vuelve al inicio en vez de mostrar un historial que no la incluiría.
+      const next = !isBackend && demo.permissions().read ? "/historial" : "/(tabs)";
+      if (result.status === "REQUIRES_CONFIRMATION") {
+        const reasons = result.confirmationReasons?.length
+          ? `\n\n${result.confirmationReasons.join("\n")}`
+          : "";
+        Alert.alert(
+          "Lectura registrada con observaciones",
+          `El servidor guardó la lectura, pero indica que requiere confirmación.${reasons}`,
+          [{ text: "Entendido", onPress: () => router.replace(next) }],
         );
+        return;
       }
-
-      router.replace(demo.permissions().read ? "/historial" : "/(tabs)");
-    } catch (e) {
-      setSaveError((e as Error).message);
+      router.replace(next);
+    } catch (cause) {
+      const field = (cause as { field?: string }).field;
+      if (field === "measuredAt") {
+        setServerErrors({ measuredAt: (cause as Error).message });
+      } else if (request) {
+        const errors = readingErrorsFromApi(cause, request);
+        setServerErrors(errors.fields);
+        setSaveError(errors.general ?? "");
+        if (errors.unitRejected) {
+          clinicalParametersService.invalidate();
+          retryCatalog();
+        }
+      } else {
+        setSaveError((cause as Error).message || "No se pudo registrar la medición.");
+      }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
@@ -351,7 +377,6 @@ export default function RegisterMeasurementScreen() {
           <ThemedText>
             Paciente: {patient?.name} · Registra: {user?.name}
           </ThemedText>
-          {!!saveError && <ThemedText>{saveError}</ThemedText>}
           <View style={styles.hero}>
             <View style={styles.heroDecorationTop} />
             <View style={styles.heroDecorationBottom} />
@@ -553,7 +578,7 @@ export default function RegisterMeasurementScreen() {
                             key={item.value}
                             accessibilityRole="radio"
                             accessibilityState={{ checked: isSelected }}
-                            onPress={() => setGlucoseContext(item.value)}
+                            onPress={() => edited(setGlucoseContext)(item.value)}
                             style={({ pressed }) => [
                               styles.contextButton,
                               {
@@ -585,6 +610,11 @@ export default function RegisterMeasurementScreen() {
                         );
                       })}
                     </View>
+                    {!!serverErrors.context && (
+                      <ThemedText accessibilityRole="alert" style={styles.fieldError}>
+                        {serverErrors.context}
+                      </ThemedText>
+                    )}
                   </View>
                 </>
               )}
@@ -630,7 +660,7 @@ export default function RegisterMeasurementScreen() {
                   />
                   <TextInput
                     accessibilityLabel="Fecha de la medición"
-                    onChangeText={setDate}
+                    onChangeText={edited(setDate)}
                     placeholder="DD/MM/AAAA"
                     placeholderTextColor={theme.icon}
                     style={[styles.dateInput, { color: theme.text }]}
@@ -653,7 +683,7 @@ export default function RegisterMeasurementScreen() {
                   />
                   <TextInput
                     accessibilityLabel="Hora de la medición"
-                    onChangeText={setTime}
+                    onChangeText={edited(setTime)}
                     placeholder="HH:MM"
                     placeholderTextColor={theme.icon}
                     style={[styles.dateInput, { color: theme.text }]}
@@ -662,6 +692,11 @@ export default function RegisterMeasurementScreen() {
                 </View>
               </View>
             </View>
+            {!!serverErrors.measuredAt && (
+              <ThemedText accessibilityRole="alert" style={styles.fieldError}>
+                {serverErrors.measuredAt}
+              </ThemedText>
+            )}
 
             {showReview && formIsValid && (
               <View
@@ -709,15 +744,33 @@ export default function RegisterMeasurementScreen() {
               </View>
             )}
 
+            {!!saveError && (
+              <View
+                accessibilityRole="alert"
+                style={[
+                  styles.saveError,
+                  { backgroundColor: theme.dangerBackground, borderColor: theme.dangerBorder },
+                ]}
+              >
+                <MaterialCommunityIcons name="alert-circle-outline" size={20} color={theme.danger} />
+                <ThemedText style={[styles.saveErrorText, { color: theme.danger }]}>
+                  {saveError}
+                </ThemedText>
+              </View>
+            )}
+
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: !formIsValid }}
-              disabled={!formIsValid}
+              accessibilityState={{ disabled: !formIsValid || submitting, busy: submitting }}
+              disabled={!formIsValid || submitting}
               onPress={save}
               style={({ pressed }) => [
                 styles.submitButton,
-                { backgroundColor: formIsValid ? accentColor : theme.disabled },
-                pressed && formIsValid && styles.pressed,
+                {
+                  backgroundColor:
+                    formIsValid && !submitting ? accentColor : theme.disabled,
+                },
+                pressed && formIsValid && !submitting && styles.pressed,
               ]}
             >
               <ThemedText
@@ -725,13 +778,21 @@ export default function RegisterMeasurementScreen() {
                 darkColor={BrandColors.onPrimary}
                 style={styles.submitLabel}
               >
-                {showReview ? "Guardar medición" : "Revisar medición"}
+                {submitting
+                  ? "Guardando…"
+                  : showReview
+                    ? "Guardar medición"
+                    : "Revisar medición"}
               </ThemedText>
-              <MaterialCommunityIcons
-                name={showReview ? "check-circle-outline" : "arrow-right"}
-                size={22}
-                color={BrandColors.onPrimary}
-              />
+              {submitting ? (
+                <ActivityIndicator color={BrandColors.onPrimary} />
+              ) : (
+                <MaterialCommunityIcons
+                  name={showReview ? "check-circle-outline" : "arrow-right"}
+                  size={22}
+                  color={BrandColors.onPrimary}
+                />
+              )}
             </Pressable>
 
             <View style={styles.integrationNote}>
@@ -814,6 +875,15 @@ function MeasurementInput({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  saveError: {
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  saveErrorText: { flex: 1, fontSize: 15, lineHeight: 21 },
   content: {
     gap: 17,
     paddingHorizontal: 16,

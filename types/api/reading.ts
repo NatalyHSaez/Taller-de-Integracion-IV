@@ -44,17 +44,32 @@ export type ReadingResponse = {
   measurements: MeasurementResponse[];
 };
 
+/** Contexto de una lectura de glucosa exigido por el backend. */
+export type ReadingContext = 'PREPRANDIAL' | 'POSTPRANDIAL';
+
 /**
- * Forma documentada para registrar una lectura.
- * Se incluye aquí para que mocks y servicios compartan el mismo contrato.
+ * Body de POST /api/v1/patients/{patientId}/readings.
+ * - measuredAt: ISO 8601 con zona horaria (por ejemplo 2026-11-05T08:30:00-03:00).
+ * - context: obligatorio para glucosa; se omite en las demás mediciones.
+ * - Sistólica y diastólica viajan siempre juntas en la misma lectura.
  */
 export type CreateReadingRequest = {
-  /** Contexto de la lectura (por ejemplo, ayunas en glucosa); null si no aplica. */
-  context: string | null;
   measuredAt: ISODateTime;
-  measurements: Array<{
+  source: 'mobile';
+  context?: ReadingContext;
+  measurements: {
     parameterCode: ClinicalParameterCode;
     value: number;
     unit: CanonicalUnit;
-  }>;
+  }[];
+};
+
+/**
+ * Respuesta de creación. Solo se exigen los campos que la app usa; el resto
+ * del ReadingOut del backend se ignora aquí.
+ */
+export type CreateReadingResponse = {
+  readingId: UUID;
+  status?: string;
+  confirmationReasons?: string[];
 };
