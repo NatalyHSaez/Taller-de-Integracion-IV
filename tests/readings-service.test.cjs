@@ -115,3 +115,20 @@ test('errores con el formato real del backend ({ detail, errorCode }) también v
   // Un código que no viene en la lectura no se asigna a un campo equivocado.
   assert.ok(real('UNKNOWN_PARAMETER', 'Parámetro desconocido: GLUCOSE').general);
 });
+
+test('patientId activo: el paciente usa su id; el cuidador, el paciente seleccionado', () => {
+  try {
+    fakes.setRole('PATIENT');
+    assert.equal(readings.resolveActivePatientId(), PATIENT);
+
+    fakes.setRole('CAREGIVER');
+    fakes.selectPatient(null);
+    assert.throws(() => readings.resolveActivePatientId(), { code: 'PATIENT_REQUIRED' });
+
+    fakes.selectPatient({ id: 'paciente-vinculado-1', name: 'Rosa', email: '' });
+    assert.equal(readings.resolveActivePatientId(), 'paciente-vinculado-1');
+  } finally {
+    fakes.setRole('PATIENT');
+    fakes.selectPatient(null);
+  }
+});

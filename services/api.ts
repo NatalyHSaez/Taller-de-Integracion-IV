@@ -742,3 +742,185 @@ export async function logoutLocal(): Promise<void> {
   sessionHandlers.expired();
   await clearTokens();
 }
+
+
+// ==========================================================================
+// Funciones integradas desde la rama de Martin (TI4-5 a TI4-9, TI4-66, TI4-67).
+// Usan directamente el contrato camelCase del backend (domicilia), igual que
+// el resto de este archivo; el login, el registro y /me siguen siendo los de
+// arriba (Sebastian). El registro y la confirmación de lecturas viven en
+// services/readings.ts.
+// ==========================================================================
+
+/*
+ * Pacientes reales vinculados al cuidador o médico.
+ * GET /api/v1/me/patients
+ */
+export type MyPatientResponse = {
+  patientId: string;
+  fullName: string;
+  relationshipId: string;
+  relationshipType: "CAREGIVER" | "DOCTOR";
+  permissions: string[];
+  linkedAt: string;
+};
+
+export async function getMePatients(): Promise<MyPatientResponse[]> {
+  return apiClient.get<MyPatientResponse[]>("/me/patients");
+}
+
+/*
+ * TI4-66: Listados reales de cuidadores y médicos
+ * vinculados a un paciente.
+ */
+
+export type LinkedUserResponse = {
+  relationshipId: string;
+  userId: string;
+  fullName: string;
+  permissions: string[];
+  linkedAt: string;
+};
+
+export async function getPatientCaregivers(
+  patientId: string,
+): Promise<LinkedUserResponse[]> {
+  return apiClient.get<LinkedUserResponse[]>(
+    `/patients/${encodeURIComponent(patientId)}/caregivers`,
+  );
+}
+
+export async function getPatientDoctors(
+  patientId: string,
+): Promise<LinkedUserResponse[]> {
+  return apiClient.get<LinkedUserResponse[]>(
+    `/patients/${encodeURIComponent(patientId)}/doctors`,
+  );
+}
+
+/* TI4-67: Gestión real de permisos y revocación. */
+export async function updateCaregiverPermissions(
+  relationshipId: string,
+  permissions: string[],
+): Promise<LinkedUserResponse> {
+  return apiClient.put<LinkedUserResponse>(
+    `/caregiver-relationships/${encodeURIComponent(relationshipId)}/permissions`,
+    { permissions },
+  );
+}
+
+export async function revokeCaregiverRelationship(
+  relationshipId: string,
+): Promise<void> {
+  return apiClient.delete<void>(
+    `/caregiver-relationships/${encodeURIComponent(relationshipId)}`,
+  );
+}
+
+export async function revokeDoctorRelationship(
+  relationshipId: string,
+): Promise<void> {
+  return apiClient.delete<void>(
+    `/doctor-relationships/${encodeURIComponent(relationshipId)}`,
+  );
+}
+
+/*
+ * Generar un código temporal de vinculación.
+ * POST /api/v1/patients/{patientId}/link-codes
+ */
+export type LinkCodeResponse = {
+  id: string;
+  code: string;
+  type: "CAREGIVER" | "DOCTOR";
+  expiresAt: string;
+};
+
+export async function createPatientLinkCode(
+  patientId: string,
+  type: "CAREGIVER" | "DOCTOR" = "CAREGIVER",
+): Promise<LinkCodeResponse> {
+  return apiClient.post<LinkCodeResponse>(
+    `/patients/${encodeURIComponent(patientId)}/link-codes`,
+    { type },
+  );
+}
+
+/*
+ * Consumir un código de vinculación.
+ * POST /api/v1/link-codes/consume
+ */
+export type ConsumeLinkCodeResponse = {
+  relationshipId: string;
+  relationshipType: "CAREGIVER" | "DOCTOR";
+  patientId: string;
+  patientName: string;
+  permissions: string[];
+  linkedAt: string;
+};
+
+export async function consumeLinkCode(
+  code: string,
+): Promise<ConsumeLinkCodeResponse> {
+  return apiClient.post<ConsumeLinkCodeResponse>(
+    "/link-codes/consume",
+    { code: code.trim().toUpperCase() },
+  );
+}
+
+export type PatientProfileResponse = {
+  id: string;
+  fullName: string;
+  birthDate: string | null;
+  age: number | null;
+  biologicalSex: string | null;
+  managementMode: string;
+};
+
+export async function getPatient(
+  patientId: string,
+): Promise<PatientProfileResponse> {
+  return apiClient.get<PatientProfileResponse>(
+    `/patients/${encodeURIComponent(patientId)}`,
+  );
+}
+
+/* Lecturas del paciente (historial). GET /api/v1/patients/{patientId}/readings */
+export type ReadingResponse = {
+  readingId: string;
+  patientId: string;
+  measuredAt: string;
+  status: "PENDING" | "REQUIRES_CONFIRMATION" | "EVALUATED";
+  confirmationReasons: string[];
+  measurements: {
+    measurementId: string;
+    parameterCode: string;
+    value: number;
+    unit: string | null;
+    confirmedByUser: boolean;
+  }[];
+  context?: string | null;
+  source?: string;
+  recordedBy?: string;
+  evaluation?: {
+    status: string;
+    severity: string | null;
+    explanation: string | null;
+    evaluatedAt: string | null;
+  } | null;
+};
+
+export type PaginatedReadingsResponse = {
+  total: number;
+  page: number;
+  size: number;
+  items: ReadingResponse[];
+};
+
+export async function getPatientReadings(
+  patientId: string,
+): Promise<PaginatedReadingsResponse> {
+  return apiClient.get<PaginatedReadingsResponse>(
+    `/patients/${encodeURIComponent(patientId)}/readings`,
+  );
+}

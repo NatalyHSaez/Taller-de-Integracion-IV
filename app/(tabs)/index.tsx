@@ -1,17 +1,22 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { Action } from '@/components/flow-ui';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getDemoAlerts } from '@/services/alerts';
 import { BrandColors, Colors, MeasurementColors, StatusColors } from '@/constants/theme';
 import { useAppState } from '@/hooks/use-app-state';
-import { useDemo } from '@/hooks/use-demo';
-import { Action } from '@/components/flow-ui';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDemo } from '@/hooks/use-demo';
+import { getDemoAlerts } from '@/services/alerts';
 import type { Measurement, MeasurementType } from '@/types/measurement';
+
+import { useAuth } from '@/hooks/use-auth';
+import {
+  getEmergencyContact
+} from '@/services/emergency-contact';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -62,8 +67,19 @@ function formatMeasurementDate(date: string) {
 }
 
 export default function ResumenScreen() {
-  const { user, selectedPatient } = useAppState();
+  const { user, selectedPatient, sessionMode } = useAppState();
+  const { user: authUser } = useAuth();
+
+  const emergencyPatientId =
+    sessionMode === 'backend'
+      ? authUser?.roles.includes('PATIENT')
+        ? authUser.id
+        : selectedPatient?.id ?? null
+      : selectedPatient?.id ?? null;
+  const isRealSession = sessionMode === "backend";
   const { measurements, permissions, relations } = useDemo();
+  const canRegisterMeasurement =
+    !isRealSession && permissions.write;
   const pendingCount = relations.filter(
     (relation) => relation.patientId === selectedPatient?.id && relation.status === 'pending',
   ).length;
@@ -72,22 +88,111 @@ export default function ResumenScreen() {
   const themeName = colorScheme === 'dark' ? 'dark' : 'light';
   const theme = Colors[themeName];
   const measurementColors = MeasurementColors[themeName];
-  const summaries = (['blood_pressure', 'glucose', 'weight'] as const)
-    .map((type) => getMeasurementSummary(type, measurements))
-    .filter((summary): summary is MeasurementSummary => Boolean(summary));
+  const summaries = isRealSession
+    ? []
+    : (['blood_pressure', 'glucose', 'weight'] as const)
+        .map((type) => getMeasurementSummary(type, measurements))
+        .filter((summary): summary is MeasurementSummary => Boolean(summary));
   const priorityAlert =
-    permissions.alerts ? getDemoAlerts()[0] : undefined;
+    !isRealSession && permissions.alerts
+      ? getDemoAlerts()[0]
+      : undefined;
 
+  
   const handleEmergencyPress = () => {
     Alert.alert(
       '¿Necesitas ayuda?',
-      'Cuando los contactos de emergencia estén configurados, podrás avisarles desde aquí.',
+      'Selecciona a quién deseas llamar.',
       [
+        {
+          text: 'Servicio de emergencias (131)',
+          onPress: () => {
+            Alert.alert(
+              'Confirmar llamada',
+              '¿Deseas abrir el teléfono para llamar al SAMU (131)?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Abrir teléfono',
+                  onPress: () => {
+                    Linking.openURL('tel:131').catch(() => {
+                      Alert.alert(
+                        'No se pudo abrir el teléfono',
+                        'Tu dispositivo no pudo abrir el marcador telefónico.'
+                      );
+                    });
+                  },
+                },
+              ]
+            );
+          },
+        },
+        
+        {
+          text: 'Contacto de emergencia',
+          onPress: async () => {
+            if (!emergencyPatientId) {
+              Alert.alert(
+                'Sin paciente',
+                'No hay un paciente seleccionado.'
+              );
+              return;
+            }
+
+            try {
+              const contact = await getEmergencyContact(emergencyPatientId);
+
+              if (!contact) {
+                Alert.alert(
+                  'Contacto no configurado',
+                  'Todavía no tienes un contacto de emergencia registrado.',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Configurar contacto',
+                      onPress: () => router.push('../contacto-emergencia'),
+                    },
+                  ]
+                );
+                return;
+              }
+
+              Alert.alert(
+                'Confirmar llamada',
+                `¿Deseas abrir el teléfono para llamar a ${contact.name} (${contact.phone})?`,
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Editar contacto',
+                    onPress: () => router.push('/contacto-emergencia'),
+                  },
+                  {
+                    text: 'Abrir teléfono',
+                    onPress: () => {
+                      Linking.openURL(`tel:${contact.phone}`).catch(() => {
+                        Alert.alert(
+                          'No se pudo abrir el teléfono',
+                          'Tu dispositivo no pudo abrir el marcador telefónico.'
+                        );
+                      });
+                    },
+                  },
+                ]
+              );
+            } catch {
+              Alert.alert(
+                'Error',
+                'No se pudo consultar el contacto de emergencia.'
+              );
+            }
+          },
+        },
+
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Entendido' },
       ]
     );
   };
+
 
   return (
     <ThemedView style={styles.screen}>
@@ -107,11 +212,11 @@ export default function ResumenScreen() {
           <View style={styles.actions}>
           <Pressable
             accessibilityLabel="Registrar medición"
-            disabled={!permissions.write}
-            accessibilityState={{ disabled: !permissions.write }}
+            disabled={!canRegisterMeasurement}
+            accessibilityState={{ disabled: !canRegisterMeasurement }}
             accessibilityRole="button"
             onPress={() => router.push('/registrar-medicion')}
-            style={({ pressed }) => [styles.registerButton, !permissions.write && { opacity: 0.45 }, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.registerButton, !canRegisterMeasurement && { opacity: 0.45 }, pressed && styles.pressed]}>
             <MaterialCommunityIcons color={theme.primary} name="plus-circle-outline" size={22} />
             <ThemedText
               lightColor={theme.primary}
@@ -155,10 +260,20 @@ export default function ResumenScreen() {
             </View>
             <View style={styles.emptyCopy}>
               <ThemedText style={styles.emptyTitle}>
-                {permissions.read ? 'Aún no hay mediciones' : 'Mediciones no disponibles'}
+                {isRealSession
+                  ? 'Mediciones no disponibles'
+                  : permissions.read
+                    ? 'Aún no hay mediciones'
+                    : 'Mediciones no disponibles'}
               </ThemedText>
               <ThemedText style={[styles.emptyDescription, { color: theme.mutedText }]}>
-                {permissions.read ? 'Registra la primera para verla aquí.' : 'El paciente aún no te ha dado acceso.'}
+                {isRealSession
+                  ? selectedPatient
+                    ? 'Las mediciones reales estarán disponibles cuando se conecte esta función al backend.'
+                    : 'Selecciona un paciente vinculado para consultar sus mediciones.'
+                  : permissions.read
+                    ? 'Registra la primera para verla aquí.'
+                    : 'El paciente aún no te ha dado acceso.'}
               </ThemedText>
             </View>
           </View>
@@ -194,7 +309,7 @@ export default function ResumenScreen() {
               </Pressable>
             );
           })}
-          {permissions.write && <Pressable
+          {canRegisterMeasurement && <Pressable
             accessibilityLabel="Registrar otra medición"
             accessibilityRole="button"
             onPress={() => router.push('/registrar-medicion')}

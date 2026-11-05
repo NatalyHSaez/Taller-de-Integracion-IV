@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useMemo, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, SectionList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,9 +8,14 @@ import { MeasurementCard } from '@/components/measurement-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BrandColors, Colors } from '@/constants/theme';
-import { useDemo } from '@/hooks/use-demo';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDemo } from '@/hooks/use-demo';
 import type { Measurement, MeasurementFilter } from '@/types/measurement';
+
+import { useAppState } from '@/hooks/use-app-state';
+import { useAuth } from '@/hooks/use-auth';
+import { getPatientReadings } from '@/services/api';
+import { readingsToMeasurements } from '@/services/reading-to-measurements';
 
 const FILTERS: { label: string; value: MeasurementFilter }[] = [
   { label: 'Todas', value: 'all' },
@@ -82,10 +87,81 @@ function buildSections(measurements: Measurement[]): MeasurementSection[] {
   return Array.from(sections.values());
 }
 
+
 export default function MeasurementHistoryScreen() {
   const router = useRouter();
-  const { measurements } = useDemo();
+  const { measurements: demoMeasurements } = useDemo();
+  const { selectedPatient, sessionMode } = useAppState();
+  const { user: authUser } = useAuth();
+
+  const isBackend = sessionMode === 'backend';
+
+  const patientId = isBackend
+    ? authUser?.roles.includes('PATIENT')
+      ? authUser.id
+      : authUser?.roles.includes('CAREGIVER')
+        ? selectedPatient?.id ?? null
+        : null
+    : null;
+
+  const [realMeasurements, setRealMeasurements] = useState<{
+    patientId: string;
+    items: Measurement[];
+  } | null>(null);
+
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
+  const [measurementsError, setMeasurementsError] = useState<string | null>(null);
+
   const [activeFilter, setActiveFilter] = useState<MeasurementFilter>('all');
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isBackend || !patientId) {
+        setRealMeasurements(null);
+        setLoadingMeasurements(false);
+        setMeasurementsError(null);
+        return;
+      }
+
+      let cancelled = false;
+
+      setLoadingMeasurements(true);
+      setMeasurementsError(null);
+
+      getPatientReadings(patientId)
+        .then((response) => {
+          if (cancelled) return;
+
+          setRealMeasurements({
+            patientId,
+            items: readingsToMeasurements(response.items),
+          });
+        })
+        .catch((error) => {
+          if (cancelled) return;
+
+          console.error('Error cargando historial:', error);
+          setRealMeasurements(null);
+          setMeasurementsError('No se pudo cargar el historial.');
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingMeasurements(false);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isBackend, patientId])
+  );
+
+  const measurements: Measurement[] = isBackend
+    ? realMeasurements?.patientId === patientId
+      ? realMeasurements.items
+      : []
+    : demoMeasurements;
+
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = Colors[isDark ? 'dark' : 'light'];
@@ -196,15 +272,37 @@ export default function MeasurementHistoryScreen() {
           );
         }}
         ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="clipboard-text-outline" size={40} color={theme.icon} />
-            <ThemedText style={styles.emptyTitle}>Aún no hay mediciones registradas.</ThemedText>
-            <ThemedText style={[styles.emptyMessage, { color: theme.icon }]}>
-              Las mediciones que registres aparecerán aquí.
-            </ThemedText>
-          </View>
-        }
+        
+    ListEmptyComponent={
+      <View style={styles.emptyState}>
+        <MaterialCommunityIcons
+          name="clipboard-text-outline"
+          size={40}
+          color={theme.icon}
+        />
+
+        <ThemedText style={styles.emptyTitle}>
+          {isBackend && !patientId
+            ? 'Selecciona un paciente.'
+            : isBackend && loadingMeasurements
+              ? 'Cargando mediciones...'
+              : isBackend && measurementsError
+                ? 'No se pudo cargar el historial.'
+                : 'Aún no hay mediciones registradas.'}
+        </ThemedText>
+
+        <ThemedText style={[styles.emptyMessage, { color: theme.icon }]}>
+          {isBackend && !patientId
+            ? 'Selecciona un paciente para consultar sus registros.'
+            : isBackend && loadingMeasurements
+              ? 'Consultando los registros del servidor.'
+              : isBackend && measurementsError
+                ? measurementsError
+                : 'Las mediciones que registres aparecerán aquí.'}
+        </ThemedText>
+      </View>
+    }
+
       />
     </ThemedView>
   );

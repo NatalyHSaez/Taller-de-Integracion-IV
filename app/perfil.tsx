@@ -2,59 +2,82 @@ import { HealthInformation } from "@/components/profile/health-information";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Colors } from "@/constants/theme";
+import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
 import { demo } from "@/services/demo-store";
 
+import { getPatient } from "@/services/api";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { updateMyProfile, profileErrorMessage } from "@/services/profile";
 
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, } from "react-native";
 
 export default function Profile() {
-  const { user: demoUser, patients } = useDemo();
+  
+const {
+  user: demoUser,
+  patients,
+  patient: activePatient,
+  selectedId,
+} = useDemo();
 
-  const { user: authUser, authenticated, signOut } = useAuth();
+const {
+  user: authUser,
+  authenticated,
+  loading: authLoading,
+  signOut,
+} = useAuth();
 
-  const router = useRouter();
+const router = useRouter();
+const {
+  patients: globalPatients,
+  selectedPatient,
+  selectPatient,
+} = useAppState();
 
-  const colorScheme = useColorScheme();
+const colorScheme = useColorScheme();
 
-  const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
+const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
 
-  // ==========================================================
-  // DATOS DEL USUARIO
-  // ==========================================================
+// ==========================================================
+// TI4-8: DATOS REALES DEL USUARIO
+// ==========================================================
 
-  /*
-   * Si existe una sesión real utilizamos primero
-   * los datos entregados por /me.
-   *
-   * Si estamos utilizando una cuenta mock,
-   * recurrimos a demo-store.
-   */
-  const displayName: string =
-    authUser?.fullName ?? demoUser?.name ?? "Usuario";
+// Mientras se restaura la sesión, no mostramos datos mock.
+const isRealSession = authenticated;
 
-  const displayEmail: string = authUser?.email ?? demoUser?.email ?? "";
+// Nombre y correo provenientes de GET /me cuando
+// existe una sesión autenticada.
+const displayName: string = authLoading
+  ? "Cargando..."
+  : isRealSession
+    ? authUser?.fullName ?? "Usuario"
+    : demoUser?.name ?? "Usuario";
 
-  const realRole = authUser?.roles?.[0];
+const displayEmail: string = authLoading
+  ? ""
+  : isRealSession
+    ? authUser?.email ?? ""
+    : demoUser?.email ?? "";
 
-  const displayRole: string =
-    realRole === "PATIENT" || demoUser?.role === "patient"
+// El rol real tiene prioridad absoluta sobre el mock.
+const realRole = authUser?.roles?.[0];
+
+const displayRole: string = authLoading
+  ? "Usuario"
+  : isRealSession
+    ? realRole === "PATIENT"
       ? "Paciente"
-      : realRole === "CAREGIVER" || demoUser?.role === "caregiver"
+      : realRole === "CAREGIVER"
+        ? "Cuidador"
+        : "Usuario"
+    : demoUser?.role === "patient"
+      ? "Paciente"
+      : demoUser?.role === "caregiver"
         ? "Cuidador"
         : "Usuario";
 
@@ -74,12 +97,83 @@ export default function Profile() {
    *
    * No inventamos un dato para una cuenta real.
    */
-  const [birthDate, setBirthDate] = useState("");
+  
+const [birthDate, setBirthDate] = useState("");
+const [birthDateLoading, setBirthDateLoading] = useState(false);
+const [birthDateError, setBirthDateError] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [profileError, setProfileError] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
+useEffect(() => {
+  let cancelled = false;
+
+  // Cada vez que cambia la cuenta, limpiamos los
+  // datos del paciente anterior.
+  setBirthDate("");
+  setBirthDateError(false);
+  setBirthDateLoading(false);
+
+  if (
+    !authenticated ||
+    authLoading ||
+    !authUser?.id ||
+    !authUser.roles?.includes("PATIENT")
+  ) {
+    return;
+  }
+
+  setBirthDateLoading(true);
+
+  async function loadPatientProfile() {
+    try {
+      const patient = await getPatient(authUser!.id);
+
+      if (cancelled) return;
+
+      if (patient.birthDate) {
+        const [year, month, day] =
+          patient.birthDate.split("-");
+
+        setBirthDate(`${day}/${month}/${year}`);
+      }
+    } catch (error) {
+      if (cancelled) return;
+
+      console.warn(
+        "[perfil] No fue posible obtener los datos del paciente:",
+        error,
+      );
+
+      setBirthDateError(true);
+    } finally {
+      if (!cancelled) {
+        setBirthDateLoading(false);
+      }
+    }
+  }
+
+  void loadPatientProfile();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  authenticated,
+  authLoading,
+  authUser?.id,
+  authUser?.roles,
+]);
+  
+
+const displayedPatients = isRealSession
+  ? globalPatients
+  : patients;
+
+const activeSelectedId = isRealSession
+  ? selectedPatient?.id ?? null
+  : selectedId;
 
   const startEditing = () => {
     setName(displayName === "Usuario" ? "" : displayName);
@@ -188,6 +282,9 @@ export default function Profile() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        
+    
+
         {/* CABECERA */}
         <View
           style={[
@@ -299,11 +396,17 @@ export default function Profile() {
               />
 
               <Divider color={theme.border} />
-
+              
               <InfoRow
                 icon="calendar-outline"
                 label="Fecha de nacimiento"
-                value={birthDate}
+                value={
+                  birthDateLoading
+                    ? "Cargando..."
+                    : birthDateError
+                      ? "No se pudo obtener la fecha"
+                      : birthDate
+                }
                 color={theme.primary}
               />
 
@@ -392,7 +495,7 @@ export default function Profile() {
                       color: theme.text,
                     },
                   ]}
-                  editable={!saving}
+                  editable={!authenticated && !saving}
                   value={birthDate}
                   onChangeText={setBirthDate}
                   placeholder="DD/MM/AAAA"
@@ -403,19 +506,20 @@ export default function Profile() {
 
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{ disabled: saving, busy: saving }}
                 disabled={saving}
                 onPress={saveProfile}
                 style={({ pressed }) => [
                   styles.primaryButton,
                   {
                     backgroundColor: theme.primary,
+                    opacity: saving ? 0.7 : 1,
                   },
-
-                  pressed && styles.pressed,
+                  pressed && !saving && styles.pressed,
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="check"
+                  name={saving ? "loading" : "check"}
                   size={20}
                   color="#FFFFFF"
                 />
@@ -520,32 +624,28 @@ export default function Profile() {
                 },
               ]}
             >
-              {patients.length > 0 ? (
-                patients.map((patient) => (
+              {displayedPatients.length > 0 ? (
+                displayedPatients.map((patient) => (
+                  <View key={patient.id}>
                   <Pressable
                     key={patient.id}
                     accessibilityRole="button"
                     accessibilityLabel={`Seleccionar a ${patient.name}`}
                     onPress={() => {
-                      /*
-                       * Guardamos el paciente
-                       * seleccionado.
-                       */
-                      demo.select(patient.id);
-
-                      /*
-                       * La antigua ruta:
-                       *
-                       * /paciente-vinculado
-                       *
-                       * no existe en el proyecto
-                       * actual.
-                       *
-                       * Entramos al área principal
-                       * utilizando al paciente
-                       * seleccionado.
-                       */
-                      router.replace("/(tabs)");
+                      if (isRealSession) {
+                        selectPatient(patient.id);
+                        return;
+                      }
+                      try {
+                        demo.select(patient.id);
+                      } catch (error) {
+                        Alert.alert(
+                          "Error al seleccionar paciente",
+                          error instanceof Error
+                            ? error.message
+                            : "No fue posible seleccionar al paciente.",
+                        );
+                      }
                     }}
                     style={({ pressed }) => [
                       styles.patientRow,
@@ -577,21 +677,65 @@ export default function Profile() {
                         style={[
                           styles.patientDescription,
                           {
-                            color: theme.mutedText,
+                            color:
+                              activeSelectedId === patient.id
+                                ? theme.primary
+                                : theme.mutedText,
                           },
                         ]}
                       >
-                        Paciente vinculado
+                        {activeSelectedId === patient.id
+                          ? "Paciente activo"
+                          : "Toca para seleccionar"}
                       </ThemedText>
                     </View>
 
                     <MaterialCommunityIcons
-                      name="chevron-right"
+                      name={
+                        activeSelectedId === patient.id
+                          ? "check-circle"
+                          : "chevron-right"
+                      }
                       size={25}
-                      color={theme.mutedText}
+                      color={
+                        activeSelectedId === patient.id
+                          ? theme.primary
+                          : theme.mutedText
+                      }
                     />
+                  
                   </Pressable>
+
+                  {activeSelectedId === patient.id && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ver ficha de ${patient.name}`}
+                      onPress={() => router.push('/paciente-vinculado')}
+                      style={({ pressed }) => [
+                        styles.secondaryButton,
+                        { borderColor: theme.primary, marginTop: 8 },
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="card-account-details-outline"
+                        size={20}
+                        color={theme.primary}
+                      />
+
+                      <ThemedText
+                        style={[
+                          styles.secondaryButtonText,
+                          { color: theme.primary },
+                        ]}
+                      >
+                        Ver ficha del paciente
+                      </ThemedText>
+                    </Pressable>
+                  )}
+                </View>
                 ))
+
               ) : (
                 <View style={styles.emptyPatients}>
                   <MaterialCommunityIcons

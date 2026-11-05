@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Dimensions,
   Pressable,
@@ -20,6 +21,12 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 import type { MeasurementType } from '@/types/measurement';
+
+import { useAppState } from '@/hooks/use-app-state';
+import { useAuth } from '@/hooks/use-auth';
+import { getPatientReadings } from '@/services/api';
+import { readingsToMeasurements } from '@/services/reading-to-measurements';
+import type { Measurement } from '@/types/measurement';
 
 type GraphType = MeasurementType;
 
@@ -77,7 +84,75 @@ function formatTime(value: string) {
 }
 
 export default function GraficosScreen() {
-  const { measurements } = useDemo();
+  const { measurements: demoMeasurements } = useDemo();
+  const { selectedPatient, sessionMode } = useAppState();
+  const { user: authUser } = useAuth();
+
+  const isBackend = sessionMode === 'backend';
+
+  const patientId = isBackend
+    ? authUser?.roles.includes('PATIENT')
+      ? authUser.id
+      : authUser?.roles.includes('CAREGIVER')
+        ? selectedPatient?.id ?? null
+        : null
+    : null;
+
+  const [realMeasurements, setRealMeasurements] = useState<{
+    patientId: string;
+    items: Measurement[];
+  } | null>(null);
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
+  const [measurementsError, setMeasurementsError] = useState<string | null>(null);
+  
+  useFocusEffect(
+    useCallback(() => {
+      if (!isBackend || !patientId) {
+        setRealMeasurements(null);
+        setLoadingMeasurements(false);
+        setMeasurementsError(null);
+        return;
+      }
+
+      let cancelled = false;
+
+      setLoadingMeasurements(true);
+      setMeasurementsError(null);
+
+      getPatientReadings(patientId)
+        .then((response) => {
+          if (cancelled) return;
+
+          setRealMeasurements({
+            patientId,
+            items: readingsToMeasurements(response.items),
+          });
+        })
+        .catch((error) => {
+          if (cancelled) return;
+
+          console.error('Error cargando mediciones:', error);
+          setRealMeasurements(null);
+          setMeasurementsError('No se pudieron cargar las mediciones.');
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingMeasurements(false);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isBackend, patientId])
+  );
+
+
+  const measurements: Measurement[] = isBackend
+    ? realMeasurements?.patientId === patientId
+      ? realMeasurements.items
+      : []
+    : demoMeasurements;
 
   const [graphType, setGraphType] =
     useState<GraphType>('blood_pressure');
@@ -198,6 +273,23 @@ export default function GraficosScreen() {
   }, [measurements, graphType]);
 
   function getLatestValue() {
+    if (
+      isBackend &&
+      patientId &&
+      (loadingMeasurements || realMeasurements?.patientId !== patientId) &&
+      !measurementsError
+    ) {
+      return 'Cargando...';
+    }
+
+    if (isBackend && measurementsError) {
+      return 'No disponible';
+    }
+
+    if (isBackend && !patientId) {
+      return 'Selecciona un paciente';
+    }
+
     if (!latestMeasurement) {
       return 'Sin datos';
     }
@@ -228,6 +320,34 @@ export default function GraficosScreen() {
   }
 
   function renderChart() {
+    if (isBackend && patientId && (loadingMeasurements || realMeasurements?.patientId !== patientId) && !measurementsError) {
+      return (
+        <View style={styles.emptyState}>
+          <ThemedText style={styles.emptyTitle}>
+            Cargando mediciones...
+          </ThemedText>
+        </View>
+      );
+    }
+
+    if (isBackend && measurementsError) {
+      return (
+        <View style={styles.emptyState}>
+          <ThemedText style={styles.emptyTitle}>
+            No se pudieron cargar las mediciones
+          </ThemedText>
+
+          <ThemedText
+            style={[
+              styles.emptyDescription,
+              { color: theme.icon },
+            ]}
+          >
+            Comprueba tu conexión e inténtalo nuevamente.
+          </ThemedText>
+        </View>
+      );
+    }
     if (!hasData) {
       return (
         <View style={styles.emptyState}>
@@ -262,6 +382,7 @@ export default function GraficosScreen() {
       return (
         <View>
           <LineChart
+            key={`pressure-${patientId ?? 'demo'}-${systolicData.length}-${systolicData.at(-1)?.measuredAt ?? ''}`}
             data={systolicData}
             data2={diastolicData}
 
@@ -474,6 +595,7 @@ export default function GraficosScreen() {
       return (
         <View>
           <LineChart
+            key={`glucose-${patientId ?? 'demo'}-${glucoseData.length}-${glucoseData.at(-1)?.measuredAt ?? ''}`}
             data={glucoseData}
 
             color={selectedColors.accent}
@@ -649,6 +771,7 @@ export default function GraficosScreen() {
     return (
       <View>
         <LineChart
+          key={`weight-${patientId ?? 'demo'}-${weightData.length}-${weightData.at(-1)?.measuredAt ?? ''}`}
           data={weightData}
 
           color={selectedColors.accent}

@@ -39,8 +39,18 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
       },
     },
   });
+  const session = { role };
   mockModule('services/auth-session.ts', {
-    authSession: { mode: () => mode, user: () => ({ id: userId, nombre_completo: 'Prueba', correo: 'p@x.cl', roles: [role] }) },
+    authSession: {
+      mode: () => mode,
+      user: () => ({ id: userId, fullName: 'Prueba', email: 'p@x.cl', roles: [session.role] }),
+      subscribe: () => () => {},
+    },
+  });
+  // Paciente elegido en el selector real (solo lo usan los cuidadores).
+  const selection = { selectedPatient: null };
+  mockModule('services/app-state.ts', {
+    appState: { snapshot: () => ({ selectedPatient: selection.selectedPatient }) },
   });
   mockModule('services/demo-store.ts', {
     demo: {
@@ -70,6 +80,10 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
     replyPost: (reply) => replies.post.push(reply),
     replyGet: (reply) => replies.get.push(reply),
     userId,
+    /** Cambia el rol del usuario de la sesión (PATIENT, CAREGIVER...). */
+    setRole: (value) => { session.role = value; },
+    /** Simula el paciente elegido en "Mis pacientes". */
+    selectPatient: (patient) => { selection.selectedPatient = patient; },
   };
 }
 

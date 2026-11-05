@@ -58,13 +58,23 @@ export default function LoginScreen() {
     setError("");
     try {
       await authService.login(cleanEmail, password, demoMode ? 'mock' : 'backend');
+      // Cuidador con sesión real: carga sus pacientes vinculados (GET /me/patients)
+      // antes de decidir la navegación. Si falla, igual entra: Inicio y
+      // "Seleccionar paciente" permiten reintentar.
+      if (!demoMode && appState.snapshot().user?.role === 'caregiver') {
+        await appState.loadRealPatients().catch(() => {});
+      }
       const state = appState.snapshot();
       // /me ya fue consultado por login: no duplicar ni publicar una sesión a medias.
       setPassword("");
       router.replace(
         demoMode && state.user?.role === 'caregiver' && demo.snapshot().pendingToken
           ? '/invitacion'
-          : state.selectedPatient ? '/(tabs)' : '/(auth)/select-patient'
+          : // En sesión real, pacientes y cuidadores (aunque aún no tengan
+            // pacientes vinculados) entran a Inicio.
+            state.sessionMode === 'backend' || state.selectedPatient
+            ? '/(tabs)'
+            : '/(auth)/select-patient'
       );
     } catch (cause) {
       setError(loginErrorMessage(cause));

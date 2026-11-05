@@ -10,6 +10,7 @@ import type {
 import type { Measurement } from '@/types/measurement';
 
 import { apiClient } from './api';
+import { appState } from './app-state';
 import { authSession } from './auth-session';
 import {
   type ClinicalParameterCatalog,
@@ -181,9 +182,8 @@ export function buildCreateReadingRequest(input: {
 /**
  * patientId activo para registrar.
  * - Sesión backend como paciente: su propio id de usuario (sesión).
- * - Sesión backend como cuidador: requiere el selector real de pacientes
- *   vinculados (/me/patients), que aún no está integrado en esta rama; por eso
- *   se bloquea en vez de usar un id local que el backend no reconocería.
+ * - Sesión backend como cuidador: el paciente elegido en el selector real
+ *   (GET /me/patients, services/app-state.ts).
  * - Sesión mock: el paciente seleccionado en el selector demo.
  */
 export function resolveActivePatientId(): string {
@@ -201,9 +201,18 @@ export function resolveActivePatientId(): string {
   }
   if (user.roles.includes('PATIENT')) return user.id;
 
+  if (user.roles.includes('CAREGIVER')) {
+    const selected = appState.snapshot().selectedPatient;
+    if (selected) return selected.id;
+    throw new ApiError({
+      code: 'PATIENT_REQUIRED',
+      message: 'Selecciona en "Mis pacientes" a quién acompañas antes de registrar.',
+    });
+  }
+
   throw new ApiError({
     code: 'PATIENT_SELECTION_UNAVAILABLE',
-    message: 'El registro para pacientes vinculados estará disponible cuando se integre la selección de pacientes con el servidor.',
+    message: 'Esta cuenta no puede registrar mediciones desde la app.',
   });
 }
 
