@@ -244,8 +244,45 @@ function toDemoMeasurement(request: CreateReadingRequest): Measurement {
   return { ...base, type: 'weight', value: measurementOf(request, 'WEIGHT', 'kg'), unit: 'kg' };
 }
 
-function toCreateResponse(raw: unknown): CreateReadingResponse {
+/** Estados de lectura que informa el backend. */
+export type ReadingStatus = 'REQUIRES_CONFIRMATION' | 'PENDING' | 'EVALUATED' | (string & {});
+
+/** Texto neutro para cada estado. No interpreta valores ni da diagnósticos. */
+export const READING_STATUS_LABELS: Record<string, { title: string; description: string }> = {
+  REQUIRES_CONFIRMATION: {
+    title: 'Pendiente de tu confirmación',
+    description: 'El servicio no evaluará esta lectura hasta que confirmes que los valores son correctos.',
+  },
+  PENDING: {
+    title: 'Pendiente de evaluación',
+    description: 'La lectura quedó registrada. La evaluación se realiza de forma asíncrona y puede tardar unos momentos; el resultado aparecerá en el historial.',
+  },
+  EVALUATED: {
+    title: 'Evaluada',
+    description: 'La lectura quedó registrada y el servicio ya la procesó. Puedes revisarla en el historial.',
+  },
+};
+
+export function readingStatusLabel(status: string | undefined) {
+  return (
+    READING_STATUS_LABELS[status ?? ''] ?? {
+      title: 'Registrada',
+      description: 'La lectura quedó registrada en el servicio. Puedes revisarla en el historial.',
+    }
+  );
+}
+
+function toCreateResponse(raw: unknown, expectedReadingId?: string): CreateReadingResponse {
   const value = (raw ?? {}) as Record<string, unknown>;
+  if (expectedReadingId && value.readingId === undefined) {
+    value.readingId = expectedReadingId;
+  }
+  if (expectedReadingId && value.readingId !== expectedReadingId) {
+    throw new ApiError({
+      code: 'INVALID_API_RESPONSE',
+      message: 'El servidor respondió con otra lectura. Actualiza el estado antes de continuar.',
+    });
+  }
   if (typeof value.readingId !== 'string') {
     throw new ApiError({
       code: 'INVALID_API_RESPONSE',
@@ -261,7 +298,50 @@ function toCreateResponse(raw: unknown): CreateReadingResponse {
   };
 }
 
-let inFlightCreate: Promise<CreateReadingResponse> | null = null;
+/**
+ * Envíos en curso por clave. Un segundo toque mientras la operación está en
+ * curso recibe la misma promesa en vez de repetir el POST.
+ */
+const inFlight = new Map<string, Promise<CreateReadingResponse>>();
+
+function once(key: string, run: () => Promise<CreateReadingResponse>): Promise<CreateReadingResponse> {
+  const current = inFlight.get(key);
+  if (current) return current;
+  const action = run();
+  inFlight.set(key, action);
+  const clear = () => {
+    if (inFlight.get(key) === action) inFlight.delete(key);
+  };
+  action.then(clear, clear);
+  return action;
+}
+
+const readingPath = (patientId: string, readingId?: string) =>
+  `/patients/${encodeURIComponent(patientId)}/readings` +
+  (readingId ? `/${encodeURIComponent(readingId)}` : '');
+
+/** Mensaje y tipo de un error al confirmar una lectura. */
+export type ConfirmReadingError = {
+  kind: 'not_found' | 'not_pending' | 'other';
+  message: string;
+};
+
+export function confirmReadingErrorFrom(cause: unknown): ConfirmReadingError {
+  const error = normalizeApiError(cause, 'No se pudo confirmar la lectura. Inténtalo nuevamente.');
+  if (error.code === 'READING_NOT_FOUND' || (error.status === 404 && error.code === 'RESOURCE_NOT_FOUND')) {
+    return {
+      kind: 'not_found',
+      message: 'No encontramos esta lectura en el servicio. Revisa el historial antes de volver a registrarla.',
+    };
+  }
+  if (error.code === 'READING_NOT_PENDING_CONFIRMATION' || error.status === 409) {
+    return {
+      kind: 'not_pending',
+      message: 'Esta lectura ya no está esperando confirmación (puede que ya se haya confirmado). Actualiza para ver su estado actual.',
+    };
+  }
+  return { kind: 'other', message: error.message };
+}
 
 export const readingsService = {
   /**
@@ -273,28 +353,46 @@ export const readingsService = {
    * misma promesa: un doble toque no genera un segundo POST.
    */
   create(patientId: string, request: CreateReadingRequest): Promise<CreateReadingResponse> {
-    if (inFlightCreate) return inFlightCreate;
-
-    const action = (async () => {
+    return once('create', async () => {
       if (authSession.mode() === 'backend') {
-        const raw = await apiClient.post<unknown>(
-          `/patients/${encodeURIComponent(patientId)}/readings`,
-          request,
-        );
+        const raw = await apiClient.post<unknown>(readingPath(patientId), request);
         return toCreateResponse(raw);
       }
 
       validateMockReading(request);
       demo.save(toDemoMeasurement(request));
       return { readingId: `mock-${Date.now()}`, status: 'EVALUATED' };
-    })();
+    });
+  },
 
-    inFlightCreate = action;
-    action.then(
-      () => { if (inFlightCreate === action) inFlightCreate = null; },
-      () => { if (inFlightCreate === action) inFlightCreate = null; },
-    );
-    return action;
+  /**
+   * Confirma conscientemente una lectura marcada como inusual:
+   * POST /patients/{patientId}/readings/{readingId}/confirm.
+   * Tras confirmar, el backend la deja PENDING y la evalúa de forma asíncrona.
+   */
+  confirm(patientId: string, readingId: string): Promise<CreateReadingResponse> {
+    return once(`confirm:${patientId}:${readingId}`, async () => {
+      if (authSession.mode() !== 'backend') {
+        // En sesión mock ninguna lectura queda pendiente de confirmación.
+        throw new ApiError({
+          code: 'READING_NOT_PENDING_CONFIRMATION',
+          status: 409,
+          message: 'La lectura no está pendiente de confirmación.',
+        });
+      }
+      const raw = await apiClient.post<unknown>(`${readingPath(patientId, readingId)}/confirm`, {});
+      const result = toCreateResponse(raw, readingId);
+      return { ...result, status: result.status ?? 'PENDING' };
+    });
+  },
+
+  /** Consulta el estado actual de una lectura (sin caché). */
+  async status(patientId: string, readingId: string): Promise<CreateReadingResponse> {
+    if (authSession.mode() !== 'backend') {
+      return { readingId, status: 'EVALUATED' };
+    }
+    const raw = await apiClient.get<unknown>(readingPath(patientId, readingId));
+    return toCreateResponse(raw, readingId);
   },
 
   /**

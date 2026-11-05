@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test": "node --require ./tests/support/register.cjs --test \"tests/**/*.test.cjs\"",
     "test:onboarding": "tsc --ignoreConfig --module commonjs --target es2020 --skipLibCheck --outDir tmp/onboarding-tests services/demo-store.ts types/measurement.ts && node scripts/test-onboarding.cjs"
   },
   "dependencies": {

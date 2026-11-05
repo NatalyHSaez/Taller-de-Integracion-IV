@@ -1,9 +1,8 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Speech from "expo-speech";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ReadingConfirmationModal } from "@/components/readings/reading-confirmation";
+import { ReadingResult } from "@/components/readings/reading-result";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandColors, Colors, MeasurementColors } from "@/constants/theme";
@@ -24,12 +25,8 @@ import {
   clinicalParametersService,
   validateAgainstParameter,
 } from "@/services/clinical-parameters";
-import { authSession } from "@/services/auth-session";
 import { demo } from "@/services/demo-store";
-import {
-  type ReadingFormErrors,
-  readingErrorsFromApi,
-} from "@/services/reading-errors";
+import { createReadingFlow } from "@/services/reading-flow";
 import {
   buildCreateReadingRequest,
   READING_CONTEXT_LABELS,
@@ -45,6 +42,7 @@ import type {
 import type { MeasurementType } from "@/types/measurement";
 import { useRouter } from "expo-router";
 
+type MeasuredAtError = Error & { field: "measuredAt" };
 
 type MeasurementOption = {
   value: MeasurementType;
@@ -131,10 +129,16 @@ export default function RegisterMeasurementScreen() {
   const [date, setDate] = useState(formatDate(now));
   const [time, setTime] = useState(formatTime(now));
   const [showReview, setShowReview] = useState(false);
-  const [serverErrors, setServerErrors] = useState<ReadingFormErrors["fields"]>({});
-  const [submitting, setSubmitting] = useState(false);
-  // Bloqueo síncrono: evita un segundo envío antes de que React re-renderice.
-  const submittingRef = useRef(false);
+  // Flujo envío → confirmación → resultado (services/reading-flow.ts).
+  const flow = useMemo(() => createReadingFlow(readingsService), []);
+  const flowState = useSyncExternalStore(flow.subscribe, flow.getState, flow.getState);
+  const submitting = flowState.step === "submitting";
+  const serverErrors =
+    flowState.step === "form" ? (flowState.errors?.fields ?? {}) : {};
+  const serverGeneralError =
+    flowState.step === "form" ? (flowState.errors?.general ?? "") : "";
+  const [submittedSummary, setSubmittedSummary] = useState("");
+  const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
   const {
     catalog,
     loading: catalogLoading,
@@ -180,7 +184,7 @@ export default function RegisterMeasurementScreen() {
   function edited<T>(setter: (value: T) => void) {
     return (value: T) => {
       setter(value);
-      setServerErrors({});
+      flow.clearErrors();
       setSaveError("");
     };
   }
@@ -210,7 +214,7 @@ export default function RegisterMeasurementScreen() {
   function selectMeasurementType(value: MeasurementType) {
     setMeasurementType(value);
     setShowReview(false);
-    setServerErrors({});
+    flow.clearErrors();
     setSaveError("");
   }
 
@@ -297,21 +301,21 @@ export default function RegisterMeasurementScreen() {
   }
 
   async function save() {
-    if (!formIsValid || submittingRef.current) return;
+    if (!formIsValid || flow.getState().step !== "form") return;
     if (!showReview) {
       setShowReview(true);
       return;
     }
 
-    submittingRef.current = true;
-    setSubmitting(true);
     setSaveError("");
-    setServerErrors({});
+    flow.clearErrors();
 
-    let request: CreateReadingRequest | null = null;
+    let measured: Date;
+    let patientId: string;
+    let request: CreateReadingRequest;
     try {
-      const measured = parseMeasuredAt();
-      const patientId = resolveActivePatientId();
+      measured = parseMeasuredAt();
+      patientId = resolveActivePatientId();
       request = buildCreateReadingRequest({
         codes: REQUIRED_PARAMETERS[measurementType],
         values: fieldValues,
@@ -319,45 +323,55 @@ export default function RegisterMeasurementScreen() {
         context: measurementType === "glucose" ? glucoseContext : null,
         measuredAt: measured,
       });
-
-      const result = await readingsService.create(patientId, request);
-      announce(measured);
-
-      const isBackend = authSession.mode() === "backend";
-      // En sesión backend el historial de esta rama aún es local, por eso se
-      // vuelve al inicio en vez de mostrar un historial que no la incluiría.
-      const next = !isBackend && demo.permissions().read ? "/historial" : "/(tabs)";
-      if (result.status === "REQUIRES_CONFIRMATION") {
-        const reasons = result.confirmationReasons?.length
-          ? `\n\n${result.confirmationReasons.join("\n")}`
-          : "";
-        Alert.alert(
-          "Lectura registrada con observaciones",
-          `El servidor guardó la lectura, pero indica que requiere confirmación.${reasons}`,
-          [{ text: "Entendido", onPress: () => router.replace(next) }],
-        );
-        return;
-      }
-      router.replace(next);
     } catch (cause) {
-      const field = (cause as { field?: string }).field;
-      if (field === "measuredAt") {
-        setServerErrors({ measuredAt: (cause as Error).message });
-      } else if (request) {
-        const errors = readingErrorsFromApi(cause, request);
-        setServerErrors(errors.fields);
-        setSaveError(errors.general ?? "");
-        if (errors.unitRejected) {
-          clinicalParametersService.invalidate();
-          retryCatalog();
-        }
+      const error = cause as Partial<MeasuredAtError>;
+      if (error.field === "measuredAt") {
+        flow.showFormErrors({
+          fields: { measuredAt: error.message ?? "" },
+          general: null,
+          unitRejected: false,
+        });
       } else {
-        setSaveError((cause as Error).message || "No se pudo registrar la medición.");
+        setSaveError(error.message || "No se pudo preparar la medición.");
       }
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
+      return;
     }
+
+    setSubmittedSummary(getSummaryValue());
+    setSubmittedAt(measured);
+    await flow.submit(patientId, request);
+
+    const after = flow.getState();
+    if (after.step === "form" && after.errors?.unitRejected) {
+      clinicalParametersService.invalidate();
+      retryCatalog();
+    }
+    // Una lectura inusual no se anuncia como registrada hasta confirmarla.
+    if (after.step === "result") announce(measured);
+  }
+
+  async function confirmReading() {
+    await flow.confirm();
+    if (flow.getState().step === "result" && submittedAt) announce(submittedAt);
+  }
+
+  function goToHistory() {
+    router.replace("/historial");
+  }
+
+  function startNewReading() {
+    setSystolic("");
+    setDiastolic("");
+    setHeartRate("");
+    setGlucose("");
+    setGlucoseContext(null);
+    setWeight("");
+    const current = new Date();
+    setDate(formatDate(current));
+    setTime(formatTime(current));
+    setShowReview(false);
+    setSaveError("");
+    flow.reset();
   }
 
   return (
@@ -446,7 +460,22 @@ export default function RegisterMeasurementScreen() {
             </View>
           )}
 
-          {catalog && (
+          {(flowState.step === "result" || flowState.step === "unconfirmed") && (
+            <ReadingResult
+              reading={flowState.reading}
+              summary={submittedSummary}
+              unconfirmed={flowState.step === "unconfirmed"}
+              refreshing={flowState.step === "result" && flowState.refreshing}
+              refreshError={flowState.step === "result" ? flowState.refreshError : null}
+              theme={theme}
+              onRefresh={flow.refresh}
+              onConfirmNow={flow.reopen}
+              onGoToHistory={goToHistory}
+              onNewReading={startNewReading}
+            />
+          )}
+
+          {catalog && flowState.step !== "result" && flowState.step !== "unconfirmed" && (
             <>
             <View style={styles.sectionHeading}>
               <View style={styles.stepBadge}>
@@ -744,7 +773,7 @@ export default function RegisterMeasurementScreen() {
               </View>
             )}
 
-            {!!saveError && (
+            {!!(saveError || serverGeneralError) && (
               <View
                 accessibilityRole="alert"
                 style={[
@@ -754,7 +783,7 @@ export default function RegisterMeasurementScreen() {
               >
                 <MaterialCommunityIcons name="alert-circle-outline" size={20} color={theme.danger} />
                 <ThemedText style={[styles.saveErrorText, { color: theme.danger }]}>
-                  {saveError}
+                  {saveError || serverGeneralError}
                 </ThemedText>
               </View>
             )}
@@ -810,6 +839,21 @@ export default function RegisterMeasurementScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {flowState.step === "confirming" && (
+        <ReadingConfirmationModal
+          visible
+          reading={flowState.reading}
+          summary={submittedSummary}
+          busy={flowState.busy}
+          error={flowState.error}
+          theme={theme}
+          onConfirm={confirmReading}
+          onCancel={flow.cancel}
+          onRefresh={flow.refresh}
+          onGoToHistory={goToHistory}
+        />
+      )}
     </ThemedView>
   );
 }

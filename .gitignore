@@ -33,3 +33,6 @@ app-example
 /ios
 /android
 .claude/
+
+# salida de compilación de npm run test:onboarding
+tmp/
