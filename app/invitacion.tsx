@@ -4,8 +4,10 @@ import { useDemo } from '@/hooks/use-demo';
 import { consumeLinkCode } from '@/services/api';
 import { appState } from '@/services/app-state';
 import { demo, type Invitation } from '@/services/demo-store';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { View } from 'react-native';
 
 export default function InvitationScreen() {
   const router = useRouter(); const params = useLocalSearchParams<{ token?: string }>();
@@ -14,11 +16,38 @@ export default function InvitationScreen() {
   const [code, setCode] = useState(params.token ?? pendingToken ?? ''); const [preview, setPreview] = useState<Invitation>();
   const [error, setError] = useState(''); const [scanner, setScanner] = useState(false); const [install, setInstall] = useState(false);
   const [scanTime, setScanTime] = useState(() => Date.now());
-  async function linkRealPatient() {
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [realScannerOpen, setRealScannerOpen] = useState(false);
+  const [linking, setLinking] = useState(false);
+
+  function extractCode(value: string): string {
+    const trimmed = value.trim();
+    const match = trimmed.match(/[?&](?:token|code)=([^&#]+)/i);
+    if (match) {
+      try { return decodeURIComponent(match[1]).trim().toUpperCase(); }
+      catch { return match[1].trim().toUpperCase(); }
+    }
+    return trimmed.toUpperCase();
+  }
+
+  async function openRealScanner() {
     setError('');
+    const permission = cameraPermission?.granted
+      ? cameraPermission
+      : await requestCameraPermission();
+    if (!permission.granted) {
+      setError('Debes permitir el uso de la cámara para escanear el QR. También puedes escribir el código.');
+      return;
+    }
+    setRealScannerOpen(true);
+  }
+  async function linkRealPatient() {
+    if (linking) return;
+    setError('');
+    setLinking(true);
 
     try {
-      await consumeLinkCode(code);
+      await consumeLinkCode(extractCode(code));
 
       // Actualizar la lista real desde /me/patients.
       await appState.loadRealPatients();
@@ -31,6 +60,8 @@ export default function InvitationScreen() {
           ? cause.message
           : 'No fue posible vincular al paciente.'
       );
+    } finally {
+      setLinking(false);
     }
   }
   function inspect(value: string) { try { const token = value.includes('token=') ? decodeURIComponent(value.split('token=')[1].split('&')[0]) : value.trim(); const invitation = demo.invitation(token); setPreview(invitation); demo.remember(invitation.token); setError(''); } catch (e) { setPreview(undefined); setError((e as Error).message); } }
@@ -44,11 +75,33 @@ export default function InvitationScreen() {
           autoCapitalize="characters"
         />
 
+        <Action
+          secondary
+          label={realScannerOpen ? 'Cerrar cámara' : 'Escanear QR real'}
+          onPress={() => {
+            if (realScannerOpen) setRealScannerOpen(false);
+            else void openRealScanner();
+          }}
+        />
+        {realScannerOpen && (
+          <View style={{ height: 300, overflow: 'hidden', borderRadius: 12 }}>
+            <CameraView
+              style={{ flex: 1 }}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={({ data }) => {
+                setCode(extractCode(data));
+                setRealScannerOpen(false);
+                setError('');
+              }}
+            />
+          </View>
+        )}
         {!!error && <Copy>{error}</Copy>}
 
         <Action
-          label="Vincular paciente"
-          onPress={() => void linkRealPatient()}
+          label={linking ? 'Vinculando...' : 'Vincular paciente'}
+          onPress={() => { if (!linking) void linkRealPatient(); }}
         />
 
         <Action

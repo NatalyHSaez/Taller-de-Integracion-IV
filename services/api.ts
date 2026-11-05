@@ -712,6 +712,33 @@ export async function getPatientDoctors(
   );
 }
 
+/* TI4-67: Gestión real de permisos y revocación. */
+export async function updateCaregiverPermissions(
+  relationshipId: string,
+  permissions: string[],
+): Promise<LinkedUserResponse> {
+  return apiClient.put<LinkedUserResponse>(
+    `/caregiver-relationships/${encodeURIComponent(relationshipId)}/permissions`,
+    { permissions },
+  );
+}
+
+export async function revokeCaregiverRelationship(
+  relationshipId: string,
+): Promise<void> {
+  return apiClient.delete<void>(
+    `/caregiver-relationships/${encodeURIComponent(relationshipId)}`,
+  );
+}
+
+export async function revokeDoctorRelationship(
+  relationshipId: string,
+): Promise<void> {
+  return apiClient.delete<void>(
+    `/doctor-relationships/${encodeURIComponent(relationshipId)}`,
+  );
+}
+
 /*
  * Generar un código temporal de vinculación.
  * POST /api/v1/patients/{patientId}/link-codes

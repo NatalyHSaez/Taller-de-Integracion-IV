@@ -5,6 +5,9 @@ import {
   createPatientLinkCode,
   getPatientCaregivers,
   getPatientDoctors,
+  revokeCaregiverRelationship,
+  revokeDoctorRelationship,
+  updateCaregiverPermissions,
   type LinkCodeResponse,
   type LinkedUserResponse,
 } from '@/services/api';
@@ -13,7 +16,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Share, Switch, View } from 'react-native';
+import { Alert, Share, Switch, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 function RequestCard({ relation }: { relation: Relation }) {
   const { accounts } = useDemo(); const [permissions, setPermissions] = useState<Permissions>({ alerts: true, read: true, write: false });
   const [error, setError] = useState('');
@@ -24,17 +28,113 @@ function RequestCard({ relation }: { relation: Relation }) {
     {!!error && <Copy>{error}</Copy>}
   </Card>;
 }
+
+const CAREGIVER_PERMISSIONS = [
+  { code: 'PATIENT_PROFILE_VIEW', label: 'Ver perfil del paciente' },
+  { code: 'MEASUREMENT_CREATE', label: 'Registrar mediciones' },
+  { code: 'MEASUREMENT_VIEW', label: 'Consultar mediciones' },
+  { code: 'ALERT_VIEW', label: 'Consultar alertas' },
+] as const;
+
+function RealCaregiverCard({ caregiver, onChanged }: {
+  caregiver: LinkedUserResponse;
+  onChanged: () => Promise<void>;
+}) {
+  // Mostrar todos los permisos permitidos por el backend, incluso los desactivados.
+  const [selected, setSelected] = useState<string[]>(caregiver.permissions);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  useEffect(() => { setSelected(caregiver.permissions); }, [caregiver.permissions.join('|')]);
+  const changed = selected.length !== caregiver.permissions.length ||
+    selected.some(permission => !caregiver.permissions.includes(permission));
+
+  async function save() {
+    setBusy(true); setMessage('');
+    try {
+      await updateCaregiverPermissions(caregiver.relationshipId, selected);
+      await onChanged();
+      setMessage('Permisos actualizados.');
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : 'No se pudieron guardar los permisos.');
+    } finally { setBusy(false); }
+  }
+  function confirmRevoke() {
+    Alert.alert('Retirar acceso', `¿Quieres revocar el acceso de ${caregiver.fullName}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Revocar acceso', style: 'destructive', onPress: () => { void (async () => {
+        setBusy(true); setMessage('');
+        try { await revokeCaregiverRelationship(caregiver.relationshipId); await onChanged(); }
+        catch (cause) { setMessage(cause instanceof Error ? cause.message : 'No se pudo revocar el vínculo.'); }
+        finally { setBusy(false); }
+      })(); } },
+    ]);
+  }
+  return <View style={{ gap: 8, marginTop: 12 }}>
+    <Copy>{caregiver.fullName}</Copy>
+    {CAREGIVER_PERMISSIONS.map(({ code, label }) => (
+      <View key={code} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Switch
+          accessibilityLabel={label}
+          disabled={busy}
+          value={selected.includes(code)}
+          onValueChange={enabled => setSelected(current => enabled
+            ? (current.includes(code) ? current : [...current, code])
+            : current.filter(item => item !== code))}
+        />
+        <View style={{ flex: 1 }}><Copy>{label}</Copy></View>
+      </View>
+    ))}
+    {changed && <Action label={busy ? 'Guardando...' : 'Guardar permisos'} onPress={() => { if (!busy) void save(); }} />}
+    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del cuidador'} onPress={() => { if (!busy) confirmRevoke(); }} />
+    {!!message && <Copy>{message}</Copy>}
+  </View>;
+}
+
+function RealDoctorCard({ doctor, onChanged }: {
+  doctor: LinkedUserResponse;
+  onChanged: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  function confirmRevoke() {
+    Alert.alert('Retirar acceso', `¿Quieres revocar el acceso de ${doctor.fullName}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Revocar acceso', style: 'destructive', onPress: () => { void (async () => {
+        setBusy(true); setMessage('');
+        try { await revokeDoctorRelationship(doctor.relationshipId); await onChanged(); }
+        catch (cause) { setMessage(cause instanceof Error ? cause.message : 'No se pudo revocar el vínculo.'); }
+        finally { setBusy(false); }
+      })(); } },
+    ]);
+  }
+  return <View style={{ gap: 8, marginTop: 12 }}>
+    <Copy>{doctor.fullName}</Copy>
+    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del médico'} onPress={() => { if (!busy) confirmRevoke(); }} />
+    {!!message && <Copy>{message}</Copy>}
+  </View>;
+}
+
 export default function Links() {
   const router = useRouter(); const { user, selectedPatient, sessionMode } = useAppState(); const { relations, invitations } = useDemo(); const [showQr, setShowQr] = useState(false); const [error, setError] = useState('');
   const [realLinkCode, setRealLinkCode] =
     useState<LinkCodeResponse | null>(null);
 
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [showRealQr, setShowRealQr] = useState(false);
   const patientId = sessionMode === 'backend' && user?.role === 'patient' ? user.id : null;
   const [caregivers, setCaregivers] = useState<LinkedUserResponse[]>([]);
   const [doctors, setDoctors] = useState<LinkedUserResponse[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [linksError, setLinksError] = useState('');
+  async function refreshRealLinks() {
+    if (!patientId) return;
+    const [nextCaregivers, nextDoctors] = await Promise.all([
+      getPatientCaregivers(patientId), getPatientDoctors(patientId),
+    ]);
+    setCaregivers(nextCaregivers);
+    setDoctors(nextDoctors);
+  }
+
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +176,7 @@ export default function Links() {
 
     setError('');
     setRealLinkCode(null);
+    setShowRealQr(false);
     setGeneratingCode(true);
 
     try {
@@ -123,12 +224,8 @@ export default function Links() {
                 <Copy>No tienes cuidadores vinculados.</Copy>
               ) : (
                 caregivers.map((caregiver) => (
-                  <View key={caregiver.relationshipId}>
-                    <Copy>{caregiver.fullName}</Copy>
-                    <Copy>
-                      Permisos: {caregiver.permissions.join(', ') || 'Ninguno'}
-                    </Copy>
-                  </View>
+                  <RealCaregiverCard key={caregiver.relationshipId} caregiver={caregiver}
+                    onChanged={refreshRealLinks} />
                 ))
               )}
             </Card>
@@ -144,9 +241,8 @@ export default function Links() {
                 <Copy>No tienes médicos vinculados.</Copy>
               ) : (
                 doctors.map((doctor) => (
-                  <View key={doctor.relationshipId}>
-                    <Copy>{doctor.fullName}</Copy>
-                  </View>
+                  <RealDoctorCard key={doctor.relationshipId} doctor={doctor}
+                    onChanged={refreshRealLinks} />
                 ))
               )}
             </Card>
@@ -179,6 +275,21 @@ export default function Links() {
                 <Copy>
                   Vence: {new Date(realLinkCode.expiresAt).toLocaleString('es-CL')}
                 </Copy>
+
+                <Action
+                  secondary
+                  label={showRealQr ? 'Ocultar QR' : 'Mostrar QR escaneable'}
+                  onPress={() => setShowRealQr((previous) => !previous)}
+                />
+                {showRealQr && (
+                  <View style={{ alignItems: 'center', paddingVertical: 12, gap: 8 }}>
+                    <View style={{ padding: 14, backgroundColor: '#FFFFFF' }}>
+                      <QRCode value={realLinkCode.code} size={220} />
+                    </View>
+                    <Copy>Escanea este QR desde la cuenta del cuidador o médico.</Copy>
+                    <Copy>El QR contiene el mismo código temporal de un solo uso.</Copy>
+                  </View>
+                )}
 
                 <Action
                   label="Compartir código"
