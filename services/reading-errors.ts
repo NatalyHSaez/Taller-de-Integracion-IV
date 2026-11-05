@@ -67,6 +67,37 @@ function locField(record: Record<string, unknown>): string | null {
   return typeof loc === 'string' ? loc : null;
 }
 
+/**
+ * El backend actual (domicilia) informa el parámetro solo dentro del texto,
+ * por ejemplo "SBP = 400 no es posible (50–300 mmHg)" o "GLUCOSE se registra en
+ * mg/dL". Se busca un código que además venga en la lectura enviada.
+ */
+function parameterInText(text: unknown, request: CreateReadingRequest): ClinicalParameterCode | null {
+  if (typeof text !== 'string') return null;
+  const sent = new Set(request.measurements.map((m) => m.parameterCode));
+  const found = text.match(/\b(SBP|DBP|HEART_RATE|GLUCOSE|WEIGHT)\b/g) ?? [];
+  return (found.find((code) => sent.has(code as ClinicalParameterCode)) as ClinicalParameterCode) ?? null;
+}
+
+/** Parámetro repetido en la lectura enviada (para DUPLICATED_PARAMETER sin detalle). */
+function duplicatedParameter(request: CreateReadingRequest): ClinicalParameterCode | null {
+  const seen = new Set<string>();
+  for (const { parameterCode } of request.measurements) {
+    if (seen.has(parameterCode)) return parameterCode;
+    seen.add(parameterCode);
+  }
+  return null;
+}
+
+/** Rango escrito en el texto, por ejemplo "(50–300 mmHg)". */
+function rangeInText(text: unknown): { min: number; max: number; unit: string | null } | null {
+  if (typeof text !== 'string') return null;
+  const match = text.match(/\((-?\d+(?:[.,]\d+)?)\s*[–-]\s*(-?\d+(?:[.,]\d+)?)\s*([^)]*)\)/);
+  if (!match) return null;
+  const toNumber = (value: string) => Number(value.replace(',', '.'));
+  return { min: toNumber(match[1]), max: toNumber(match[2]), unit: match[3].trim() || null };
+}
+
 function toIssue(
   record: Record<string, unknown>,
   fallbackCode: string | null,
@@ -78,17 +109,23 @@ function toIssue(
     : fallbackCode;
 
   const index = measurementIndex(record);
-  const parameterCode =
+  const text = record.message ?? record.msg;
+  const fromIndex = index !== null ? (request.measurements[index]?.parameterCode ?? null) : null;
+  const fromDuplicate = code === 'DUPLICATED_PARAMETER' ? duplicatedParameter(request) : null;
+  const parameterCode: ClinicalParameterCode | null =
     asParameter(record.parameterCode ?? record.parameter_code ?? record.parameter) ??
-    (index !== null ? request.measurements[index]?.parameterCode ?? null : null);
+    fromIndex ??
+    parameterInText(text, request) ??
+    fromDuplicate;
 
   const ctx = isRecord(record.ctx) ? record.ctx : {};
+  const range = rangeInText(text);
   return {
     code,
     parameterCode,
-    min: asNumber(record.min ?? record.minValue ?? record.technicalMin ?? ctx.ge ?? ctx.min),
-    max: asNumber(record.max ?? record.maxValue ?? record.technicalMax ?? ctx.le ?? ctx.max),
-    unit: typeof record.unit === 'string' ? record.unit : null,
+    min: asNumber(record.min ?? record.minValue ?? record.technicalMin ?? ctx.ge ?? ctx.min) ?? range?.min ?? null,
+    max: asNumber(record.max ?? record.maxValue ?? record.technicalMax ?? ctx.le ?? ctx.max) ?? range?.max ?? null,
+    unit: typeof record.unit === 'string' ? record.unit : range?.unit ?? null,
     ...(code === null && locField(record) === 'context' ? { code: 'CONTEXT_REQUIRED' } : {}),
     ...(code === null && locField(record) === 'measuredAt' ? { code: 'FUTURE_DATE' } : {}),
   };
@@ -107,7 +144,9 @@ function collectIssues(error: ApiError, request: CreateReadingRequest): Issue[] 
 
   const issues = lists.map((item) => toIssue(item, topCode, request));
   if (issues.length === 0 || topCode) {
-    issues.unshift(toIssue({ ...nested, ...details, code: error.code }, topCode, request));
+    issues.unshift(
+      toIssue({ message: error.message, ...nested, ...details, code: error.code }, topCode, request),
+    );
   }
   return issues;
 }

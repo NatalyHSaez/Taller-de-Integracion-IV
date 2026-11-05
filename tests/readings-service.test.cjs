@@ -95,3 +95,23 @@ test('los errores 422 de registro se asignan al campo correspondiente', () => {
   const unknown = readingErrorsFromApi(apiError('UNKNOWN_PARAMETER', 422), request);
   assert.ok(unknown.general, 'sin parámetro identificable se muestra como error general');
 });
+
+test('errores con el formato real del backend ({ detail, errorCode }) también van al campo', () => {
+  const request = bloodPressureRequest();
+  // domicilia no envía parameterCode: el parámetro solo aparece en el texto de `detail`.
+  const real = (code, detail) => readingErrorsFromApi(apiError(code, 422, {}, detail), request);
+
+  const range = real('OUT_OF_RANGE', 'SBP = 400.0 no es posible (40–300 mmHg)');
+  assert.deepEqual(Object.keys(range.fields), ['SBP']);
+  assert.match(range.fields.SBP, /40–300 mmHg/);
+
+  assert.deepEqual(Object.keys(real('INVALID_UNIT', 'HEART_RATE se registra en bpm').fields), ['HEART_RATE']);
+  assert.deepEqual(Object.keys(real('UNKNOWN_PARAMETER', 'Parámetro desconocido: DBP').fields), ['DBP']);
+
+  const duplicated = { ...request, measurements: [...request.measurements, request.measurements[0]] };
+  const dup = readingErrorsFromApi(apiError('DUPLICATED_PARAMETER', 422, {}, 'Un parámetro aparece dos veces en la lectura'), duplicated);
+  assert.deepEqual(Object.keys(dup.fields), ['SBP']);
+
+  // Un código que no viene en la lectura no se asigna a un campo equivocado.
+  assert.ok(real('UNKNOWN_PARAMETER', 'Parámetro desconocido: GLUCOSE').general);
+});
