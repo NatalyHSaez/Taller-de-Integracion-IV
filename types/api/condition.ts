@@ -7,15 +7,23 @@ import type { CanonicalUnit, ClinicalParameterCode } from './reading';
  * paciente; ese dato requiere una API de condiciones asignadas que aún no existe.
  */
 export type HealthConditionResponse = {
-  conditionId: UUID;
+  /** El backend actual no lo envía; se conserva por compatibilidad con datos mock. */
+  conditionId?: UUID;
   code: string;
   name: string;
-  active: boolean;
+  /** El backend solo devuelve condiciones activas, por eso puede omitirlo. */
+  active?: boolean;
   /**
-   * Parámetros que se registran en el programa. Opcional: se usa solo si el
-   * backend lo informa; la app no tiene una relación propia programa-parámetro.
+   * Parámetros del perfil de seguimiento del programa, tal como los informa el
+   * backend: obligatorios (required: true) u opcionales. La app no tiene una
+   * relación propia programa-parámetro.
    */
-  requiredParameters?: ClinicalParameterCode[];
+  parameters?: HealthConditionParameter[];
+};
+
+export type HealthConditionParameter = {
+  code: ClinicalParameterCode;
+  required: boolean;
 };
 
 /**

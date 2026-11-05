@@ -120,7 +120,7 @@ export default function ProgramsScreen() {
             )}
             {programs?.map((program) => (
               <ProgramCard
-                key={program.conditionId}
+                key={program.id}
                 program={program}
                 catalog={catalog}
                 theme={theme}
@@ -153,7 +153,7 @@ function ProgramCard({
   catalog: ClinicalParameterCatalog | null;
   theme: Theme;
 }) {
-  const parameters = program.requiredParameters;
+  const parameters = program.parameters;
 
   return (
     <View
@@ -181,16 +181,21 @@ function ProgramCard({
         </ThemedText>
       ) : (
         <View style={styles.parameters}>
-          {parameters.map((code) => {
+          {parameters.map(({ code, required }) => {
             const definition = catalog?.[code as ClinicalParameterCode];
             return (
               <View key={code} style={styles.parameterRow}>
-                <MaterialCommunityIcons name="check-circle-outline" size={18} color={theme.primary} />
+                <MaterialCommunityIcons
+                  name={required ? 'check-circle-outline' : 'circle-outline'}
+                  size={18}
+                  color={required ? theme.primary : theme.icon}
+                />
                 <ThemedText style={styles.parameterText}>
                   {definition ? definition.name : code}
-                  {definition ? (
-                    <ThemedText style={{ color: theme.mutedText }}> · {definition.unit}</ThemedText>
-                  ) : null}
+                  <ThemedText style={{ color: theme.mutedText }}>
+                    {definition ? ` · ${definition.unit}` : ''}
+                    {required ? '' : ' · opcional'}
+                  </ThemedText>
                 </ThemedText>
               </View>
             );

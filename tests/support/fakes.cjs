@@ -11,6 +11,11 @@ const CLINICAL_PARAMETERS = [
   { code: 'WEIGHT', name: 'Peso corporal', valueType: 'NUMBER', unit: 'kg', technicalMin: 1, technicalMax: 400 },
 ];
 const PARAMETER_LIMITS = [{ parameterCode: 'SBP', minValue: 60, maxValue: 280, unit: 'mmHg' }];
+/** Respuesta real de GET /health-conditions en domicilia (sin conditionId ni active). */
+const HEALTH_CONDITIONS = [
+  { code: 'DM2', name: 'Diabetes mellitus tipo 2', parameters: [{ code: 'GLUCOSE', required: true }, { code: 'WEIGHT', required: false }] },
+  { code: 'HTA', name: 'Hipertensión arterial', parameters: [{ code: 'SBP', required: true }, { code: 'DBP', required: true }, { code: 'HEART_RATE', required: false }] },
+];
 
 function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1111-4111-8111-111111111111' } = {}) {
   const calls = { post: [], get: [], dataGet: [], demoSave: 0 };
@@ -51,6 +56,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
         calls.dataGet.push(path);
         if (path === '/clinical-parameters') return CLINICAL_PARAMETERS;
         if (path === '/parameter-limits') return PARAMETER_LIMITS;
+        if (path === '/health-conditions') return HEALTH_CONDITIONS;
         throw new Error(`GET inesperado ${path}`);
       },
       invalidate() {},
@@ -68,9 +74,9 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
 }
 
 /** Error con la forma que produce services/errors para respuestas HTTP. */
-function apiError(code, status, details = {}) {
+function apiError(code, status, details = {}, message = `${code} (prueba)`) {
   const { ApiError } = projectRequire('services/errors/index.ts');
-  return new ApiError({ code, status, message: `${code} (prueba)`, details });
+  return new ApiError({ code, status, message, details });
 }
 
-module.exports = { installFakes, apiError, CLINICAL_PARAMETERS };
+module.exports = { installFakes, apiError, CLINICAL_PARAMETERS, HEALTH_CONDITIONS };

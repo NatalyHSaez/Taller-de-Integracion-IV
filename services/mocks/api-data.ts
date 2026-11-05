@@ -123,14 +123,21 @@ export const MOCK_HEALTH_CONDITIONS = [
     code: 'HTA',
     name: 'Hipertensión arterial',
     active: true,
-    requiredParameters: ['SBP', 'DBP', 'HEART_RATE'],
+    parameters: [
+      { code: 'SBP', required: true },
+      { code: 'DBP', required: true },
+      { code: 'HEART_RATE', required: false },
+    ],
   },
   {
     conditionId: '44444444-4444-4444-8444-444444444442',
     code: 'DM2',
     name: 'Diabetes mellitus tipo 2',
     active: true,
-    requiredParameters: ['GLUCOSE'],
+    parameters: [
+      { code: 'GLUCOSE', required: true },
+      { code: 'WEIGHT', required: false },
+    ],
   },
 ] satisfies HealthConditionResponse[];
 

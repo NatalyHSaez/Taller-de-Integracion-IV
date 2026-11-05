@@ -27,15 +27,22 @@ const STALE_MS = 60 * 60_000;
  */
 export const ASSIGNED_CONDITIONS_API_AVAILABLE = false;
 
+export type ProgramParameter = {
+  code: string;
+  /** true si el programa lo exige; false si es opcional. */
+  required: boolean;
+};
+
 export type HealthProgram = {
-  conditionId: string;
+  /** conditionId si el backend lo envía; si no, el código del programa. */
+  id: string;
   code: string;
   name: string;
   /**
-   * Códigos de parámetros que informa el backend para el programa.
+   * Parámetros que informa el backend para el programa.
    * null significa que el backend no envió esta información.
    */
-  requiredParameters: string[] | null;
+  parameters: ProgramParameter[] | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -43,30 +50,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Lee los parámetros requeridos si el backend los envía. Acepta una lista de
- * códigos o de objetos con `parameterCode`/`code`, bajo `requiredParameters`,
- * `requiredParameterCodes`, `parameterCodes` o `parameters`.
+ * Lee los parámetros del programa. El backend envía
+ * `parameters: [{ code, required }]`; por tolerancia también se acepta una lista
+ * de códigos (se consideran obligatorios) bajo `requiredParameters`,
+ * `requiredParameterCodes` o `parameterCodes`.
  */
-function readRequiredParameters(item: Record<string, unknown>): string[] | null {
+function readParameters(item: Record<string, unknown>): ProgramParameter[] | null {
   const raw =
+    item.parameters ??
     item.requiredParameters ??
     item.requiredParameterCodes ??
-    item.parameterCodes ??
-    item.parameters;
+    item.parameterCodes;
   if (!Array.isArray(raw)) return null;
 
-  const codes = raw
-    .map((entry) => {
-      if (typeof entry === 'string') return entry;
-      if (isRecord(entry)) {
-        const code = entry.parameterCode ?? entry.code;
-        return typeof code === 'string' ? code : null;
-      }
-      return null;
-    })
-    .filter((code): code is string => !!code);
-
-  return Array.from(new Set(codes));
+  const byCode = new Map<string, ProgramParameter>();
+  for (const entry of raw) {
+    if (typeof entry === 'string') {
+      if (!byCode.has(entry)) byCode.set(entry, { code: entry, required: true });
+      continue;
+    }
+    if (!isRecord(entry)) continue;
+    const code = entry.parameterCode ?? entry.code;
+    if (typeof code !== 'string' || byCode.has(code)) continue;
+    byCode.set(code, { code, required: entry.required !== false });
+  }
+  return Array.from(byCode.values());
 }
 
 function toPrograms(items: unknown): HealthProgram[] {
@@ -82,17 +90,15 @@ function toPrograms(items: unknown): HealthProgram[] {
   for (const item of items) {
     if (!isRecord(item)) continue;
     const { conditionId, code, name, active } = item;
-    if (typeof conditionId !== 'string' || typeof code !== 'string' || typeof name !== 'string') {
-      continue;
-    }
+    if (typeof code !== 'string' || typeof name !== 'string') continue;
     // Solo se muestran programas vigentes en el catálogo.
     if (active === false) continue;
 
     programs.push({
-      conditionId,
+      id: typeof conditionId === 'string' ? conditionId : code,
       code,
       name,
-      requiredParameters: readRequiredParameters(item),
+      parameters: readParameters(item),
     });
   }
   return programs;
