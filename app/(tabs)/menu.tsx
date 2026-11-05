@@ -27,6 +27,7 @@ type MenuOption = {
     | "/atencion"
     | "/vinculos"
     | "/documentos"
+    | "/programas"
     | "/perfil"
     | "/configuracion";
 };
@@ -49,6 +50,12 @@ const MAIN_OPTIONS: MenuOption[] = [
     description: "Revisa recetas, órdenes y archivos",
     icon: "file-text",
     route: "/documentos",
+  },
+  {
+    title: "Programas de seguimiento",
+    description: "Qué se mide en cada programa",
+    icon: "book-open",
+    route: "/programas",
   },
 ];
 

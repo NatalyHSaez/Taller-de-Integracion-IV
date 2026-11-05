@@ -102,6 +102,14 @@ function RootNavigator() {
         />
 
         <Stack.Screen
+          name="programas"
+          options={{
+            headerShown: true,
+            title: "Programas",
+          }}
+        />
+
+        <Stack.Screen
           name="perfil"
           options={{
             headerShown: true,

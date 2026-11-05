@@ -1,11 +1,21 @@
 import type { ISODate, UUID } from './common';
 import type { CanonicalUnit, ClinicalParameterCode } from './reading';
 
+/**
+ * Item de GET /api/v1/health-conditions: catálogo GLOBAL de programas de
+ * seguimiento (por ejemplo HTA y DM2). No indica qué condiciones tiene un
+ * paciente; ese dato requiere una API de condiciones asignadas que aún no existe.
+ */
 export type HealthConditionResponse = {
   conditionId: UUID;
   code: string;
   name: string;
   active: boolean;
+  /**
+   * Parámetros que se registran en el programa. Opcional: se usa solo si el
+   * backend lo informa; la app no tiene una relación propia programa-parámetro.
+   */
+  requiredParameters?: ClinicalParameterCode[];
 };
 
 /**
