@@ -109,7 +109,13 @@ export default function RegisterMeasurementScreen() {
   const { user: authUser } = useAuth();
   const isBackend = sessionMode === "backend";
   const isRealPatient = isBackend && authUser?.roles.includes("paciente");
-  const patientId = isRealPatient && authUser ? authUser.id : null;
+  const isRealCaregiver = isBackend && authUser?.roles.includes("cuidador");
+
+  const patientId = isRealPatient
+    ? authUser?.id ?? null
+    : isRealCaregiver
+      ? patient?.id ?? null
+      : null;
   const [isSaving, setIsSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
   const savingRef = useRef(false);

@@ -15,7 +15,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BrandColors, Colors, StatusColors } from '@/constants/theme';
 import { useAppState } from '@/hooks/use-app-state';
+import { useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getPatientReadings } from '@/services/api';
 import { getApiErrorMessage } from '@/services/errors';
 import { readingsService } from '@/services/readings';
 import type { MeasurementResponse, ReadingResponse } from '@/types/api';
@@ -84,6 +86,8 @@ function formatSource(source: string) {
       return 'Datos simulados';
     case 'MOCK_FALLBACK':
       return 'Datos simulados de respaldo';
+    case 'NOT_PROVIDED':
+      return 'No informado por el servidor';
     default:
       return source;
   }
@@ -114,10 +118,50 @@ function validationColors(status: MeasurementResponse['validationStatus']) {
   }
 }
 
+
+type BackendReading = Awaited<ReturnType<typeof getPatientReadings>>['items'][number];
+
+function adaptBackendReading(item: BackendReading): ReadingResponse {
+  return {
+    readingId: item.readingId,
+    patientId: item.patientId,
+    recordedByUserId: 'unknown',
+    context: null,
+    measuredAt: item.measuredAt,
+    source: 'NOT_PROVIDED',
+    measurements: item.measurements.map((measurement) => ({
+      measurementId: measurement.measurementId,
+      parameterCode: measurement.parameterCode as MeasurementResponse['parameterCode'],
+      valueNumeric: measurement.value,
+      valueText: null,
+      unit: measurement.unit as MeasurementResponse['unit'],
+      validationStatus: measurement.confirmedByUser
+        ? 'CONFIRMED'
+        : item.status === 'REQUIRES_CONFIRMATION'
+          ? 'REQUIRES_CONFIRMATION'
+          : item.status === 'EVALUATED'
+            ? 'PLAUSIBLE'
+            : 'PENDING',
+      confirmedByUser: measurement.confirmedByUser,
+    })),
+  };
+}
+
+
 export default function ReadingDetailScreen() {
   const { readingId: rawReadingId } = useLocalSearchParams<{ readingId: string | string[] }>();
   const readingId = Array.isArray(rawReadingId) ? rawReadingId[0] : rawReadingId;
   const { selectedPatient, sessionMode } = useAppState();
+  const { user: authUser } = useAuth();
+
+  const patientId =
+    sessionMode === 'backend'
+      ? authUser?.roles.includes('paciente')
+        ? authUser.id
+        : authUser?.roles.includes('cuidador')
+          ? selectedPatient?.id ?? null
+          : null
+      : selectedPatient?.id ?? null;
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
@@ -127,7 +171,7 @@ export default function ReadingDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const loadReading = useCallback(async () => {
-    if (!selectedPatient || !readingId) {
+    if (!patientId || !readingId) {
       setReading(null);
       setError('No fue posible identificar la lectura o el paciente seleccionado.');
       setLoading(false);
@@ -138,7 +182,22 @@ export default function ReadingDetailScreen() {
     setError(null);
 
     try {
-      const detail = await readingsService.detail(selectedPatient.id, readingId);
+      const detail =
+        sessionMode === 'backend'
+          ? await (async () => {
+              const response = await getPatientReadings(patientId);
+
+              const found = response.items.find(
+                (item) => item.readingId === readingId
+              );
+
+              if (!found) {
+                throw new Error('No se encontró la lectura solicitada.');
+              }
+
+              return adaptBackendReading(found);
+            })()
+          : await readingsService.detail(patientId, readingId);
       setReading(detail);
     } catch (cause) {
       setReading(null);
@@ -146,7 +205,7 @@ export default function ReadingDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [readingId, selectedPatient]);
+  }, [readingId, patientId, sessionMode]);
 
   useEffect(() => {
     void loadReading();

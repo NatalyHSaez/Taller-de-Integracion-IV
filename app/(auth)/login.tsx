@@ -81,7 +81,21 @@ export default function LoginScreen() {
        * appState reúne usuario, paciente seleccionado,
        * permisos y origen de la sesión.
        */
+      // Cargar los pacientes vinculados antes de decidir la navegación.
+      if (
+        currentUser.roles.includes("cuidador") &&
+        appState.snapshot().sessionMode === "backend"
+      ) {
+        await appState.loadRealPatients();
+      }
+
       const globalState = appState.snapshot();
+      console.log("[LOGIN] Estado de navegación:", {
+        sessionMode: globalState.sessionMode,
+        userRole: globalState.user?.role,
+        selectedPatient: globalState.selectedPatient?.id ?? null,
+        patientsCount: globalState.patients.length,
+      });
 
       /*
        * AuthProvider de Sebastián representa principalmente
@@ -112,6 +126,18 @@ export default function LoginScreen() {
        * Si ya existe un paciente seleccionado, entramos
        * directamente a la aplicación.
        */
+      // Los cuidadores reales pueden acceder a Inicio
+      // aunque todavía no tengan pacientes vinculados.
+      if (
+        globalState.sessionMode === "backend" &&
+        (globalState.user?.role === "patient" ||
+          globalState.user?.role === "caregiver")
+      ) {
+        router.replace("/(tabs)");
+        return;
+      }
+
+      // Mantener el comportamiento original para las demás sesiones.
       if (globalState.selectedPatient) {
         router.replace("/(tabs)");
         return;

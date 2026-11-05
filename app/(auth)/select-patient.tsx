@@ -7,7 +7,9 @@ import { Action, Card, Copy, FlowPage } from "@/components/flow-ui";
 import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/use-auth";
 import { useDemo } from "@/hooks/use-demo";
+import { appState } from "@/services/app-state";
 import { authService } from "@/services/authservice";
+import { useEffect, useState } from "react";
 
 export default function SelectPatient() {
   const router = useRouter();
@@ -17,6 +19,38 @@ export default function SelectPatient() {
   const { relations, profiles } = useDemo();
 
   const { setUser } = useAuth();
+  const [patientsLoading, setPatientsLoading] = useState(false);
+  const [patientsError, setPatientsError] = useState(false);
+
+  useEffect(() => {
+    if (!user || user.source !== "backend" || user.role !== "caregiver") {
+      return;
+    }
+
+    let cancelled = false;
+
+    setPatientsLoading(true);
+    setPatientsError(false);
+
+    appState
+      .loadRealPatients()
+      .catch((error) => {
+        console.error("Error consultando pacientes:", error);
+
+        if (!cancelled) {
+          setPatientsError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPatientsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.source, user?.role]);
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -90,6 +124,19 @@ export default function SelectPatient() {
       }
       subtitle={`Hola, ${user.name}. Solo puedes acceder a vínculos aprobados.`}
     >
+      {patientsLoading && (
+        <Card>
+          <Copy>Cargando pacientes vinculados...</Copy>
+        </Card>
+      )}
+
+      {patientsError && (
+        <Card>
+          <Copy>
+            No se pudieron cargar los pacientes. Intenta nuevamente más tarde.
+          </Copy>
+        </Card>
+      )}
       {patients.map((patient) => (
         <Card key={patient.id}>
           <Copy>{patient.name}</Copy>
@@ -105,7 +152,7 @@ export default function SelectPatient() {
         </Card>
       ))}
 
-      {relations
+      {(user.source === "backend" ? [] : relations)
         .filter(
           (relation) =>
             relation.caregiverId === user.id && relation.status !== "approved",
@@ -134,6 +181,13 @@ export default function SelectPatient() {
         label="Escanear QR o abrir invitación"
         onPress={() => router.push("/invitacion")}
       />
+      {user.source === "backend" && patients.length === 0 && !patientsLoading && !patientsError && (
+        <Action
+          secondary
+          label="Ir a mi perfil"
+          onPress={() => router.replace("/perfil")}
+        />
+      )}
 
       <Action secondary label="Cerrar sesión" onPress={confirmLogout} />
 

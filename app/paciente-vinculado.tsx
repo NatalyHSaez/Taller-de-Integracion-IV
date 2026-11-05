@@ -6,22 +6,72 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
 } from 'react-native';
+
+import { useAppState } from '@/hooks/use-app-state';
+import { getPatient, type PatientProfileResponse } from '@/services/api';
 
 export default function LinkedPatientScreen() {
   const router = useRouter();
 
-  const { patient } = useDemo();
+  const { selectedPatient, sessionMode } = useAppState();
+  const { patient: demoPatient } = useDemo();
+
+  const isRealSession = sessionMode === 'backend';
+  const patientId = selectedPatient?.id ?? null;
+
+  const [realPatient, setRealPatient] =
+    useState<PatientProfileResponse | null>(null);
+
+  const [loadingPatient, setLoadingPatient] = useState(false);
+  const [patientError, setPatientError] = useState(false);
+
+  const patient = isRealSession
+    ? realPatient
+      ? {
+          name: realPatient.fullName,
+          id: realPatient.id,
+        }
+      : null
+    : demoPatient;
+    useEffect(() => {
+  if (!isRealSession || !patientId) {
+    setRealPatient(null);
+    setPatientError(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  setLoadingPatient(true);
+  setPatientError(false);
+  setRealPatient(null);
+
+  getPatient(patientId)
+    .then((data) => {
+      if (!cancelled) setRealPatient(data);
+    })
+    .catch(() => {
+      if (!cancelled) setPatientError(true);
+    })
+    .finally(() => {
+      if (!cancelled) setLoadingPatient(false);
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [isRealSession, patientId]);
 
   const colorScheme = useColorScheme();
 
@@ -32,8 +82,18 @@ export default function LinkedPatientScreen() {
    * Por ahora la fecha de nacimiento es un dato temporal.
    * Cuando conectemos el backend, vendrá desde el paciente.
    */
-  const [birthDate, setBirthDate] =
-    useState('15/06/1985');
+  const [birthDate, setBirthDate] = useState('');
+  useEffect(() => {
+    if (!isRealSession) return;
+
+    if (!realPatient?.birthDate) {
+      setBirthDate('');
+      return;
+    }
+
+    const [year, month, day] = realPatient.birthDate.split('-');
+    setBirthDate(`${day}/${month}/${year}`);
+  }, [isRealSession, realPatient?.birthDate]);
 
   const [draftBirthDate, setDraftBirthDate] =
     useState(birthDate);
@@ -44,20 +104,35 @@ export default function LinkedPatientScreen() {
    * Si por algún motivo se entra a esta pantalla
    * sin haber seleccionado un paciente, volvemos atrás.
    */
+  
   useEffect(() => {
-    if (!patient) {
-      Alert.alert(
-        'Paciente no disponible',
-        'No hay un paciente seleccionado.',
-        [
-          {
-            text: 'Volver',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+    if (isRealSession) {
+      if (patientId || loadingPatient || patientError) {
+        return;
+      }
+    } else if (demoPatient) {
+      return;
     }
-  }, [patient, router]);
+
+    Alert.alert(
+      'Paciente no disponible',
+      'No hay un paciente seleccionado.',
+      [
+        {
+          text: 'Volver',
+          onPress: () => router.back(),
+        },
+      ]
+    );
+  }, [
+    isRealSession,
+    patientId,
+    loadingPatient,
+    patientError,
+    demoPatient,
+    router,
+  ]);
+
 
   const patientInitials =
     patient?.name
@@ -98,6 +173,40 @@ export default function LinkedPatientScreen() {
       'Los datos del paciente se actualizaron correctamente.'
     );
   };
+
+  
+  if (isRealSession && patientId && loadingPatient && !realPatient) {
+    return (
+      <ThemedView style={styles.center}>
+        <ThemedText>
+          Cargando información del paciente...
+        </ThemedText>
+      </ThemedView>
+    );
+  }
+
+  if (isRealSession && patientError) {
+    return (
+      <ThemedView style={styles.center}>
+        <ThemedText style={styles.notFoundTitle}>
+          No se pudo cargar el paciente
+        </ThemedText>
+
+        <ThemedText>
+          Verifica tu conexión e inténtalo nuevamente.
+        </ThemedText>
+
+        <Pressable
+          onPress={() => router.back()}
+          style={[styles.backButton, { backgroundColor: theme.primary }]}
+        >
+          <ThemedText style={styles.backButtonText}>
+            Volver
+          </ThemedText>
+        </Pressable>
+      </ThemedView>
+    );
+  }
 
   if (!patient) {
     return (
@@ -147,8 +256,16 @@ export default function LinkedPatientScreen() {
   }
 
   return (
-    <ThemedView style={styles.screen}>
-      <ScrollView
+  <ThemedView style={styles.screen}>
+    <Stack.Screen
+      options={{
+        title: 'Ficha del paciente',
+        headerShown: true,
+        headerBackTitle: 'Volver',
+      }}
+    />
+
+    <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
@@ -262,6 +379,7 @@ export default function LinkedPatientScreen() {
                 color={theme.primary}
               />
 
+              {!isRealSession && (
               <Pressable
                 accessibilityRole="button"
                 onPress={startEditing}
@@ -285,6 +403,7 @@ export default function LinkedPatientScreen() {
                   Editar información
                 </ThemedText>
               </Pressable>
+              )}
             </>
           ) : (
             <>
@@ -390,7 +509,14 @@ export default function LinkedPatientScreen() {
             },
           ]}
         >
-          <HealthInformation />
+          {isRealSession ? (
+            <ThemedText style={{ color: theme.mutedText }}>
+              La información de enfermedades y medicamentos
+              todavía no está disponible desde el backend.
+            </ThemedText>
+          ) : (
+            <HealthInformation />
+          )}
         </View>
 
         {/* Nota temporal */}

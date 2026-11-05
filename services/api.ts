@@ -655,6 +655,107 @@ export async function getMe(): Promise<CurrentUserResponse> {
   return normalizeBackendUser(user);
 }
 
+export async function updateMe(
+  fullName: string,
+): Promise<CurrentUserResponse> {
+  const user = await apiClient.patch<BackendUser>("/me", {
+    fullName: fullName.trim(),
+  });
+
+  return normalizeBackendUser(user);
+}
+
+
+/*
+ * Pacientes reales vinculados al cuidador o médico.
+ * GET /api/v1/me/patients
+ */
+export type MyPatientResponse = {
+  patientId: string;
+  fullName: string;
+  relationshipId: string;
+  relationshipType: "CAREGIVER" | "DOCTOR";
+  permissions: string[];
+  linkedAt: string;
+};
+
+export async function getMePatients(): Promise<MyPatientResponse[]> {
+  return apiClient.get<MyPatientResponse[]>("/me/patients");
+}
+
+/*
+ * TI4-66: Listados reales de cuidadores y médicos
+ * vinculados a un paciente.
+ */
+
+export type LinkedUserResponse = {
+  relationshipId: string;
+  userId: string;
+  fullName: string;
+  permissions: string[];
+  linkedAt: string;
+};
+
+export async function getPatientCaregivers(
+  patientId: string,
+): Promise<LinkedUserResponse[]> {
+  return apiClient.get<LinkedUserResponse[]>(
+    `/patients/${encodeURIComponent(patientId)}/caregivers`,
+  );
+}
+
+export async function getPatientDoctors(
+  patientId: string,
+): Promise<LinkedUserResponse[]> {
+  return apiClient.get<LinkedUserResponse[]>(
+    `/patients/${encodeURIComponent(patientId)}/doctors`,
+  );
+}
+
+/*
+ * Generar un código temporal de vinculación.
+ * POST /api/v1/patients/{patientId}/link-codes
+ */
+export type LinkCodeResponse = {
+  id: string;
+  code: string;
+  type: "CAREGIVER" | "DOCTOR";
+  expiresAt: string;
+};
+
+export async function createPatientLinkCode(
+  patientId: string,
+  type: "CAREGIVER" | "DOCTOR" = "CAREGIVER",
+): Promise<LinkCodeResponse> {
+  return apiClient.post<LinkCodeResponse>(
+    `/patients/${encodeURIComponent(patientId)}/link-codes`,
+    { type },
+  );
+}
+
+/*
+ * Consumir un código de vinculación.
+ * POST /api/v1/link-codes/consume
+ */
+export type ConsumeLinkCodeResponse = {
+  relationshipId: string;
+  relationshipType: "CAREGIVER" | "DOCTOR";
+  patientId: string;
+  patientName: string;
+  permissions: string[];
+  linkedAt: string;
+};
+
+export async function consumeLinkCode(
+  code: string,
+): Promise<ConsumeLinkCodeResponse> {
+  return apiClient.post<ConsumeLinkCodeResponse>(
+    "/link-codes/consume",
+    { code: code.trim().toUpperCase() },
+  );
+}
+
+
 /*
  * Compatibilidad con código previo de
  * Sebastián que pudiera requerir Response

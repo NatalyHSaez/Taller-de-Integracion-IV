@@ -103,6 +103,14 @@ export function AccountForm({
       );
     }
 
+    // El nombre debe contener letras y no puede
+    // estar formado únicamente por números o símbolos.
+    if (!/^\p{L}[\p{L}\p{M}\s'-]*$/u.test(cleanName)) {
+      throw new Error(
+        'El nombre solo puede contener letras, espacios, apóstrofes y guiones.',
+      );
+    }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       throw new Error(
         'Ingresa un correo electrónico válido.',

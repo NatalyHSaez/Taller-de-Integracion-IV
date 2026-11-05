@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { BrandColors, Colors } from "@/constants/theme";
+import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
@@ -70,6 +71,7 @@ const ACCOUNT_OPTIONS: MenuOption[] = [
 export default function MenuScreen() {
   const { user: demoUser } = useDemo();
   const { user: authUser, signOut } = useAuth();
+  const { user: globalUser, sessionMode } = useAppState();
 
   const router = useRouter();
 
@@ -85,7 +87,9 @@ export default function MenuScreen() {
    * name proviene de demo-store.
    */
   const displayName: string =
-    authUser?.nombre_completo ?? demoUser?.name ?? "Usuario";
+    sessionMode === "backend"
+      ? globalUser?.name ?? authUser?.nombre_completo ?? "Usuario"
+      : demoUser?.name ?? "Usuario";
 
   const initials = displayName
     .trim()

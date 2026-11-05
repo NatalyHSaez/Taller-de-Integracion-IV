@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { BrandColors, Colors } from '@/constants/theme';
+import { useAppState } from '@/hooks/use-app-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 
@@ -39,17 +40,41 @@ function SharedHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { user, patient, relations } = useDemo();
+  const { user: demoUser, patient: demoPatient, relations } = useDemo();
+
+  const {
+    user: globalUser,
+    selectedPatient,
+    sessionMode,
+  } = useAppState();
+
+  const isRealSession = sessionMode === 'backend';
+
+  const user = isRealSession ? globalUser : demoUser;
+  const patientName = isRealSession
+    ? selectedPatient?.name
+    : demoPatient?.name;
+
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-  const pendingCount = relations.filter((relation) =>
-    relation.status === 'pending' && relation.patientId === user?.patientId
-  ).length;
+  const pendingCount = isRealSession
+    ? 0
+    : relations.filter(
+        (relation) =>
+          relation.status === 'pending' &&
+          relation.patientId === demoUser?.patientId
+      ).length;
   const date = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'long' }).format(new Date());
   const isCaregiver = user?.role === 'caregiver';
-  const patientName = patient?.name;
+
   let heading = `Hola, ${user?.name.split(' ')[0] ?? ''}`;
-  let subtitle = isCaregiver && patientName ? `Acompañas a ${patientName}` : 'Resumen de salud';
+
+  let subtitle =
+    isCaregiver && patientName
+      ? `Acompañas a ${patientName}`
+      : isRealSession && isCaregiver
+        ? 'Sin paciente seleccionado'
+        : 'Resumen de salud';
   if (pathname === '/seguimiento') {
     heading = 'Seguimiento';
     subtitle = isCaregiver && patientName ? `Mediciones de ${patientName}` : 'Tus mediciones';

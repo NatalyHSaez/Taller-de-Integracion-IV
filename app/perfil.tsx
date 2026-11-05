@@ -2,38 +2,42 @@ import { HealthInformation } from "@/components/profile/health-information";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Colors } from "@/constants/theme";
+import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useDemo } from "@/hooks/use-demo";
 import { demo } from "@/services/demo-store";
 
-import { getPatient } from "@/services/api";
+import { getPatient, updateMe } from "@/services/api";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, } from "react-native";
 
 export default function Profile() {
   
-const { user: demoUser, patients } = useDemo();
+const {
+  user: demoUser,
+  patients,
+  patient: activePatient,
+  selectedId,
+} = useDemo();
 
 const {
   user: authUser,
   authenticated,
   loading: authLoading,
   signOut,
+  setUser,
 } = useAuth();
 
 const router = useRouter();
+const {
+  patients: globalPatients,
+  selectedPatient,
+  selectPatient,
+} = useAppState();
 
 const colorScheme = useColorScheme();
 
@@ -82,6 +86,7 @@ const displayRole: string = authLoading
   // ==========================================================
 
   const [editing, setEditing] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const [name, setName] = useState("");
 
@@ -157,29 +162,19 @@ useEffect(() => {
   authUser?.id,
   authUser?.roles,
 ]);
+  
 
+const displayedPatients = isRealSession
+  ? globalPatients
+  : patients;
+
+const activeSelectedId = isRealSession
+  ? selectedPatient?.id ?? null
+  : selectedId;
 
   const startEditing = () => {
-    /*
-     * Todavía no existe un endpoint integrado
-     * para modificar el perfil real.
-     *
-     * Evitamos guardar accidentalmente información
-     * proveniente del backend dentro de demo-store.
-     */
-    if (authenticated) {
-      Alert.alert(
-        "Edición de perfil",
-        "Tus datos están conectados con tu cuenta real. La edición se habilitará cuando conectemos el endpoint de actualización del perfil.",
-      );
-
-      return;
-    }
-
     setName(displayName === "Usuario" ? "" : displayName);
-
     setEmail(displayEmail);
-
     setEditing(true);
   };
 
@@ -190,20 +185,36 @@ useEffect(() => {
     setEmail("");
   };
 
-  const saveProfile = () => {
-    if (authenticated) {
+  const saveProfile = async () => {
+    if (savingProfile) return;
+    const cleanName = name.trim();
+
+    if (cleanName.length < 3 || cleanName.length > 200) {
       Alert.alert(
-        "Edición de perfil",
-        "No se realizaron cambios porque esta cuenta está conectada al backend.",
+        "Nombre inválido",
+        "El nombre debe tener entre 3 y 200 caracteres.",
       );
-
-      setEditing(false);
-
       return;
     }
 
+    if (!/^\p{L}[\p{L}\p{M}\s'-]*$/u.test(cleanName)) {
+      Alert.alert(
+        'Nombre inválido',
+        'El nombre solo puede contener letras, espacios, apóstrofes y guiones.',
+      );
+      return;
+    }
+
+    setSavingProfile(true);
+
     try {
-      demo.updateProfile(name.trim(), email.trim());
+      if (authenticated) {
+        const updatedUser = await updateMe(cleanName);
+
+        setUser(updatedUser);
+      } else {
+        demo.updateProfile(cleanName, email.trim());
+      }
 
       setEditing(false);
 
@@ -211,15 +222,17 @@ useEffect(() => {
         "Perfil actualizado",
         "Tus datos se guardaron correctamente.",
       );
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "No se pudieron guardar los cambios.",
-      );
-    }
-  };
+        } catch (error) {
+          Alert.alert(
+            "Error",
+            error instanceof Error
+              ? error.message
+              : "No se pudieron guardar los cambios.",
+          );
+        } finally {
+          setSavingProfile(false);
+        }
+      };
 
   // ==========================================================
   // CERRAR SESIÓN
@@ -294,6 +307,9 @@ useEffect(() => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        
+    
+
         {/* CABECERA */}
         <View
           style={[
@@ -459,7 +475,7 @@ useEffect(() => {
                   placeholder="Ingresa tu nombre"
                   placeholderTextColor={theme.mutedText}
                   autoCapitalize="words"
-                  maxLength={100}
+                  maxLength={200}
                 />
               </FormField>
 
@@ -475,6 +491,7 @@ useEffect(() => {
                       color: theme.text,
                     },
                   ]}
+                  editable={!authenticated}
                   value={email}
                   onChangeText={setEmail}
                   placeholder="Ingresa tu correo"
@@ -498,6 +515,7 @@ useEffect(() => {
                       color: theme.text,
                     },
                   ]}
+                  editable={!authenticated}
                   value={birthDate}
                   onChangeText={setBirthDate}
                   placeholder="DD/MM/AAAA"
@@ -508,24 +526,26 @@ useEffect(() => {
 
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{ disabled: savingProfile, busy: savingProfile }}
+                disabled={savingProfile}
                 onPress={saveProfile}
                 style={({ pressed }) => [
                   styles.primaryButton,
                   {
                     backgroundColor: theme.primary,
+                    opacity: savingProfile ? 0.7 : 1,
                   },
-
-                  pressed && styles.pressed,
+                  pressed && !savingProfile && styles.pressed,
                 ]}
               >
                 <MaterialCommunityIcons
-                  name="check"
+                  name={savingProfile ? "loading" : "check"}
                   size={20}
                   color="#FFFFFF"
                 />
 
                 <ThemedText style={styles.primaryButtonText}>
-                  Guardar cambios
+                  {savingProfile ? "Guardando..." : "Guardar cambios"}
                 </ThemedText>
               </Pressable>
 
@@ -621,32 +641,28 @@ useEffect(() => {
                 },
               ]}
             >
-              {patients.length > 0 ? (
-                patients.map((patient) => (
+              {displayedPatients.length > 0 ? (
+                displayedPatients.map((patient) => (
+                  <View key={patient.id}>
                   <Pressable
                     key={patient.id}
                     accessibilityRole="button"
                     accessibilityLabel={`Seleccionar a ${patient.name}`}
                     onPress={() => {
-                      /*
-                       * Guardamos el paciente
-                       * seleccionado.
-                       */
-                      demo.select(patient.id);
-
-                      /*
-                       * La antigua ruta:
-                       *
-                       * /paciente-vinculado
-                       *
-                       * no existe en el proyecto
-                       * actual.
-                       *
-                       * Entramos al área principal
-                       * utilizando al paciente
-                       * seleccionado.
-                       */
-                      router.replace("/(tabs)");
+                      if (isRealSession) {
+                        selectPatient(patient.id);
+                        return;
+                      }
+                      try {
+                        demo.select(patient.id);
+                      } catch (error) {
+                        Alert.alert(
+                          "Error al seleccionar paciente",
+                          error instanceof Error
+                            ? error.message
+                            : "No fue posible seleccionar al paciente.",
+                        );
+                      }
                     }}
                     style={({ pressed }) => [
                       styles.patientRow,
@@ -678,21 +694,65 @@ useEffect(() => {
                         style={[
                           styles.patientDescription,
                           {
-                            color: theme.mutedText,
+                            color:
+                              activeSelectedId === patient.id
+                                ? theme.primary
+                                : theme.mutedText,
                           },
                         ]}
                       >
-                        Paciente vinculado
+                        {activeSelectedId === patient.id
+                          ? "Paciente activo"
+                          : "Toca para seleccionar"}
                       </ThemedText>
                     </View>
 
                     <MaterialCommunityIcons
-                      name="chevron-right"
+                      name={
+                        activeSelectedId === patient.id
+                          ? "check-circle"
+                          : "chevron-right"
+                      }
                       size={25}
-                      color={theme.mutedText}
+                      color={
+                        activeSelectedId === patient.id
+                          ? theme.primary
+                          : theme.mutedText
+                      }
                     />
+                  
                   </Pressable>
+
+                  {activeSelectedId === patient.id && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ver ficha de ${patient.name}`}
+                      onPress={() => router.push('/paciente-vinculado')}
+                      style={({ pressed }) => [
+                        styles.secondaryButton,
+                        { borderColor: theme.primary, marginTop: 8 },
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="card-account-details-outline"
+                        size={20}
+                        color={theme.primary}
+                      />
+
+                      <ThemedText
+                        style={[
+                          styles.secondaryButtonText,
+                          { color: theme.primary },
+                        ]}
+                      >
+                        Ver ficha del paciente
+                      </ThemedText>
+                    </Pressable>
+                  )}
+                </View>
                 ))
+
               ) : (
                 <View style={styles.emptyPatients}>
                   <MaterialCommunityIcons

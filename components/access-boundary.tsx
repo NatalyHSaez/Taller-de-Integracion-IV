@@ -6,7 +6,7 @@ import { useAppState } from "@/hooks/use-app-state";
 import { Action, Copy, FlowPage } from "./flow-ui";
 
 export function AccessBoundary({ children }: PropsWithChildren) {
-  const { user, selectedPatient, permissions } = useAppState();
+  const { user, selectedPatient, permissions, sessionMode } = useAppState();
 
   const path = usePathname();
   const segments = useSegments();
@@ -50,12 +50,26 @@ export function AccessBoundary({ children }: PropsWithChildren) {
    * Perfil se permite porque corresponde al
    * propio usuario.
    */
+  const isRealPatient =
+    sessionMode === "backend" && user?.role === "patient";
+
+  const isRealCaregiver =
+    sessionMode === "backend" && user?.role === "caregiver";
+
+  const canAccessWithoutPatient =
+    isRealPatient ||
+    (isRealCaregiver &&
+      (path === "/" ||
+        path === "/menu" ||
+        path === "/vinculos"));
+
   if (
     user &&
     !isAuthRoute &&
     !isPublicPage &&
     path !== "/perfil" &&
-    !selectedPatient
+    !selectedPatient &&
+    !canAccessWithoutPatient
   ) {
     return <Redirect href="/(auth)/select-patient" />;
   }
