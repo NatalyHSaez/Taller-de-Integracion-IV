@@ -11,6 +11,7 @@ import type {
   NotificationResponse,
   PatientConditionResponse,
   PatientProfileResponse,
+  ParameterLimitResponse,
   PatientSummaryResponse,
   ReadingResponse,
 } from '../../types/api';
@@ -173,6 +174,18 @@ export const MOCK_CLINICAL_PARAMETERS = [
     technicalMax: 400,
   },
 ] satisfies ClinicalParameterResponse[];
+
+/**
+ * Mock de GET /parameter-limits. Se deriva del catálogo mock para que los
+ * límites existan en una sola constante.
+ */
+export const MOCK_PARAMETER_LIMITS: ParameterLimitResponse[] =
+  MOCK_CLINICAL_PARAMETERS.map((parameter) => ({
+    parameterCode: parameter.code,
+    minValue: parameter.technicalMin,
+    maxValue: parameter.technicalMax,
+    unit: parameter.unit,
+  }));
 
 export const MOCK_PATIENT_CONDITIONS = [
   {

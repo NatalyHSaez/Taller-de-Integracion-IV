@@ -1,7 +1,17 @@
-import type { MeasurementResponse, ReadingResponse } from '@/types/api';
+import type {
+  ClinicalParameterCode,
+  CreateReadingRequest,
+  MeasurementResponse,
+  ReadingResponse,
+} from '@/types/api';
 import type { Measurement } from '@/types/measurement';
 
 import { authSession } from './auth-session';
+import {
+  type ClinicalParameterCatalog,
+  parseNumericInput,
+  validateAgainstParameter,
+} from './clinical-parameters';
 import { dataClient } from './data';
 import { demo } from './demo-store';
 import { ApiError, normalizeApiError } from './errors';
@@ -75,6 +85,48 @@ function localReading(patientId: string, readingId: string): ReadingResponse | n
     source: authSession.mode() === 'backend' ? 'MOCK_FALLBACK' : 'MOCK',
     measurements: related.flatMap(toApiMeasurements),
   };
+}
+
+/**
+ * Arma el cuerpo de creación de una lectura (CreateReadingRequest).
+ *
+ * - La unidad de cada medición es siempre la unidad canónica indicada por la
+ *   API en el catálogo; la app no la decide.
+ * - Repite la validación preventiva como defensa; el backend vuelve a validar
+ *   y su respuesta es la autoridad final.
+ */
+export function buildCreateReadingRequest(input: {
+  codes: ClinicalParameterCode[];
+  values: Partial<Record<ClinicalParameterCode, string>>;
+  catalog: ClinicalParameterCatalog;
+  context: string | null;
+  measuredAt: string;
+}): CreateReadingRequest {
+  const measurements = input.codes.map((code) => {
+    const parameter = input.catalog[code];
+    if (!parameter) {
+      throw new ApiError({
+        code: 'PARAMETER_UNAVAILABLE',
+        message: 'Este tipo de medición no está disponible en este momento.',
+        details: { parameterCode: code },
+      });
+    }
+
+    const raw = input.values[code] ?? '';
+    const problem = validateAgainstParameter(parameter, raw);
+    const value = parseNumericInput(raw);
+    if (problem || value === null) {
+      throw new ApiError({
+        code: 'VALIDATION_ERROR',
+        message: `${parameter.name}: ${problem ?? 'falta el valor.'}`,
+        details: { parameterCode: code },
+      });
+    }
+
+    return { parameterCode: code, value, unit: parameter.unit };
+  });
+
+  return { context: input.context, measuredAt: input.measuredAt, measurements };
 }
 
 export const readingsService = {

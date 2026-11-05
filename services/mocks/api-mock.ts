@@ -3,6 +3,7 @@ import type {
   AuthTokensResponse,
   ClinicalParameterResponse,
   CurrentUserResponse,
+  ParameterLimitResponse,
   DoctorProfileResponse,
   DoctorVerificationResponse,
   EvaluationResponse,
@@ -23,6 +24,7 @@ import {
   MOCK_EVALUATIONS,
   MOCK_HEALTH_CONDITIONS,
   MOCK_NOTIFICATIONS,
+  MOCK_PARAMETER_LIMITS,
   MOCK_PATIENT_CONDITIONS,
   MOCK_PATIENT_PROFILES,
   MOCK_PATIENTS,
@@ -101,6 +103,9 @@ export const mockApi = {
 
     clinicalParameters: async (): Promise<ClinicalParameterResponse[]> =>
       mockResponse(MOCK_CLINICAL_PARAMETERS),
+
+    parameterLimits: async (): Promise<ParameterLimitResponse[]> =>
+      mockResponse(MOCK_PARAMETER_LIMITS),
   },
 
   patients: {

@@ -21,7 +21,13 @@ import { useClinicalParameters } from "@/hooks/use-clinical-parameters";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { validateAgainstParameter } from "@/services/clinical-parameters";
 import { demo } from "@/services/demo-store";
-import type { ClinicalParameterCode, ClinicalParameterResponse } from "@/types/api";
+import { buildCreateReadingRequest } from "@/services/readings";
+import type {
+  CanonicalUnit,
+  ClinicalParameterCode,
+  ClinicalParameterResponse,
+  CreateReadingRequest,
+} from "@/types/api";
 import type { MeasurementType } from "@/types/measurement";
 import { useRouter } from "expo-router";
 
@@ -58,12 +64,32 @@ const REQUIRED_PARAMETERS: Record<MeasurementType, ClinicalParameterCode[]> = {
   weight: ["WEIGHT"],
 };
 
+/** Pista con el rango técnico efectivo (viene de la API, no de constantes locales). */
 function rangeHint(parameter: ClinicalParameterResponse) {
-  const { technicalMin: min, technicalMax: max } = parameter;
-  if (min !== null && max !== null) return `Rango válido: ${min}–${max}`;
-  if (min !== null) return `Mínimo: ${min}`;
-  if (max !== null) return `Máximo: ${max}`;
+  const { technicalMin: min, technicalMax: max, unit } = parameter;
+  if (min !== null && max !== null) return `Rango aceptado: ${min}–${max} ${unit}`;
+  if (min !== null) return `Mínimo: ${min} ${unit}`;
+  if (max !== null) return `Máximo: ${max} ${unit}`;
   return undefined;
+}
+
+/**
+ * Obtiene una medición del cuerpo ya armado y comprueba que su unidad canónica
+ * sea la que el almacenamiento local de la app sabe representar.
+ */
+function measurementFrom<U extends CanonicalUnit>(
+  request: CreateReadingRequest,
+  code: ClinicalParameterCode,
+  localUnit: U,
+): { value: number; unit: U } {
+  const item = request.measurements.find((m) => m.parameterCode === code);
+  if (!item) throw new Error("Falta un valor de la medición.");
+  if (item.unit !== localUnit) {
+    throw new Error(
+      `La API indica la unidad ${item.unit} para ${code}, que esta versión de la app aún no puede guardar.`,
+    );
+  }
+  return { value: item.value, unit: localUnit };
 }
 
 const GLUCOSE_CONTEXTS: { value: GlucoseContext; label: string }[] = [
@@ -86,11 +112,6 @@ function formatTime(date: Date) {
     minute: "2-digit",
     hour12: false,
   }).format(date);
-}
-
-function isPositiveNumber(value: string) {
-  const parsed = Number(value.replace(",", "."));
-  return value.trim().length > 0 && Number.isFinite(parsed) && parsed > 0;
 }
 
 export default function RegisterMeasurementScreen() {
@@ -163,18 +184,17 @@ export default function RegisterMeasurementScreen() {
   const borderColor = theme.border;
   const inputColor = theme.surfaceMuted;
 
+  // Los rangos solo los decide validateAgainstParameter con los límites de la API;
+  // aquí solo se exige que los campos requeridos estén completos.
   const formIsValid =
     typeAvailable &&
     !hasFieldErrors &&
     date.trim().length > 0 &&
     time.trim().length > 0 &&
-    (measurementType === "blood_pressure"
-      ? isPositiveNumber(systolic) &&
-        isPositiveNumber(diastolic) &&
-        isPositiveNumber(heartRate)
-      : measurementType === "glucose"
-        ? isPositiveNumber(glucose) && glucoseContext !== null
-        : isPositiveNumber(weight));
+    REQUIRED_PARAMETERS[measurementType].every(
+      (code) => fieldValues[code].trim().length > 0,
+    ) &&
+    (measurementType !== "glucose" || glucoseContext !== null);
 
   const selectedOption = MEASUREMENT_OPTIONS.find(
     (option) => option.value === measurementType,
@@ -249,26 +269,39 @@ export default function RegisterMeasurementScreen() {
         throw new Error(
           "Revisa la fecha (dd/mm/aaaa) y hora (hh:mm); no pueden ser futuras.",
         );
-      const number = (value: string) => Number(value.replace(",", "."));
-      const base = { id: "", measuredAt: measured.toISOString() };
+      // Cuerpo con la unidad canónica indicada por la API (CreateReadingRequest).
+      // Cuando exista el POST de lecturas, este es el cuerpo a enviar y sus
+      // errores de validación deben mostrarse tal cual: el backend es la
+      // autoridad final.
+      const request = buildCreateReadingRequest({
+        codes: REQUIRED_PARAMETERS[measurementType],
+        values: fieldValues,
+        catalog: catalog ?? {},
+        context: measurementType === "glucose" ? glucoseContext : null,
+        measuredAt: measured.toISOString(),
+      });
+      const base = { id: "", measuredAt: request.measuredAt };
       demo.save(
         measurementType === "blood_pressure"
           ? {
               ...base,
               type: "blood_pressure",
-              systolic: number(systolic),
-              diastolic: number(diastolic),
-              heartRate: number(heartRate),
+              systolic: measurementFrom(request, "SBP", "mmHg").value,
+              diastolic: measurementFrom(request, "DBP", "mmHg").value,
+              heartRate: measurementFrom(request, "HEART_RATE", "bpm").value,
             }
           : measurementType === "glucose"
             ? {
                 ...base,
                 type: "glucose",
-                value: number(glucose),
-                unit: "mg/dL",
+                ...measurementFrom(request, "GLUCOSE", "mg/dL"),
                 context: contextLabel,
               }
-            : { ...base, type: "weight", value: number(weight), unit: "kg" },
+            : {
+                ...base,
+                type: "weight",
+                ...measurementFrom(request, "WEIGHT", "kg"),
+              },
       );
 
       if (demo.snapshot().vozActiva) {

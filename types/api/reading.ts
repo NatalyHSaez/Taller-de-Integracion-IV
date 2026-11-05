@@ -49,7 +49,8 @@ export type ReadingResponse = {
  * Se incluye aquí para que mocks y servicios compartan el mismo contrato.
  */
 export type CreateReadingRequest = {
-  context: string;
+  /** Contexto de la lectura (por ejemplo, ayunas en glucosa); null si no aplica. */
+  context: string | null;
   measuredAt: ISODateTime;
   measurements: Array<{
     parameterCode: ClinicalParameterCode;

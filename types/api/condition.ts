@@ -21,6 +21,18 @@ export type ClinicalParameterResponse = {
   technicalMax: number | null;
 };
 
+/**
+ * Item de GET /api/v1/parameter-limits.
+ * Límites técnicos (no clínicos) de cada parámetro, expresados en su unidad canónica.
+ * Solo sirven para descartar valores imposibles; el backend vuelve a validar siempre.
+ */
+export type ParameterLimitResponse = {
+  parameterCode: ClinicalParameterCode;
+  minValue: number | null;
+  maxValue: number | null;
+  unit: CanonicalUnit;
+};
+
 export type PatientConditionResponse = {
   patientConditionId: UUID;
   patientId: UUID;
