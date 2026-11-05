@@ -1,5 +1,4 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import * as Speech from "expo-speech";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
@@ -25,7 +24,6 @@ import {
   clinicalParametersService,
   validateAgainstParameter,
 } from "@/services/clinical-parameters";
-import { demo } from "@/services/demo-store";
 import { createReadingFlow } from "@/services/reading-flow";
 import {
   buildCreateReadingRequest,
@@ -138,7 +136,6 @@ export default function RegisterMeasurementScreen() {
   const serverGeneralError =
     flowState.step === "form" ? (flowState.errors?.general ?? "") : "";
   const [submittedSummary, setSubmittedSummary] = useState("");
-  const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
   const {
     catalog,
     loading: catalogLoading,
@@ -283,23 +280,6 @@ export default function RegisterMeasurementScreen() {
     return measured;
   }
 
-  function announce(measured: Date) {
-    if (!demo.snapshot().vozActiva) return;
-    const detalle =
-      measurementType === "blood_pressure"
-        ? `Presión arterial: ${systolic} sobre ${diastolic}, frecuencia cardíaca ${heartRate}`
-        : measurementType === "glucose"
-          ? `Glucosa: ${glucose} ${unitOf("GLUCOSE")}`
-          : `Peso: ${weight.replace(".", ",")} ${unitOf("WEIGHT")}`;
-    const diaSemana = measured.toLocaleDateString("es-CL", { weekday: "long" });
-    const fecha = measured.toLocaleDateString("es-CL", { day: "numeric", month: "long" });
-    const hora = measured.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
-    Speech.speak(
-      `Datos registrados correctamente. ${detalle}. ${diaSemana} ${fecha}, a las ${hora}.`,
-      { language: "es-CL", volume: demo.snapshot().vozVolumen },
-    );
-  }
-
   async function save() {
     if (!formIsValid || flow.getState().step !== "form") return;
     if (!showReview) {
@@ -338,7 +318,6 @@ export default function RegisterMeasurementScreen() {
     }
 
     setSubmittedSummary(getSummaryValue());
-    setSubmittedAt(measured);
     await flow.submit(patientId, request);
 
     const after = flow.getState();
@@ -346,13 +325,10 @@ export default function RegisterMeasurementScreen() {
       clinicalParametersService.invalidate();
       retryCatalog();
     }
-    // Una lectura inusual no se anuncia como registrada hasta confirmarla.
-    if (after.step === "result") announce(measured);
   }
 
   async function confirmReading() {
     await flow.confirm();
-    if (flow.getState().step === "result" && submittedAt) announce(submittedAt);
   }
 
   function goToHistory() {
