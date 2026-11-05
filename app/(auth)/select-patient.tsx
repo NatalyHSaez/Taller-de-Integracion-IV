@@ -12,7 +12,7 @@ import { authService } from "@/services/authservice";
 export default function SelectPatient() {
   const router = useRouter();
 
-  const { user, patients, selectPatient } = useAppState();
+  const { user, patients, selectPatient, sessionMode } = useAppState();
 
   const { relations, profiles } = useDemo();
 
@@ -84,12 +84,18 @@ export default function SelectPatient() {
   return (
     <FlowPage
       title={
-        patients.length
+        sessionMode === 'backend' ? 'Tu cuenta de cuidador' : patients.length
           ? "¿A quién acompañas hoy?"
           : "Aún no tienes pacientes vinculados"
       }
       subtitle={`Hola, ${user.name}. Solo puedes acceder a vínculos aprobados.`}
     >
+      {sessionMode === 'backend' && (
+        <>
+          <Copy>Sesión iniciada correctamente. La consulta de pacientes vinculados estará disponible cuando se complete esa función.</Copy>
+          <Action label="Ver mi perfil" onPress={() => router.push('/perfil')} />
+        </>
+      )}
       {patients.map((patient) => (
         <Card key={patient.id}>
           <Copy>{patient.name}</Copy>
@@ -130,18 +136,18 @@ export default function SelectPatient() {
           );
         })}
 
-      <Action
+      {sessionMode !== 'backend' && <Action
         label="Escanear QR o abrir invitación"
         onPress={() => router.push("/invitacion")}
-      />
+      />}
 
       <Action secondary label="Cerrar sesión" onPress={confirmLogout} />
 
-      <Action
+      {sessionMode !== 'backend' && <Action
         secondary
         label="Ver guía de demostración"
         onPress={() => router.push("/demo")}
-      />
+      />}
     </FlowPage>
   );
 }

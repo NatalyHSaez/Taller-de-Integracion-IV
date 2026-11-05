@@ -1,5 +1,6 @@
-import { AuthUser, getMe } from '@/services/api';
-import { clearTokens, getAccessToken } from '@/services/token-storage';
+import { AuthUser } from '@/services/api';
+import { authSession } from '@/services/auth-session';
+import { authService } from '@/services/authservice';
 import { createContext, PropsWithChildren, useContext, useEffect, useState, } from 'react';
 
 type AuthContextValue = {
@@ -17,39 +18,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Publica la identidad del login sin depender de que la pantalla siga montada.
+  useEffect(() => authSession.subscribe(() => {
+    setUser(authSession.mode() === 'backend' ? authSession.user() : null);
+  }), []);
+
   async function restoreSession() {
     try {
-        setLoading(true);
-
-        const accessToken = await getAccessToken();
-
-        if (!accessToken) {
-        setUser(null);
-        return;
-        }
-
-        const currentUser = await getMe();
-
-        setUser(currentUser);
-    } catch (error) {
-        // TEMPORALMENTE no borramos el token
-        // para poder diagnosticar qué está ocurriendo.
-        setUser(null);
+      await authService.restore();
+    } catch {
+      // El servicio limpia memoria; conserva tokens si solo falla la red.
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    }
+  }
 
   async function signOut() {
-    await clearTokens();
-    setUser(null);
+    await authService.logout();
   }
 
   useEffect(() => {
-  void restoreSession();
-  return () => {
-  };
-}, []);
+    // La actualización ocurre después de leer almacenamiento/red de forma asíncrona.
+    void restoreSession();
+  }, []);
 
   return (
     <AuthContext.Provider

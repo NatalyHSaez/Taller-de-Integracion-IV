@@ -1,8 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -13,7 +12,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDemo } from '@/hooks/use-demo';
 import { register as registerWithBackend } from '@/services/api';
-import { authService } from '@/services/authservice';
+import { buildRegistrationRequest, registrationErrorMessage } from '@/services/registration';
 import { demo } from '@/services/demo-store';
 
 import {
@@ -42,6 +41,9 @@ export function AccountForm({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [registered, setRegistered] = useState(false);
+  const submittingRef = useRef(false);
 
   /*
    * Campo utilizado por el flujo antiguo de activación.
@@ -68,74 +70,22 @@ export function AccountForm({
    * Validación del formulario de registro.
    */
   function validateRegister() {
-    const cleanName = name.trim();
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanName) {
-      throw new Error(
-        'Ingresa tu nombre completo.'
-      );
-    }
-
-    if (cleanName.length < 3) {
-      throw new Error(
-        'El nombre debe tener al menos 3 caracteres.'
-      );
-    }
-
-    if (!cleanEmail) {
-      throw new Error(
-        'Ingresa tu correo electrónico.'
-      );
-    }
-
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(cleanEmail)) {
-      throw new Error(
-        'Ingresa un correo electrónico válido.'
-      );
-    }
-
-    if (!password) {
-      throw new Error(
-        'Ingresa una contraseña.'
-      );
-    }
-
-    if (password.length < 8) {
-      throw new Error(
-        'La contraseña debe tener al menos 8 caracteres.'
-      );
-    }
-
-    if (password !== confirm) {
-      throw new Error(
-        'Las contraseñas no coinciden.'
-      );
-    }
-
-    if (!privacyAccepted) {
-      throw new Error(
-        'Debes aceptar la Política de Privacidad para crear tu cuenta.'
-      );
-    }
-
-    return {
-      cleanName,
-      cleanEmail,
-    };
+    return buildRegistrationRequest({
+      fullName: name, email, password, confirmation: confirm,
+      role: role === 'paciente' ? 'PATIENT' : 'CAREGIVER',
+      birthDate, privacyAccepted,
+    });
   }
 
   /**
    * Envío principal del formulario.
    */
   async function submit() {
-    if (submitting) {
+    if (submittingRef.current || registered) {
       return;
     }
 
+    submittingRef.current = true;
     setError('');
 
     try {
@@ -145,40 +95,14 @@ export function AccountForm({
        * ============================
        */
       if (mode === 'register') {
-        const {
-          cleanName,
-          cleanEmail,
-        } = validateRegister();
+        const request = validateRegister();
 
         setSubmitting(true);
 
-        if (role === 'cuidador') {
-          await authService.register({
-            name: cleanName,
-            email: cleanEmail,
-            password,
-          });
-        } else {
-          await registerWithBackend({
-            nombre_completo: cleanName,
-            correo: cleanEmail,
-            password,
-            rol: role,
-          });
-        }
-
-        Alert.alert(
-          'Cuenta creada',
-          'Tu cuenta fue creada correctamente. Ahora puedes iniciar sesión.',
-          [
-            {
-              text: 'Continuar',
-              onPress: () => {
-                router.replace('/(auth)/login');
-              },
-            },
-          ]
-        );
+        await registerWithBackend(request);
+        setPassword('');
+        setConfirm('');
+        setRegistered(true);
 
         return;
       }
@@ -253,11 +177,12 @@ export function AccountForm({
       }
     } catch (e) {
       setError(
-        e instanceof Error
+        mode === 'register' ? registrationErrorMessage(e) : e instanceof Error
           ? e.message
           : 'Ocurrió un error inesperado.'
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -279,6 +204,15 @@ export function AccountForm({
         ? 'Completa tus datos para crear tu cuenta en Domicilia.'
         : 'Ingresa con tu correo y contraseña.';
 
+  if (registered) {
+    return (
+      <FlowPage title="Cuenta creada" subtitle="Tu registro se completó correctamente.">
+        <Copy>Ahora puedes iniciar sesión con tu correo y contraseña.</Copy>
+        <Action label="Ir a iniciar sesión" onPress={() => router.replace('/(auth)/login')} />
+      </FlowPage>
+    );
+  }
+
   return (
     <FlowPage
       title={title}
@@ -294,6 +228,7 @@ export function AccountForm({
         </Card>
       )}
 
+      <View pointerEvents={submitting ? 'none' : 'auto'} style={{ gap: 16 }}>
       {/* Nombre */}
       {mode === 'register' && (
         <Field
@@ -479,6 +414,19 @@ export function AccountForm({
             </View>
           </View>
 
+          {role === 'paciente' && (
+            <Field
+              label="Fecha de nacimiento (DD/MM/AAAA)"
+              icon="calendar-outline"
+              value={birthDate}
+              onChangeText={setBirthDate}
+              placeholder="15/01/2000"
+              maxLength={10}
+              keyboardType="numbers-and-punctuation"
+              autoCorrect={false}
+            />
+          )}
+
           {/* Política de privacidad */}
           <Pressable
             accessibilityRole="checkbox"
@@ -554,7 +502,7 @@ export function AccountForm({
             borderWidth: 1,
             padding: 13,
           }}>
-          <Text style={{ color: theme.danger, fontSize: 13, lineHeight: 19 }}>{error}</Text>
+          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: theme.danger, fontSize: 13, lineHeight: 19 }}>{error}</Text>
         </View>
       )}
 
@@ -621,6 +569,7 @@ export function AccountForm({
           reinician al recargar la app.
         </Copy>
       )}
+      </View>
     </FlowPage>
   );
 }

@@ -199,7 +199,7 @@ export function resolveActivePatientId(): string {
   if (!user) {
     throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para registrar mediciones.' });
   }
-  if (user.roles.includes('paciente')) return user.id;
+  if (user.roles.includes('PATIENT')) return user.id;
 
   throw new ApiError({
     code: 'PATIENT_SELECTION_UNAVAILABLE',

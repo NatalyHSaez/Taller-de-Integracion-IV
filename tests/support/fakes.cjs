@@ -12,7 +12,7 @@ const CLINICAL_PARAMETERS = [
 ];
 const PARAMETER_LIMITS = [{ parameterCode: 'SBP', minValue: 60, maxValue: 280, unit: 'mmHg' }];
 
-function installFakes({ mode = 'backend', role = 'paciente', userId = '11111111-1111-4111-8111-111111111111' } = {}) {
+function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1111-4111-8111-111111111111' } = {}) {
   const calls = { post: [], get: [], dataGet: [], demoSave: 0 };
   const replies = { post: [], get: [] };
 

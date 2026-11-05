@@ -29,12 +29,12 @@ formato de respuesta mientras Integración II termina de unificar su contrato.
 }
 ```
 
-### 3. Formato con código estable previsto por Integración II
+### 3. Formato con código estable de Integración II
 
 ```json
 {
   "detail": "El código expiró. Pide al paciente que genere uno nuevo.",
-  "codigo_error": "CODIGO_EXPIRADO"
+  "errorCode": "CODE_EXPIRED"
 }
 ```
 
@@ -53,7 +53,7 @@ Toda respuesta anterior se transforma a una instancia de `ApiError` con:
 - `correlationId`
 - `status`
 
-Cuando el backend entrega `codigo_error`, este se usa como `code`. Si todavía no
+Cuando el backend entrega `errorCode`, este se usa como `code`. Si todavía no
 lo entrega, se obtiene un código general a partir del HTTP status, por ejemplo:
 
 - 400 -> `INVALID_REQUEST`
@@ -73,7 +73,7 @@ que la pantalla tenga que conocer el formato de FastAPI.
 ## Funciones principales
 
 - `apiErrorFromResponse(response)`: interpreta una respuesta HTTP fallida.
-- `apiErrorFromPayload(payload)`: interpreta el formato común original.
+- `apiErrorFromPayload(payload)`: interpreta `detail` y `errorCode` del backend.
 - `normalizeApiError(cause)`: transforma cualquier error desconocido en `ApiError`.
 - `getApiErrorMessage(cause)`: obtiene el mensaje que puede mostrar la interfaz.
 

@@ -1,13 +1,49 @@
 import { IS_API_CONFIGURED } from "@/config/api";
-import type { AuthTokensResponse, CurrentUserResponse } from "@/types/api";
+import type { AuthTokensResponse, CurrentUserResponse, RegisterRequest } from "@/types/api";
 
-import { apiClient, login as apiLogin } from "./api";
+import { apiClient, login as apiLogin, register as apiRegister, refreshAccessToken, setApiSessionHandlers, apiSessionRevision } from "./api";
 import { authSession } from "./auth-session";
 import { dataClient } from "./data";
 import { demo } from "./demo-store";
 import { ApiError } from "./errors";
+import { validateLoginUser } from './login-validation';
 import { findMockAccount, isMockAccountEmail } from "./mocks/auth-mock";
-import { clearTokens, saveTokens } from "./token-storage";
+import { clearTokens, getAccessToken, getRefreshToken } from "./token-storage";
+
+function clearLocalSession() {
+  authSession.clear();
+  demo.logout();
+  dataClient.clearCache();
+}
+setApiSessionHandlers({ refreshed: tokens => authSession.updateTokens(tokens), expired: clearLocalSession });
+let restoration: Promise<void> | null = null;
+
+async function restoreStoredSession() {
+  const revision = apiSessionRevision();
+  const [accessToken, refreshToken] = await Promise.all([getAccessToken(), getRefreshToken()]);
+  if (revision !== apiSessionRevision()) return;
+  if (!accessToken || !refreshToken) {
+    clearLocalSession();
+    await clearTokens();
+    return;
+  }
+  authSession.startBackend({ accessToken, refreshToken, tokenType: 'bearer', expiresIn: 0 });
+  const activeRevision = apiSessionRevision();
+  try {
+    const user = await apiClient.get<CurrentUserResponse>('/me');
+    if (activeRevision !== apiSessionRevision()) return;
+    ensureMobileRole(user);
+    authSession.setUser(user);
+    demo.startBackendSession(user);
+  } catch (error) {
+    if (activeRevision === apiSessionRevision()) {
+      clearLocalSession();
+      // Una caida de red no invalida los tokens persistidos.
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.code === 'FLOW_NOT_AVAILABLE' || error.code === 'INVALID_API_RESPONSE')) await clearTokens();
+    }
+    throw error;
+  }
+}
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -18,7 +54,8 @@ function normalizeEmail(email: string): string {
  * pacientes y cuidadores.
  */
 function ensureMobileRole(user: CurrentUserResponse): void {
-  if (user.roles.includes("paciente") || user.roles.includes("cuidador")) {
+  validateLoginUser(user);
+  if (user.roles.includes("PATIENT") || user.roles.includes("CAREGIVER")) {
     return;
   }
 
@@ -68,18 +105,18 @@ function localAccountToCurrentUser(): CurrentUserResponse {
 
   return {
     id: account.id,
-    nombre_completo: account.name,
-    correo: account.email,
-    roles: [account.role === "patient" ? "paciente" : "cuidador"],
+    fullName: account.name,
+    email: account.email,
+    roles: [account.role === "patient" ? "PATIENT" : "CAREGIVER"],
   };
 }
 
 function createRuntimeMockTokens(userId: string): AuthTokensResponse {
   return {
-    access_token: `mock-access-token-${userId}`,
-    refresh_token: `mock-refresh-token-${userId}`,
-    token_type: "bearer",
-    expires_in: 900,
+    accessToken: `mock-access-token-${userId}`,
+    refreshToken: `mock-refresh-token-${userId}`,
+    tokenType: "bearer",
+    expiresIn: 900,
   };
 }
 
@@ -100,10 +137,10 @@ async function loginWithMock(
    * Si anteriormente existía una sesión real,
    * eliminamos sus tokens persistidos.
    */
+  clearLocalSession();
+  const revision = apiSessionRevision();
   await clearTokens();
-
-  authSession.clear();
-  demo.logout();
+  if (revision !== apiSessionRevision()) throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió.' });
 
   const predefinedAccount = findMockAccount(email, password);
 
@@ -154,7 +191,7 @@ async function revokeBackendSession(
     await apiClient.post<void>(
       "/auth/logout",
       {
-        refresh_token: refreshToken,
+        refreshToken,
       },
       {
         auth: false,
@@ -194,20 +231,26 @@ async function loginWithBackend(
    * y además guarda access + refresh token
    * mediante SecureStore.
    */
+  const loginRevision = apiSessionRevision();
   const tokens = await apiLogin(normalizeEmail(email), password);
+  if (loginRevision !== apiSessionRevision()) {
+    await revokeBackendSession(tokens.refreshToken);
+    throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió.' });
+  }
 
   /*
    * También mantenemos la representación
    * en memoria para AppState y apiClient.
    */
   authSession.startBackend(tokens);
+  const revision = apiSessionRevision();
 
   try {
     /*
-     * /auth/me utiliza el access token
+     * /me utiliza el access token
      * recientemente recibido.
      */
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
+    const user = await dataClient.get<CurrentUserResponse>("/me", {
       cache: false,
       retry: {
         attempts: 2,
@@ -216,6 +259,7 @@ async function loginWithBackend(
       },
     });
 
+    if (revision !== apiSessionRevision()) throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesion cambio.' });
     ensureMobileRole(user);
 
     authSession.setUser(user);
@@ -230,13 +274,12 @@ async function loginWithBackend(
 
     return tokens;
   } catch (error) {
-    await revokeBackendSession(tokens.refresh_token);
+    await revokeBackendSession(tokens.refreshToken);
 
-    await clearTokens();
-
-    authSession.clear();
-    demo.logout();
-    dataClient.clearCache();
+    if (revision === apiSessionRevision()) {
+      clearLocalSession();
+      await clearTokens();
+    }
 
     throw error;
   }
@@ -255,28 +298,26 @@ export const authService = {
   },
 
   /**
-   * Decide automáticamente qué sistema de
-   * autenticación utilizar.
-   *
-   * Cuenta mock conocida
-   *      ↓
-   * demo-store
-   *
-   * Otro correo + API configurada
-   *      ↓
-   * API Gateway
+   * Usa el backend por defecto. Las cuentas de demostración requieren
+   * seleccionar explícitamente el modo mock, aunque coincida el correo.
    */
-  async login(email: string, password: string): Promise<AuthTokensResponse> {
-    if (isMockAccountEmail(email) || isRuntimeMockAccountEmail(email)) {
+  async login(email: string, password: string, mode: 'backend' | 'mock' = 'backend'): Promise<AuthTokensResponse> {
+    if (mode === 'mock') {
       return loginWithMock(email, password);
     }
 
     /*
-     * Si todavía no existe Gateway configurado,
-     * mantenemos el funcionamiento de desarrollo.
+     * Las cuentas mock conocidas continúan disponibles para desarrollo, pero
+     * una cuenta real nunca debe caer silenciosamente al flujo simulado.
      */
     if (!IS_API_CONFIGURED) {
-      return loginWithMock(email, password);
+      throw new ApiError({
+        code: "API_NOT_CONFIGURED",
+        message: "La URL del API Gateway no está configurada.",
+        details: {
+          variable: "EXPO_PUBLIC_API_URL",
+        },
+      });
     }
 
     return loginWithBackend(email, password);
@@ -287,7 +328,8 @@ export const authService = {
    */
   async me(): Promise<CurrentUserResponse> {
     if (authSession.mode() === "backend") {
-      const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
+      const revision = apiSessionRevision();
+      const user = await dataClient.get<CurrentUserResponse>("/me", {
         cache: false,
         retry: {
           attempts: 2,
@@ -296,6 +338,7 @@ export const authService = {
         },
       });
 
+      if (revision !== apiSessionRevision()) throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesion cambio.' });
       ensureMobileRole(user);
 
       authSession.setUser(user);
@@ -322,60 +365,18 @@ export const authService = {
    * sesión real.
    */
   async refresh(): Promise<AuthTokensResponse> {
-    if (authSession.mode() !== "backend") {
-      throw new ApiError({
-        code: "FLOW_NOT_AVAILABLE",
-        message: "La renovación real solo aplica a una sesión del backend.",
-        details: {},
-        status: 409,
-      });
-    }
-
-    const refreshToken = authSession.refreshToken();
-
-    if (!refreshToken) {
-      throw new ApiError({
-        code: "AUTHENTICATION_REQUIRED",
-        message: "No existe un refresh token disponible.",
-        details: {},
-        status: 401,
-      });
-    }
-
-    const tokens = await apiClient.post<AuthTokensResponse>(
-      "/auth/refresh",
-      {
-        refresh_token: refreshToken,
-      },
-      {
-        auth: false,
-      },
-    );
-
-    /*
-     * A diferencia de tu implementación inicial,
-     * ahora también persistimos los tokens
-     * renovados mediante SecureStore.
-     */
-    await saveTokens(tokens.access_token, tokens.refresh_token);
-
-    authSession.startBackend(tokens);
-
-    const user = await dataClient.get<CurrentUserResponse>("/auth/me", {
-      cache: false,
-      retry: {
-        attempts: 2,
-        initialDelayMs: 300,
-        maxDelayMs: 600,
-      },
-    });
-
-    ensureMobileRole(user);
-
-    authSession.setUser(user);
-    demo.startBackendSession(user);
-
+    if (authSession.mode() !== 'backend') throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesion nuevamente.' });
+    const access = await refreshAccessToken();
+    const tokens = authSession.tokens();
+    if (!access || !tokens) throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'La sesion vencio.' });
     return tokens;
+  },
+
+  restore(): Promise<void> {
+    if (!restoration) {
+      restoration = restoreStoredSession().finally(() => { restoration = null; });
+    }
+    return restoration;
   },
 
   /**
@@ -383,45 +384,15 @@ export const authService = {
    * como una sesión mock.
    */
   async logout(): Promise<void> {
-    const mode = authSession.mode();
-
     const refreshToken = authSession.refreshToken();
-
-    if (mode === "backend") {
-      await revokeBackendSession(refreshToken);
-    }
-
-    /*
-     * SecureStore siempre se limpia.
-     */
-    await clearTokens();
-
-    demo.logout();
-    authSession.clear();
-    dataClient.clearCache();
+    clearLocalSession();
+    // Borrar primero: el usuario sale incluso si el servidor no responde.
+    await Promise.all([clearTokens(), revokeBackendSession(refreshToken)]);
   },
 
-  /**
-   * El cuidador continúa pudiendo registrarse
-   * localmente para los flujos mock.
-   *
-   * El formulario de Sebastián utiliza
-   * directamente services/api.ts para el
-   * registro real de paciente.
-   */
-  async register(data: { name: string; email: string; password: string }) {
-    demo.registerCaregiver(
-      data.name,
-      normalizeEmail(data.email),
-      data.password,
-    );
-
-    /*
-     * account-form vuelve al login después
-     * del registro, así que no dejamos la
-     * cuenta iniciada automáticamente.
-     */
-    demo.logout();
+  /** Registro real; crear una cuenta no abre ni reemplaza una sesión. */
+  async register(data: RegisterRequest): Promise<CurrentUserResponse> {
+    return apiRegister(data);
   },
 
   async getPatients() {

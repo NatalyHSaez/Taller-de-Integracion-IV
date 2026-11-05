@@ -28,11 +28,9 @@ yarn-error.*
 .env*.local
 # typescript
 *.tsbuildinfo
+tmp/
 app-example
 # generated native folders
 /ios
 /android
 .claude/
-
-# salida de compilación de npm run test:onboarding
-tmp/
