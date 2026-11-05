@@ -28,10 +28,15 @@ const STUBS = {
   'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) },
 };
 
+/**
+ * Devuelve la ruta normalizada del archivo. normalize() unifica los
+ * separadores (en Windows "data/index.ts" pasa a "data\\index.ts"), para que
+ * coincida con las rutas registradas en mockModule.
+ */
 function resolveLocal(base) {
-  if (fs.existsSync(base) && fs.statSync(base).isFile()) return base;
+  if (fs.existsSync(base) && fs.statSync(base).isFile()) return path.normalize(base);
   for (const ext of EXTENSIONS) {
-    const candidate = base + ext;
+    const candidate = path.normalize(base + ext);
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
   }
   return null;
