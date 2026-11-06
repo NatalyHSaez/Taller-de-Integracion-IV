@@ -68,6 +68,8 @@ export type ReadingDetailViewProps = {
   state: DetailState;
   theme: AppTheme;
   currentUserId: string | null;
+  /** Nombre de quien registró (cuidador, paciente o médico), si se pudo resolver. */
+  recordedByLabel?: string | null;
   onRefresh: () => void;
   onConfirm: () => void;
   onGoToHistory: () => void;
@@ -78,6 +80,7 @@ export function ReadingDetailView({
   state,
   theme,
   currentUserId,
+  recordedByLabel,
   onRefresh,
   onConfirm,
   onGoToHistory,
@@ -113,11 +116,11 @@ export function ReadingDetailView({
     label: reading.status,
     colors: StatusColors.neutral,
   };
-  const recordedBy = reading.recordedBy
+  const recordedBy = recordedByLabel ?? (reading.recordedBy
     ? reading.recordedBy === currentUserId
       ? 'Tú'
       : 'Otra persona vinculada al paciente'
-    : null;
+    : null);
   const evaluation = reading.evaluation ?? null;
   const evaluationLabel = evaluation ? EVALUATION_LABELS[evaluation.status] : undefined;
 

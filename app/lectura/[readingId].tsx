@@ -13,6 +13,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getPatientReading } from '@/services/api';
 import { createReadingDetail, parameterName, type ReadingDetail } from '@/services/reading-detail';
 import { type ConfirmReadingError, confirmReadingErrorFrom, readingsService } from '@/services/readings';
+import { describeRecordedBy, linkedPeopleLoader, type LinkedPeople } from '@/services/recorded-by';
 
 /**
  * Sesión de demostración (sin servidor): la lectura sale de los datos locales.
@@ -78,6 +79,29 @@ export default function ReadingDetailScreen() {
   const [confirmError, setConfirmError] = useState<ConfirmReadingError | null>(null);
 
   const reading = state.reading;
+
+  // "Registrada por": el paciente resuelve los nombres con sus vínculos reales.
+  const isPatientViewer = isBackend && Boolean(authUser?.roles.includes('PATIENT'));
+  const [people, setPeople] = useState<{ patientId: string; value: LinkedPeople } | null>(null);
+  const recordedById = reading?.recordedBy ?? null;
+  useEffect(() => {
+    if (!isPatientViewer || !patientId || !recordedById || recordedById === authUser?.id) return;
+    let cancelled = false;
+    linkedPeopleLoader
+      .load(patientId)
+      .then((value) => { if (!cancelled) setPeople({ patientId, value }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isPatientViewer, patientId, recordedById, authUser?.id]);
+  const recordedByLabel = isBackend && reading && patientId
+    ? describeRecordedBy({
+        recordedBy: reading.recordedBy,
+        patientId,
+        patientName: selectedPatient?.name ?? null,
+        viewer: authUser ? { id: authUser.id, fullName: authUser.fullName, isPatient: isPatientViewer } : null,
+        people: people?.patientId === patientId ? people.value : null,
+      })
+    : null;
   const summary = reading
     ? reading.measurements
         .map((m) => `${parameterName(m.parameterCode)}: ${String(m.value).replace('.', ',')}${m.unit ? ` ${m.unit}` : ''}`)
@@ -122,6 +146,7 @@ export default function ReadingDetailScreen() {
           state={state}
           theme={theme}
           currentUserId={authUser?.id ?? null}
+          recordedByLabel={recordedByLabel}
           onRefresh={() => void detail.refresh()}
           onConfirm={() => {
             setConfirmError(null);
