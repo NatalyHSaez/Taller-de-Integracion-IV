@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   getEmergencyContact
 } from '@/services/emergency-contact';
+import { appState } from '@/services/app-state';
 import { createHomeSummary } from '@/services/home-summary';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -99,7 +100,9 @@ export default function ResumenScreen() {
       return;
     }
     void homeStore.refresh();
-  }, [homeStore, isFocused]);
+    // El cuidador también actualiza sus permisos (el paciente pudo cambiarlos).
+    if (homeRole === 'caregiver') void appState.loadRealPatients().catch(() => {});
+  }, [homeStore, isFocused, homeRole]);
   const homeReady = isRealSession && Boolean(homePatientId) && home.patientId === homePatientId;
   const homeLoading = isRealSession && Boolean(homePatientId) && (!homeReady || (home.loading && !home.loaded));
   const homeError = homeReady && !home.loaded ? home.error : null;

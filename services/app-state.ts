@@ -102,6 +102,20 @@ async function loadRealPatients(): Promise<void> {
   }
 }
 
+/**
+ * Permisos reales con sesión backend: el paciente tiene todos; el cuidador,
+ * los de su vínculo con el paciente seleccionado (GET /me/patients):
+ * MEASUREMENT_VIEW → read, MEASUREMENT_CREATE → write, ALERT_VIEW → alerts.
+ */
+export function permissionsFromCodes(codes: readonly string[] | null | undefined): Permissions {
+  const list = codes ?? [];
+  return {
+    alerts: list.includes('ALERT_VIEW'),
+    read: list.includes('MEASUREMENT_VIEW'),
+    write: list.includes('MEASUREMENT_CREATE'),
+  };
+}
+
 function toPatient(patient: ReturnType<typeof demo.patient>): GlobalPatient | null {
   if (!patient) return null;
 
@@ -163,7 +177,15 @@ function deriveState(): GlobalAppState {
       : null,
     selectedPatient,
     patients,
-    permissions: demo.permissions(),
+    permissions: !isBackendSession
+      ? demo.permissions()
+      : account?.role === 'patient'
+        ? { alerts: true, read: true, write: true }
+        : permissionsFromCodes(
+            belongsToCurrentUser
+              ? realPatients.find((patient) => patient.patientId === selectedPatient?.id)?.permissions
+              : [],
+          ),
     sessionMode,
     isAuthenticated: Boolean(account),
     hasSelectedPatient: Boolean(selectedPatient),
