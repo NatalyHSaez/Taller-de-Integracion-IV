@@ -3,6 +3,8 @@ import { Redirect, useRouter } from "expo-router";
 import { Alert, Platform } from "react-native";
 
 import { Action, Card, Copy, FlowPage } from "@/components/flow-ui";
+import { LeavePatientAction } from "@/components/relationships/leave-patient-action";
+import { LINK_TYPE_LABELS, takeLinkConfirmation } from "@/services/link-codes";
 
 import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,6 +23,8 @@ export default function SelectPatient() {
   const { setUser } = useAuth();
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [patientsError, setPatientsError] = useState(false);
+  // Agregado: confirmación del vínculo recién creado con un código.
+  const [linkConfirmation] = useState(() => takeLinkConfirmation());
 
   useEffect(() => {
     if (!user || user.source !== "backend" || user.role !== "caregiver") {
@@ -124,6 +128,20 @@ export default function SelectPatient() {
       }
       subtitle={`Hola, ${user.name}. Solo puedes acceder a vínculos aprobados.`}
     >
+      {linkConfirmation && (
+        <Card>
+          <Copy>
+            ✓ Te vinculaste con {linkConfirmation.patientName} como{" "}
+            {LINK_TYPE_LABELS[linkConfirmation.relationshipType] ?? "acompañante"}.
+          </Copy>
+          <Copy>
+            {linkConfirmation.relationshipType === "CAREGIVER"
+              ? "El paciente puede ajustar tus permisos desde su pantalla de Vínculos."
+              : "Ya puedes ver la información clínica del paciente."}
+          </Copy>
+        </Card>
+      )}
+
       {patientsLoading && (
         <Card>
           <Copy>Cargando pacientes vinculados...</Copy>
@@ -149,6 +167,14 @@ export default function SelectPatient() {
               router.replace("/(tabs)");
             }}
           />
+
+          {user.source === "backend" && (
+            <LeavePatientAction
+              patientId={patient.id}
+              patientName={patient.name}
+              onLeft={() => appState.loadRealPatients()}
+            />
+          )}
         </Card>
       ))}
 

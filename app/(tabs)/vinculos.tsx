@@ -6,19 +6,26 @@ import {
   createPatientLinkCode,
   getPatientCaregivers,
   getPatientDoctors,
-  revokeCaregiverRelationship,
-  revokeDoctorRelationship,
-  updateCaregiverPermissions,
   type LinkCodeResponse,
   type LinkedUserResponse,
 } from '@/services/api';
 import { demo, type Permissions, type Relation } from '@/services/demo-store';
 import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/services/patient-links';
+import { DoctorLinkCodeCard } from '@/components/relationships/doctor-link-code-card';
+import { LinkCodeCountdown } from '@/components/relationships/link-code-countdown';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { Alert, Share, Switch, View } from 'react-native';
+import { Share, Switch, View } from 'react-native';
+// Agregado: mismas funciones con manejo de errores del vínculo y un Alert que también funciona en la web.
+import {
+  Alert,
+  onStaleRelationship,
+  revokeCaregiverRelationship,
+  revokeDoctorRelationship,
+  updateCaregiverPermissions,
+} from '@/services/relationship-actions';
 import QRCode from 'react-native-qrcode-svg';
 function RequestCard({ relation }: { relation: Relation }) {
   const { accounts } = useDemo(); const [permissions, setPermissions] = useState<Permissions>({ alerts: true, read: true, write: false });
@@ -204,6 +211,8 @@ export default function Links() {
     }
     refreshOnFocus();
   }, [isFocused]);
+  // Agregado: si al guardar permisos el vínculo ya no existe, se recarga la lista.
+  useEffect(() => onStaleRelationship(() => refreshOnFocus()), []);
   const invitation = invitations.find((i) => i.patientId === selectedPatient?.id);
   async function generateRealLinkCode() {
     if (
@@ -326,6 +335,15 @@ export default function Links() {
                 <Copy>
                   Vence: {new Date(realLinkCode.expiresAt).toLocaleString('es-CL')}
                 </Copy>
+                {/* Agregado: cuenta regresiva; al vencer se ocultan el código y el QR. */}
+                <LinkCodeCountdown
+                  expiresAt={realLinkCode.expiresAt}
+                  onExpired={() => {
+                    setRealLinkCode(null);
+                    setShowRealQr(false);
+                    setError('El código venció. Genera uno nuevo.');
+                  }}
+                />
 
                 <Action
                   secondary
@@ -357,6 +375,8 @@ export default function Links() {
               </>
             )}
           </Card>
+          {/* Agregado: código para vincular a un médico (tipo DOCTOR). */}
+          {!!user?.id && <DoctorLinkCodeCard patientId={user.id} />}
           </>
         ) : (
           <Card>
