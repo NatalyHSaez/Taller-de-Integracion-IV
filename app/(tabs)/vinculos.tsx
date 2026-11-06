@@ -13,10 +13,11 @@ import {
   type LinkedUserResponse,
 } from '@/services/api';
 import { demo, type Permissions, type Relation } from '@/services/demo-store';
+import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/services/patient-links';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useIsFocused, useRouter } from 'expo-router';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Alert, Share, Switch, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 function RequestCard({ relation }: { relation: Relation }) {
@@ -36,6 +37,15 @@ const CAREGIVER_PERMISSIONS = [
   { code: 'MEASUREMENT_VIEW', label: 'Consultar mediciones' },
   { code: 'ALERT_VIEW', label: 'Consultar alertas' },
 ] as const;
+
+/** Agregado: fecha de vinculación, permisos e identificador real del vínculo. */
+function LinkDetails({ link }: { link: LinkedUserResponse }) {
+  return <>
+    <Copy>Vinculado el {formatLinkedAt(link.linkedAt) ?? 'fecha no informada'}.</Copy>
+    <Copy>Permisos: {describePermissions(link.permissions)}.</Copy>
+    <Copy>Vínculo: {shortRelationshipId(link.relationshipId)}</Copy>
+  </>;
+}
 
 function RealCaregiverCard({ caregiver, onChanged }: {
   caregiver: LinkedUserResponse;
@@ -72,6 +82,7 @@ function RealCaregiverCard({ caregiver, onChanged }: {
   }
   return <View style={{ gap: 8, marginTop: 12 }}>
     <Copy>{caregiver.fullName}</Copy>
+    <LinkDetails link={caregiver} />
     {CAREGIVER_PERMISSIONS.map(({ code, label }) => (
       <View key={code} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Switch
@@ -110,6 +121,7 @@ function RealDoctorCard({ doctor, onChanged }: {
   }
   return <View style={{ gap: 8, marginTop: 12 }}>
     <Copy>{doctor.fullName}</Copy>
+    <LinkDetails link={doctor} />
     <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del médico'} onPress={() => { if (!busy) confirmRevoke(); }} />
     {!!message && <Copy>{message}</Copy>}
   </View>;
@@ -164,6 +176,34 @@ export default function Links() {
       });
     return () => { cancelled = true; };
   }, [patientId]);
+
+  // Agregado: actualización manual (botón "Actualizar vínculos" y "Reintentar").
+  const [refreshingLinks, setRefreshingLinks] = useState(false);
+  async function manualRefreshLinks() {
+    if (!patientId) return;
+    setRefreshingLinks(true);
+    setLinksError('');
+    try {
+      await refreshRealLinks();
+    } catch (cause) {
+      setLinksError(cause instanceof Error ? cause.message : 'No fue posible consultar las vinculaciones.');
+    } finally {
+      setRefreshingLinks(false);
+    }
+  }
+  // Agregado: al volver a la pestaña se actualiza (la primera carga la hace el efecto de arriba),
+  // así aparece el cuidador que acaba de usar el código.
+  const isFocused = useIsFocused();
+  const refreshOnFocus = useEffectEvent(() => { void manualRefreshLinks(); });
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (!isFocused) return;
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    refreshOnFocus();
+  }, [isFocused]);
   const invitation = invitations.find((i) => i.patientId === selectedPatient?.id);
   async function generateRealLinkCode() {
     if (
@@ -214,6 +254,16 @@ export default function Links() {
       {sessionMode === 'backend' ? (
         user?.role === 'patient' ? (
           <>
+            <Action
+              secondary
+              disabled={loadingLinks || refreshingLinks}
+              label={refreshingLinks ? 'Actualizando vínculos...' : 'Actualizar vínculos'}
+              onPress={() => { void manualRefreshLinks(); }}
+            />
+            {!!linksError && !loadingLinks && !refreshingLinks && (
+              <Action label="Reintentar" onPress={() => { void manualRefreshLinks(); }} />
+            )}
+
             <Card>
               <Copy>Cuidadores vinculados ({caregivers.length})</Copy>
 

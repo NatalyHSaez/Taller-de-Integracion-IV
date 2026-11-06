@@ -54,3 +54,12 @@ test('ficha: GET /patients/{patientId} con el id codificado', async () => {
   await api.getPatient('p 1');
   assert.equal(requests[0], 'http://gateway.test/api/v1/patients/p%201');
 });
+
+test('vínculos: GET /patients/{patientId}/caregivers y /doctors', async () => {
+  requests.length = 0;
+  await Promise.allSettled([api.getPatientCaregivers('p 1'), api.getPatientDoctors('p 1')]);
+  assert.deepEqual(requests.sort(), [
+    'http://gateway.test/api/v1/patients/p%201/caregivers',
+    'http://gateway.test/api/v1/patients/p%201/doctors',
+  ]);
+});
