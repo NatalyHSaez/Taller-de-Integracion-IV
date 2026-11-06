@@ -48,3 +48,9 @@ test('el detalle se pide por el readingId real', async () => {
   assert.equal(new URL(requests.at(-1)).pathname, '/api/v1/patients/p%201/readings/r9');
   assert.equal(reading.readingId, 'r9');
 });
+
+test('ficha: GET /patients/{patientId} con el id codificado', async () => {
+  requests.length = 0;
+  await api.getPatient('p 1');
+  assert.equal(requests[0], 'http://gateway.test/api/v1/patients/p%201');
+});

@@ -7,7 +7,7 @@ import { useDemo } from '@/hooks/use-demo';
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import {
   Alert,
@@ -19,7 +19,15 @@ import {
 } from 'react-native';
 
 import { useAppState } from '@/hooks/use-app-state';
-import { getPatient, type PatientProfileResponse } from '@/services/api';
+import { useAuth } from '@/hooks/use-auth';
+import {
+  createPatientProfile,
+  formatAge,
+  formatBiologicalSex,
+  formatBirthDate,
+  formatManagementMode,
+  resolveProfilePatientId,
+} from '@/services/patient-profile';
 
 export default function LinkedPatientScreen() {
   const router = useRouter();
@@ -27,14 +35,38 @@ export default function LinkedPatientScreen() {
   const { selectedPatient, sessionMode } = useAppState();
   const { patient: demoPatient } = useDemo();
 
+  const { user: authUser } = useAuth();
+
   const isRealSession = sessionMode === 'backend';
-  const patientId = selectedPatient?.id ?? null;
+  const isOwnProfile = isRealSession && Boolean(authUser?.roles.includes('PATIENT'));
 
-  const [realPatient, setRealPatient] =
-    useState<PatientProfileResponse | null>(null);
+  // Propio paciente: su id. Cuidador: el paciente seleccionado.
+  const patientId = resolveProfilePatientId({
+    isBackend: isRealSession,
+    roles: authUser?.roles,
+    userId: authUser?.id,
+    selectedPatientId: selectedPatient?.id,
+  });
 
-  const [loadingPatient, setLoadingPatient] = useState(false);
-  const [patientError, setPatientError] = useState(false);
+  // GET /patients/{patientId}. Cambiar de paciente descarta la ficha anterior.
+  const [profileStore] = useState(() => createPatientProfile());
+  const profileState = useSyncExternalStore(
+    profileStore.subscribe,
+    profileStore.getState,
+    profileStore.getState,
+  );
+
+  useEffect(() => {
+    void profileStore.setPatient(patientId);
+  }, [profileStore, patientId]);
+
+  // Solo se usa la ficha si corresponde al paciente activo.
+  const realPatient =
+    isRealSession && profileState.patientId === patientId ? profileState.profile : null;
+  const loadingPatient = isRealSession && Boolean(patientId) && (profileState.loading || profileState.patientId !== patientId);
+  const profileError =
+    isRealSession && profileState.patientId === patientId ? profileState.error : null;
+  const patientError = Boolean(profileError);
 
   const patient = isRealSession
     ? realPatient
@@ -44,56 +76,18 @@ export default function LinkedPatientScreen() {
         }
       : null
     : demoPatient;
-    useEffect(() => {
-  if (!isRealSession || !patientId) {
-    setRealPatient(null);
-    setPatientError(false);
-    return;
-  }
-
-  let cancelled = false;
-
-  setLoadingPatient(true);
-  setPatientError(false);
-  setRealPatient(null);
-
-  getPatient(patientId)
-    .then((data) => {
-      if (!cancelled) setRealPatient(data);
-    })
-    .catch(() => {
-      if (!cancelled) setPatientError(true);
-    })
-    .finally(() => {
-      if (!cancelled) setLoadingPatient(false);
-    });
-
-  return () => {
-    cancelled = true;
-  };
-}, [isRealSession, patientId]);
 
   const colorScheme = useColorScheme();
 
   const theme =
     Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
-  /*
-   * Por ahora la fecha de nacimiento es un dato temporal.
-   * Cuando conectemos el backend, vendrá desde el paciente.
-   */
-  const [birthDate, setBirthDate] = useState('');
-  useEffect(() => {
-    if (!isRealSession) return;
-
-    if (!realPatient?.birthDate) {
-      setBirthDate('');
-      return;
-    }
-
-    const [year, month, day] = realPatient.birthDate.split('-');
-    setBirthDate(`${day}/${month}/${year}`);
-  }, [isRealSession, realPatient?.birthDate]);
+  // Demo: fecha editable solo en el teléfono. Backend: la del paciente
+  // (si es nula queda vacía y se muestra "Sin información").
+  const [demoBirthDate, setBirthDate] = useState('');
+  const birthDate = isRealSession
+    ? formatBirthDate(realPatient?.birthDate) ?? ''
+    : demoBirthDate;
 
   const [draftBirthDate, setDraftBirthDate] =
     useState(birthDate);
@@ -185,22 +179,72 @@ export default function LinkedPatientScreen() {
     );
   }
 
-  if (isRealSession && patientError) {
+  if (isRealSession && profileError) {
     return (
       <ThemedView style={styles.center}>
-        <ThemedText style={styles.notFoundTitle}>
-          No se pudo cargar el paciente
+        <Stack.Screen options={{ title: 'Ficha del paciente', headerShown: true, headerBackTitle: 'Volver' }} />
+        <MaterialCommunityIcons
+          name={
+            profileError.kind === 'forbidden'
+              ? 'lock-outline'
+              : profileError.kind === 'not_found'
+                ? 'account-question-outline'
+                : profileError.kind === 'session'
+                  ? 'account-lock-outline'
+                  : 'cloud-alert-outline'
+          }
+          size={48}
+          color={theme.mutedText}
+        />
+
+        <ThemedText accessibilityRole="header" style={styles.notFoundTitle}>
+          {profileError.title}
         </ThemedText>
 
-        <ThemedText>
-          Verifica tu conexión e inténtalo nuevamente.
+        <ThemedText
+          style={[
+            styles.notFoundText,
+            { color: theme.mutedText },
+          ]}
+        >
+          {profileError.message}
         </ThemedText>
+
+        {profileError.retryable ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void profileStore.retry()}
+            style={({ pressed }) => [
+              styles.backButton,
+              { backgroundColor: theme.primary },
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
+            <ThemedText style={styles.backButtonText}>
+              Reintentar
+            </ThemedText>
+          </Pressable>
+        ) : null}
 
         <Pressable
+          accessibilityRole="button"
           onPress={() => router.back()}
-          style={[styles.backButton, { backgroundColor: theme.primary }]}
+          style={({ pressed }) => [
+            profileError.retryable ? styles.secondaryButton : styles.backButton,
+            profileError.retryable
+              ? { borderColor: theme.primary }
+              : { backgroundColor: theme.primary },
+            pressed && styles.pressed,
+          ]}
         >
-          <ThemedText style={styles.backButtonText}>
+          <ThemedText
+            style={
+              profileError.retryable
+                ? [styles.secondaryButtonText, { color: theme.primary }]
+                : styles.backButtonText
+            }
+          >
             Volver
           </ThemedText>
         </Pressable>
@@ -326,7 +370,7 @@ export default function LinkedPatientScreen() {
                   },
                 ]}
               >
-                Paciente vinculado
+                {isOwnProfile ? 'Mi ficha' : 'Paciente vinculado'}
               </ThemedText>
             </View>
           </View>
@@ -378,6 +422,34 @@ export default function LinkedPatientScreen() {
                 value={birthDate}
                 color={theme.primary}
               />
+
+              {isRealSession && (
+                <>
+                  <Divider color={theme.border} />
+                  <InfoRow
+                    icon="cake-variant-outline"
+                    label="Edad"
+                    value={formatAge(realPatient?.age) ?? ''}
+                    color={theme.primary}
+                  />
+
+                  <Divider color={theme.border} />
+                  <InfoRow
+                    icon="human-male-female"
+                    label="Sexo biológico"
+                    value={formatBiologicalSex(realPatient?.biologicalSex) ?? ''}
+                    color={theme.primary}
+                  />
+
+                  <Divider color={theme.border} />
+                  <InfoRow
+                    icon="account-cog-outline"
+                    label="Modo de gestión"
+                    value={formatManagementMode(realPatient?.managementMode) ?? ''}
+                    color={theme.primary}
+                  />
+                </>
+              )}
 
               {!isRealSession && (
               <Pressable
@@ -519,7 +591,8 @@ export default function LinkedPatientScreen() {
           )}
         </View>
 
-        {/* Nota temporal */}
+        {/* Nota temporal: solo en modo demostración */}
+        {!isRealSession && (
         <View
           style={[
             styles.notice,
@@ -547,6 +620,7 @@ export default function LinkedPatientScreen() {
             backend.
           </ThemedText>
         </View>
+        )}
       </ScrollView>
     </ThemedView>
   );
@@ -812,4 +886,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.65,
   },
-});
+});
