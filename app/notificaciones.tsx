@@ -1,95 +1,125 @@
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router/react-navigation';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
+import {
+  INTERNAL_NOTICE,
+  NotificationFilters,
+  NotificationItem,
+  NotificationsEmpty,
+} from '@/components/notifications/notifications-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getNotifications } from '@/services/notifications';
+import { useNotifications } from '@/hooks/use-notifications';
 
 export default function NotificacionesScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [refrescando, setRefrescando] = useState(false);
+  const { state, store } = useNotifications();
 
-  const cargar = useCallback(() => {
-    return getNotifications().then((data) => {
-      setNotificaciones(data);
-      setCargando(false);
-    });
-  }, []);
-
+  // Al volver (por ejemplo, desde el detalle) se consulta de nuevo al backend.
+  const firstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
-      cargar();
-    }, [cargar])
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      void store.refresh();
+    }, [store]),
   );
-
-  const onRefresh = useCallback(() => {
-    setRefrescando(true);
-    cargar().finally(() => setRefrescando(false));
-  }, [cargar]);
-
-  if (cargando) {
-    return (
-      <ThemedView style={styles.emptyContainer}>
-        <ActivityIndicator color={theme.primary} />
-      </ThemedView>
-    );
-  }
 
   return (
     <ThemedView style={styles.container}>
       <FlatList
-        data={notificaciones}
+        data={state.loaded ? state.items : []}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={notificaciones.length === 0 ? styles.emptyList : styles.list}
+        contentContainerStyle={[styles.list, (!state.loaded || state.items.length === 0) && styles.grow]}
         refreshControl={
-          <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={theme.primary} />
+          <RefreshControl
+            refreshing={state.refreshing}
+            onRefresh={() => void store.refresh()}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
         }
-        ListEmptyComponent={
-          <View style={styles.emptyContent}>
-            <ThemedText type="title">Notificaciones</ThemedText>
-            <ThemedText>No tienes notificaciones por ahora.</ThemedText>
+        onEndReachedThreshold={0.3}
+        onEndReached={() => {
+          if (!state.loadMoreError) void store.loadMore();
+        }}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <ThemedText style={[styles.small, { color: theme.mutedText }]}>{INTERNAL_NOTICE}</ThemedText>
+            {state.ownerId && <NotificationFilters state={state} theme={theme} onFilter={(f) => void store.setFilter(f)} />}
+            {state.error && state.loaded && (
+              <ThemedText accessibilityRole="alert" style={[styles.small, { color: theme.danger }]}>
+                No se pudo actualizar: {state.error.message}
+              </ThemedText>
+            )}
+            {state.markError && (
+              <ThemedText accessibilityRole="alert" style={[styles.small, { color: theme.danger }]}>
+                {state.markError.message}
+              </ThemedText>
+            )}
           </View>
         }
+        ListEmptyComponent={<NotificationsEmpty state={state} theme={theme} onRetry={() => void store.refresh()} />}
         renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${item.titulo}. ${item.leida ? 'Leída' : 'No leída'}. ${item.hora}.`}
-            accessibilityHint="Toca para ver el detalle"
-            style={[styles.row, { borderBottomColor: theme.border }]}
-            onPress={() =>
-              router.push({ pathname: '/notificacion/[id]', params: { id: item.id } })
-            }>
-            <View style={[styles.dot, !item.leida && { backgroundColor: theme.primary }]} />
-            <View style={styles.textGroup}>
-              <ThemedText type={item.leida ? 'default' : 'defaultSemiBold'}>{item.titulo}</ThemedText>
-              <ThemedText style={styles.descripcion}>{item.descripcion}</ThemedText>
-              <ThemedText style={styles.hora}>{item.hora}</ThemedText>
-            </View>
-          </Pressable>
+          <NotificationItem
+            notification={item}
+            marking={state.marking.includes(item.id)}
+            theme={theme}
+            onOpen={(id) => router.push({ pathname: '/notificacion/[id]', params: { id } })}
+            onMarkRead={(id) => void store.markRead(id)}
+          />
         )}
+        ItemSeparatorComponent={Separator}
+        ListFooterComponent={
+          !state.loaded || state.items.length === 0 ? null : state.loadingMore ? (
+            <ActivityIndicator style={styles.footer} color={theme.primary} />
+          ) : state.loadMoreError ? (
+            <View style={styles.footer}>
+              <ThemedText accessibilityRole="alert" style={[styles.small, { color: theme.danger }]}>
+                {state.loadMoreError}
+              </ThemedText>
+              <Pressable accessibilityRole="button" accessibilityLabel="Reintentar" onPress={() => void store.loadMore()}>
+                <ThemedText style={[styles.small, styles.bold, { color: theme.primary }]}>Reintentar</ThemedText>
+              </Pressable>
+            </View>
+          ) : state.hasMore ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cargar más"
+              onPress={() => void store.loadMore()}
+              style={styles.footer}>
+              <ThemedText style={[styles.bold, { color: theme.primary }]}>Cargar más</ThemedText>
+            </Pressable>
+          ) : (
+            <ThemedText style={[styles.small, styles.footerText, { color: theme.mutedText }]}>
+              No hay más notificaciones.
+            </ThemedText>
+          )
+        }
       />
     </ThemedView>
   );
 }
 
+function Separator() {
+  return <View style={styles.separator} />;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
-  emptyList: { flexGrow: 1 },
-  emptyContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
   list: { padding: 16 },
-  row: { flexDirection: 'row', gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
-  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  textGroup: { flex: 1, gap: 2 },
-  descripcion: { opacity: 0.8 },
-  hora: { fontSize: 12, opacity: 0.5 },
+  grow: { flexGrow: 1 },
+  header: { gap: 10, marginBottom: 12 },
+  separator: { height: 10 },
+  small: { fontSize: 13, lineHeight: 18 },
+  bold: { fontWeight: '700' },
+  footer: { alignItems: 'center', gap: 6, paddingVertical: 18 },
+  footerText: { paddingVertical: 18, textAlign: 'center' },
 });

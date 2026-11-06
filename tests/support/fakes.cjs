@@ -33,8 +33,8 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
         calls.post.push({ path, body });
         return nextReply(replies.post, 'POST', path);
       },
-      get: async (path) => {
-        calls.get.push({ path });
+      get: async (path, options) => {
+        calls.get.push({ path, options });
         return nextReply(replies.get, 'GET', path);
       },
     },

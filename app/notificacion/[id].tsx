@@ -1,61 +1,90 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Action } from '@/components/flow-ui';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
 
+import { Message, NotificationDetailView } from '@/components/notifications/notifications-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { type Notificacion } from '@/constants/notifications-mock';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getNotificationById, markNotificationRead } from '@/services/notifications';
+import { useNotifications } from '@/hooks/use-notifications';
 
+/**
+ * Detalle de una notificación. El backend no tiene GET individual: se usa la
+ * caché de lo ya listado. Si la app se abrió directo en esta ruta, se carga la
+ * primera página antes de decidir que no está disponible.
+ */
 export default function NotificacionDetalleScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: rawId } = useLocalSearchParams<{ id: string | string[] }>();
+  const id = (Array.isArray(rawId) ? rawId[0] : rawId) ?? '';
   const colorScheme = useColorScheme();
-  const tint = Colors[colorScheme === 'dark' ? 'dark' : 'light'].tint;
-  const [notificacion, setNotificacion] = useState<Notificacion | undefined>();
-  const [cargando, setCargando] = useState(true);
+  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const { state, store } = useNotifications();
+  const notification = id ? store.get(id) : null;
 
+  // Abrirla la marca como leída en el backend (una sola vez).
+  const autoMarked = useRef(false);
   useEffect(() => {
-    if (!id) return;
-    getNotificationById(id).then((data) => {
-      setNotificacion(data);
-      setCargando(false);
-      // Se marca como leída al abrirla; al volver, la lista se refresca sola.
-      markNotificationRead(id);
-    });
-  }, [id]);
+    if (!notification || autoMarked.current) return;
+    autoMarked.current = true;
+    if (notification.status !== 'read') void store.markRead(notification.id);
+  }, [notification, store]);
 
-  if (cargando) {
+  const goToList = () => (router.canGoBack() ? router.back() : router.replace('/notificaciones'));
+
+  if (!notification) {
+    if (state.loading || (!state.loaded && !state.error && state.ownerId)) {
+      return (
+        <ThemedView style={styles.centered}>
+          <ActivityIndicator color={theme.primary} />
+        </ThemedView>
+      );
+    }
     return (
-      <ThemedView style={styles.container}>
-        <ActivityIndicator color={tint} />
+      <ThemedView style={styles.centered}>
+        <Message
+          theme={theme}
+          icon="bell-off-outline"
+          title={state.error ? 'No se pudo cargar la notificación.' : 'Notificación no disponible.'}
+          text={
+            state.error?.message ??
+            'No está entre tus notificaciones más recientes o ya no existe. Ábrela desde la lista.'
+          }
+          action={
+            state.error?.kind === 'network'
+              ? { label: 'Reintentar', onPress: () => void store.refresh() }
+              : { label: 'Ver notificaciones', onPress: goToList }
+          }
+        />
       </ThemedView>
     );
   }
 
-  if (!notificacion) {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText>No se encontró esta notificación.</ThemedText>
-      </ThemedView>
-    );
-  }
+  const markError = state.markError?.id === notification.id ? state.markError.message : null;
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">{notificacion.titulo}</ThemedText>
-      <ThemedText style={styles.hora}>{notificacion.hora}</ThemedText>
-      <ThemedText style={styles.descripcion}>{notificacion.descripcion}</ThemedText>
-      <Action label="Revisar vínculos" onPress={() => router.push('/vinculos')} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <NotificationDetailView
+          notification={notification}
+          marking={state.marking.includes(notification.id)}
+          error={markError}
+          theme={theme}
+          onMarkRead={(nid) => void store.markRead(nid)}
+        />
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver a notificaciones" onPress={goToList} style={styles.back}>
+          <ThemedText style={[styles.bold, { color: theme.primary }]}>Volver a notificaciones</ThemedText>
+        </Pressable>
+      </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, gap: 10 },
-  hora: { fontSize: 12, opacity: 0.6 },
-  descripcion: { fontSize: 15, lineHeight: 22, marginTop: 8 },
+  container: { flex: 1 },
+  content: { gap: 16, padding: 20 },
+  centered: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 20 },
+  back: { alignItems: 'center', paddingVertical: 12 },
+  bold: { fontWeight: '700' },
 });

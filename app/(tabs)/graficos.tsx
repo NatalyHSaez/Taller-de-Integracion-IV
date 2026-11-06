@@ -24,8 +24,7 @@ import type { MeasurementType } from '@/types/measurement';
 
 import { useAppState } from '@/hooks/use-app-state';
 import { useAuth } from '@/hooks/use-auth';
-import { getPatientReadings } from '@/services/api';
-import { readingsToMeasurements } from '@/services/reading-to-measurements';
+import { loadChartMeasurements } from '@/services/measurement-series';
 import type { Measurement } from '@/types/measurement';
 
 type GraphType = MeasurementType;
@@ -119,14 +118,11 @@ export default function GraficosScreen() {
       setLoadingMeasurements(true);
       setMeasurementsError(null);
 
-      getPatientReadings(patientId)
-        .then((response) => {
+      loadChartMeasurements(patientId)
+        .then((items) => {
           if (cancelled) return;
 
-          setRealMeasurements({
-            patientId,
-            items: readingsToMeasurements(response.items),
-          });
+          setRealMeasurements({ patientId, items });
         })
         .catch((error) => {
           if (cancelled) return;
@@ -1674,4 +1670,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.76,
   },
-});
+});

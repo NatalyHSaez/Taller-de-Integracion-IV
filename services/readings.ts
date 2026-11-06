@@ -23,7 +23,6 @@ import { ApiError, normalizeApiError } from './errors';
 import { validateMockReading } from './mocks/readings-mock';
 
 const DETAIL_CACHE_MS = 30_000;
-const DETAIL_STALE_MS = 5 * 60_000;
 
 function parameter(
   measurementId: string,
@@ -88,7 +87,7 @@ function localReading(patientId: string, readingId: string): ReadingResponse | n
     recordedByUserId: first.recordedById ?? 'mock-user',
     context: first.context ?? null,
     measuredAt: first.measuredAt,
-    source: authSession.mode() === 'backend' ? 'MOCK_FALLBACK' : 'MOCK',
+    source: 'MOCK',
     measurements: related.flatMap(toApiMeasurements),
   };
 }
@@ -412,9 +411,9 @@ export const readingsService = {
    * desarrollo, usa esa copia para mantener navegable la pantalla.
    */
   async detail(patientId: string, readingId: string): Promise<ReadingResponse> {
-    const local = localReading(patientId, readingId);
-
     if (authSession.mode() !== 'backend') {
+      // Sesión de demostración (sin servidor): los datos locales son la fuente.
+      const local = localReading(patientId, readingId);
       if (local) return local;
 
       throw new ApiError({
@@ -425,19 +424,16 @@ export const readingsService = {
       });
     }
 
+    // Ruta con patientId (la global /readings/{id} no existe) y sin respaldo
+    // local: si el servidor falla, el error llega a la pantalla.
     try {
-      return await dataClient.get<ReadingResponse>(`/readings/${readingId}`, {
+      return await dataClient.get<ReadingResponse>(readingPath(patientId, readingId), {
         cache: {
           key: `reading-detail:${patientId}:${readingId}`,
           ttlMs: DETAIL_CACHE_MS,
-          staleIfErrorMs: DETAIL_STALE_MS,
         },
       });
     } catch (cause) {
-      // El backend actual de Integración II aún no expone esta ruta. Si la
-      // lectura ya existe en el estado demo que alimenta el historial, se usa
-      // únicamente como respaldo de desarrollo.
-      if (local) return local;
       throw normalizeApiError(cause);
     }
   },

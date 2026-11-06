@@ -4,6 +4,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { ThemedText } from '@/components/themed-text';
 import type { AppTheme } from '@/constants/theme';
 import type { SubmittedReading } from '@/services/reading-flow';
+import { describeConfirmationReason } from '@/services/reading-detail';
 import type { ConfirmReadingError } from '@/services/readings';
 
 export type ReadingConfirmationProps = {
@@ -63,7 +64,7 @@ export function ReadingConfirmationContent({
             {reading.reasons.map((reason, index) => (
               <View key={`${index}-${reason}`} style={styles.reasonRow}>
                 <ThemedText style={[styles.bullet, { color: theme.primary }]}>•</ThemedText>
-                <ThemedText style={styles.reason}>{reason}</ThemedText>
+                <ThemedText style={styles.reason}>{describeConfirmationReason(reason)}</ThemedText>
               </View>
             ))}
           </View>
