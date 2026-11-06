@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useRouter } from 'expo-router';
-import type { ComponentProps } from 'react';
+import { useIsFocused, useRouter } from 'expo-router';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Action } from '@/components/flow-ui';
@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   getEmergencyContact
 } from '@/services/emergency-contact';
+import { createHomeSummary } from '@/services/home-summary';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -78,8 +79,34 @@ export default function ResumenScreen() {
       : selectedPatient?.id ?? null;
   const isRealSession = sessionMode === "backend";
   const { measurements, permissions, relations } = useDemo();
-  const canRegisterMeasurement =
-    !isRealSession && permissions.write;
+
+  // Sesión backend: mediciones, alerta y permiso de registro reales del paciente activo
+  // (el propio paciente o el seleccionado por el cuidador).
+  const homePatientId = isRealSession ? emergencyPatientId : null;
+  const homeRole = authUser?.roles.includes('PATIENT') ? 'patient' : 'caregiver';
+  const [homeStore] = useState(() => createHomeSummary());
+  const home = useSyncExternalStore(homeStore.subscribe, homeStore.getState, homeStore.getState);
+  useEffect(() => {
+    void homeStore.setPatient(homePatientId, homeRole);
+  }, [homeStore, homePatientId, homeRole]);
+  // Al volver a Inicio (por ejemplo, después de registrar) se actualiza.
+  const isFocused = useIsFocused();
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (!isFocused) return;
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    void homeStore.refresh();
+  }, [homeStore, isFocused]);
+  const homeReady = isRealSession && Boolean(homePatientId) && home.patientId === homePatientId;
+  const homeLoading = isRealSession && Boolean(homePatientId) && (!homeReady || (home.loading && !home.loaded));
+  const homeError = homeReady && !home.loaded ? home.error : null;
+
+  const canRegisterMeasurement = isRealSession
+    ? homeReady && home.canRegister
+    : permissions.write;
   const pendingCount = relations.filter(
     (relation) => relation.patientId === selectedPatient?.id && relation.status === 'pending',
   ).length;
@@ -88,13 +115,15 @@ export default function ResumenScreen() {
   const themeName = colorScheme === 'dark' ? 'dark' : 'light';
   const theme = Colors[themeName];
   const measurementColors = MeasurementColors[themeName];
-  const summaries = isRealSession
-    ? []
-    : (['blood_pressure', 'glucose', 'weight'] as const)
-        .map((type) => getMeasurementSummary(type, measurements))
-        .filter((summary): summary is MeasurementSummary => Boolean(summary));
-  const priorityAlert =
-    !isRealSession && permissions.alerts
+  const summaryMeasurements = isRealSession ? (homeReady ? home.measurements : []) : measurements;
+  const summaries = (['blood_pressure', 'glucose', 'weight'] as const)
+    .map((type) => getMeasurementSummary(type, summaryMeasurements))
+    .filter((summary): summary is MeasurementSummary => Boolean(summary));
+  const priorityAlert = isRealSession
+    ? homeReady && home.alert
+      ? { parametro: home.alert.explanation || `Alerta de severidad ${home.alert.severity.toLowerCase()}` }
+      : undefined
+    : permissions.alerts
       ? getDemoAlerts()[0]
       : undefined;
 
@@ -254,29 +283,48 @@ export default function ResumenScreen() {
         </View>
 
         {summaries.length === 0 ? (
-          <View style={[styles.emptyMeasurements, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Pressable
+            accessibilityRole={homeError?.kind === 'network' ? 'button' : undefined}
+            accessibilityLabel={homeError?.kind === 'network' ? 'Reintentar cargar mediciones' : undefined}
+            disabled={homeError?.kind !== 'network'}
+            onPress={() => { void homeStore.refresh(); }}
+            style={[styles.emptyMeasurements, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.primarySoft }]}>
               <MaterialCommunityIcons color={theme.primary} name="heart-pulse" size={23} />
             </View>
             <View style={styles.emptyCopy}>
               <ThemedText style={styles.emptyTitle}>
                 {isRealSession
-                  ? 'Mediciones no disponibles'
+                  ? !homePatientId
+                    ? 'Mediciones no disponibles'
+                    : homeLoading
+                      ? 'Cargando mediciones…'
+                      : homeError
+                        ? homeError.kind === 'network'
+                          ? 'No se pudieron cargar las mediciones'
+                          : 'Mediciones no disponibles'
+                        : 'Aún no hay mediciones'
                   : permissions.read
                     ? 'Aún no hay mediciones'
                     : 'Mediciones no disponibles'}
               </ThemedText>
               <ThemedText style={[styles.emptyDescription, { color: theme.mutedText }]}>
                 {isRealSession
-                  ? selectedPatient
-                    ? 'Las mediciones reales estarán disponibles cuando se conecte esta función al backend.'
-                    : 'Selecciona un paciente vinculado para consultar sus mediciones.'
+                  ? !homePatientId
+                    ? 'Selecciona un paciente vinculado para consultar sus mediciones.'
+                    : homeLoading
+                      ? 'Un momento, por favor.'
+                      : homeError
+                        ? homeError.message
+                        : canRegisterMeasurement
+                          ? 'Registra la primera para verla aquí.'
+                          : 'Todavía no hay mediciones registradas.'
                   : permissions.read
                     ? 'Registra la primera para verla aquí.'
                     : 'El paciente aún no te ha dado acceso.'}
               </ThemedText>
             </View>
-          </View>
+          </Pressable>
         ) : <View style={styles.measurementsGrid}>
           {summaries.map((summary) => {
             const colors = measurementColors[summary.type];
