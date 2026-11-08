@@ -10,11 +10,11 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { installFakes } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
-const { Colors } = projectRequire('constants/theme.ts');
-const { readingsService } = projectRequire('services/readings.ts');
-const { createReadingFlow } = projectRequire('services/reading-flow.ts');
-const { ReadingConfirmationContent } = projectRequire('components/readings/reading-confirmation.tsx');
-const { ReadingResult } = projectRequire('components/readings/reading-result.tsx');
+const { Colors } = projectRequire('src/shared/presentation/theme.ts');
+const { readingsService } = projectRequire('src/modules/monitoring/application/readings.ts');
+const { createReadingFlow } = projectRequire('src/modules/monitoring/application/reading-flow.ts');
+const { ReadingConfirmationContent } = projectRequire('src/modules/monitoring/presentation/components/reading-confirmation.tsx');
+const { ReadingResult } = projectRequire('src/modules/monitoring/presentation/components/reading-result.tsx');
 
 const theme = Colors.light;
 const PATIENT = fakes.userId;

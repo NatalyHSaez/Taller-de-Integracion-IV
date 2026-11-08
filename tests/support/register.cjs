@@ -85,7 +85,7 @@ require.extensions['.tsx'] = compile;
 
 /**
  * Reemplaza un módulo del proyecto antes de requerirlo.
- * mockModule('services/api.ts', { apiClient: ... })
+ * mockModule('src/core/infrastructure/http/api-client.ts', { apiClient: ... })
  */
 globalThis.mockModule = (relativePath, exports) => {
   const resolved = resolveLocal(path.join(root, relativePath));

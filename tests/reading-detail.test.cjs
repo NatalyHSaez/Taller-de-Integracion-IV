@@ -14,9 +14,9 @@ const {
   classifyDetailError,
   describeConfirmationReason,
   PENDING_POLL,
-} = projectRequire('services/reading-detail.ts');
-const { Colors } = projectRequire('constants/theme.ts');
-const { ReadingDetailView } = projectRequire('components/readings/reading-detail-view.tsx');
+} = projectRequire('src/modules/monitoring/application/reading-detail.ts');
+const { Colors } = projectRequire('src/shared/presentation/theme.ts');
+const { ReadingDetailView } = projectRequire('src/modules/monitoring/presentation/components/reading-detail-view.tsx');
 
 const theme = Colors.light;
 
@@ -253,6 +253,6 @@ test('ningún archivo de la app llama a la ruta global /readings/{id}', () => {
       }
     }
   };
-  for (const dir of ['app', 'services', 'hooks', 'components']) walk(path.join(root, dir));
+  for (const dir of ['app', 'src']) walk(path.join(root, dir));
   assert.deepEqual(offenders, []);
 });

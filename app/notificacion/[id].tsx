@@ -2,12 +2,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
 
-import { Message, NotificationDetailView } from '@/components/notifications/notifications-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useNotifications } from '@/hooks/use-notifications';
+import { Message, NotificationDetailView } from '@/src/modules/notifications/presentation/components/notifications-view';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useNotifications } from '@/src/modules/notifications/presentation/hooks/use-notifications';
 
 /**
  * Detalle de una notificación. El backend no tiene GET individual: se usa la

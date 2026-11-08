@@ -21,8 +21,8 @@ async function fakeFetch(url, options) {
 function load(filename) {
   let file = filename;
   if (!path.extname(file)) file = fs.existsSync(file + '.ts') ? file + '.ts' : path.join(file, 'index.ts');
-  if (file === path.join(root, 'config/api.ts')) return { IS_API_CONFIGURED: true, API_V1_URL: 'http://localhost:8000/api/v1' };
-  if (file === path.join(root, 'services/token-storage.ts')) return storage;
+  if (file === path.join(root, 'src/core/infrastructure/config/api-config.ts')) return { IS_API_CONFIGURED: true, API_V1_URL: 'http://localhost:8000/api/v1' };
+  if (file === path.join(root, 'src/core/infrastructure/storage/token-storage.ts')) return storage;
   if (cache.has(file)) return cache.get(file);
   const exports = {};
   cache.set(file, exports);
@@ -37,10 +37,10 @@ function load(filename) {
 }
 async function main() {
   const { randomUUID } = require('node:crypto');
-  const { authService } = load(path.join(root, 'services/authservice'));
-  const { authSession } = load(path.join(root, 'services/auth-session'));
-  const { apiClient } = load(path.join(root, 'services/api'));
-  const { demo } = load(path.join(root, 'services/demo-store'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
+  const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
+  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
   for (const role of ['PATIENT', 'CAREGIVER']) {
     const email = `ti462.${randomUUID()}@example.com`, password = `Test-${randomUUID()}`;
     const user = await authService.register({ fullName: 'Prueba Sesion', email, password, role,

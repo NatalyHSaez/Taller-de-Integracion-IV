@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { installFakes } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
-const { healthConditionsService } = projectRequire('services/health-conditions.ts');
+const { healthConditionsService } = projectRequire('src/modules/monitoring/application/health-conditions.ts');
 
 test('lee programas sin conditionId ni active, con parámetros obligatorios y opcionales', async () => {
   const programs = await healthConditionsService.list({ forceRefresh: true });

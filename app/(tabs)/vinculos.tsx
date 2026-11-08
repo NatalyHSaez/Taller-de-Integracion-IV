@@ -1,31 +1,20 @@
-import { authService } from '@/services/authservice';
-import { Action, Card, Copy, FlowPage } from '@/components/flow-ui';
-import { useAppState } from '@/hooks/use-app-state';
-import { useDemo } from '@/hooks/use-demo';
-import {
-  createPatientLinkCode,
-  getPatientCaregivers,
-  getPatientDoctors,
-  type LinkCodeResponse,
-  type LinkedUserResponse,
-} from '@/services/api';
-import { demo, type Permissions, type Relation } from '@/services/demo-store';
-import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/services/patient-links';
-import { DoctorLinkCodeCard } from '@/components/relationships/doctor-link-code-card';
-import { LinkCodeCountdown } from '@/components/relationships/link-code-countdown';
+import { authService } from '@/src/modules/identity/application/authservice';
+import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
+import { createPatientLinkCode, getPatientCaregivers, getPatientDoctors, type LinkCodeResponse, type LinkedUserResponse } from '@/src/modules/relationships/infrastructure/relationships-api';
+import { demo, type Permissions, type Relation } from '@/src/modules/demo/infrastructure/demo-store';
+import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/src/modules/relationships/presentation/link-format';
+import { DoctorLinkCodeCard } from '@/src/modules/relationships/presentation/components/doctor-link-code-card';
+import { LinkCodeCountdown } from '@/src/modules/relationships/presentation/components/link-code-countdown';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Share, Switch, View } from 'react-native';
 // Agregado: mismas funciones con manejo de errores del vínculo y un Alert que también funciona en la web.
-import {
-  Alert,
-  onStaleRelationship,
-  revokeCaregiverRelationship,
-  revokeDoctorRelationship,
-  updateCaregiverPermissions,
-} from '@/services/relationship-actions';
+import { Alert } from '@/src/modules/relationships/presentation/confirm-dialog';
+import { onStaleRelationship, revokeCaregiverRelationship, revokeDoctorRelationship, updateCaregiverPermissions } from '@/src/modules/relationships/application/relationship-actions';
 import QRCode from 'react-native-qrcode-svg';
 function RequestCard({ relation }: { relation: Relation }) {
   const { accounts } = useDemo(); const [permissions, setPermissions] = useState<Permissions>({ alerts: true, read: true, write: false });

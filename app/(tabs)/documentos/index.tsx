@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router';
 import { FlatList, Pressable, StyleSheet } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 
 // TODO: reemplazar por datos reales cuando esté el endpoint de documentos
 const DOCUMENTOS = [

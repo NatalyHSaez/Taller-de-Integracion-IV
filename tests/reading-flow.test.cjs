@@ -8,9 +8,9 @@ const assert = require('node:assert/strict');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
-const { clinicalParametersService, validateAgainstParameter } = projectRequire('services/clinical-parameters.ts');
-const { buildCreateReadingRequest, readingsService } = projectRequire('services/readings.ts');
-const { createReadingFlow } = projectRequire('services/reading-flow.ts');
+const { clinicalParametersService, validateAgainstParameter } = projectRequire('src/modules/monitoring/application/clinical-parameters.ts');
+const { buildCreateReadingRequest, readingsService } = projectRequire('src/modules/monitoring/application/readings.ts');
+const { createReadingFlow } = projectRequire('src/modules/monitoring/application/reading-flow.ts');
 
 const PATIENT = fakes.userId;
 const REASONS = ['Valor sistólico fuera de lo habitual para este paciente', 'Diferencia alta respecto de la lectura anterior'];

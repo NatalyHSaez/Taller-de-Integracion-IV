@@ -22,7 +22,12 @@ globalThis.fetch = async (url, init = {}) => {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };
 
-const api = projectRequire('services/api.ts');
+const api = {
+  ...projectRequire('src/core/infrastructure/http/api-client.ts'),
+  ...projectRequire('src/modules/identity/infrastructure/identity-api.ts'),
+  ...projectRequire('src/modules/relationships/infrastructure/relationships-api.ts'),
+  ...projectRequire('src/modules/monitoring/infrastructure/readings-api.ts'),
+};
 
 test('GET /patients/{id}/readings con page, size, parameterCode, from y to', async () => {
   await api.getPatientReadings('p 1', {

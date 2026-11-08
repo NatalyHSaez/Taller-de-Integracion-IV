@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 
 export default function DocumentoDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,4 +18,4 @@ export default function DocumentoDetalleScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
-});
+});

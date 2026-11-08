@@ -9,9 +9,9 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { installFakes } = require('./support/fakes.cjs');
 
 installFakes();
-const { createReadingsHistory, mergeReadings, lastDaysRange } = projectRequire('services/readings-history.ts');
-const { Colors } = projectRequire('constants/theme.ts');
-const { ReadingHistoryItem, READING_STATUS_BADGES } = projectRequire('components/history/reading-history-item.tsx');
+const { createReadingsHistory, mergeReadings, lastDaysRange } = projectRequire('src/modules/monitoring/application/readings-history.ts');
+const { Colors } = projectRequire('src/shared/presentation/theme.ts');
+const { ReadingHistoryItem, READING_STATUS_BADGES } = projectRequire('src/modules/monitoring/presentation/components/reading-history-item.tsx');
 
 const NOW = new Date('2026-11-06T12:00:00.000Z');
 const minutesAgo = (n) => new Date(NOW.getTime() - n * 60_000).toISOString();

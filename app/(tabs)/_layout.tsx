@@ -5,11 +5,11 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { BrandColors, Colors } from '@/constants/theme';
-import { useAppState } from '@/hooks/use-app-state';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
+import { HapticTab } from '@/src/shared/presentation/components/haptic-tab';
+import { BrandColors, Colors } from '@/src/shared/presentation/theme';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 
 type TabIconName = ComponentProps<typeof Feather>['name'];
 

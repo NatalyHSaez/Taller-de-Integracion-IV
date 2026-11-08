@@ -3,22 +3,22 @@ import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Action } from '@/components/flow-ui';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BrandColors, Colors, MeasurementColors, StatusColors } from '@/constants/theme';
-import { useAppState } from '@/hooks/use-app-state';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
-import { getDemoAlerts } from '@/services/alerts';
-import type { Measurement, MeasurementType } from '@/types/measurement';
+import { Action } from '@/src/shared/presentation/components/flow-ui';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { BrandColors, Colors, MeasurementColors, StatusColors } from '@/src/shared/presentation/theme';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
+import { getDemoAlerts } from '@/src/modules/evaluation/infrastructure/demo-alerts';
+import type { Measurement, MeasurementType } from '@/src/modules/monitoring/domain/measurement';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
 import {
   getEmergencyContact
-} from '@/services/emergency-contact';
-import { appState } from '@/services/app-state';
-import { createHomeSummary } from '@/services/home-summary';
+} from '@/src/modules/identity/infrastructure/emergency-contact-storage';
+import { appState } from '@/src/core/application/session/app-state';
+import { createHomeSummary } from '@/src/modules/dashboard/application/home-summary';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 

@@ -3,17 +3,17 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ReadingConfirmationModal } from '@/components/readings/reading-confirmation';
-import { ReadingDetailView } from '@/components/readings/reading-detail-view';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useAppState } from '@/hooks/use-app-state';
-import { useAuth } from '@/hooks/use-auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getPatientReading } from '@/services/api';
-import { createReadingDetail, parameterName, type ReadingDetail } from '@/services/reading-detail';
-import { type ConfirmReadingError, confirmReadingErrorFrom, readingsService } from '@/services/readings';
-import { describeRecordedBy, linkedPeopleLoader, type LinkedPeople } from '@/services/recorded-by';
+import { ReadingConfirmationModal } from '@/src/modules/monitoring/presentation/components/reading-confirmation';
+import { ReadingDetailView } from '@/src/modules/monitoring/presentation/components/reading-detail-view';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { getPatientReading } from '@/src/modules/monitoring/infrastructure/readings-api';
+import { createReadingDetail, parameterName, type ReadingDetail } from '@/src/modules/monitoring/application/reading-detail';
+import { type ConfirmReadingError, confirmReadingErrorFrom, readingsService } from '@/src/modules/monitoring/application/readings';
+import { describeRecordedBy, linkedPeopleLoader, type LinkedPeople } from '@/src/modules/monitoring/application/recorded-by';
 
 /**
  * Sesión de demostración (sin servidor): la lectura sale de los datos locales.

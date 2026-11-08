@@ -1,5 +1,5 @@
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import { StyleSheet } from 'react-native';
 
 export default function ProfessionalLoginScreen() {
@@ -14,4 +14,4 @@ export default function ProfessionalLoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
-});
+});

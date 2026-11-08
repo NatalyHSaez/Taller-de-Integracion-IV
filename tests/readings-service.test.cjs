@@ -5,9 +5,9 @@ const assert = require('node:assert/strict');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
-const readings = projectRequire('services/readings.ts');
-const { readingErrorsFromApi } = projectRequire('services/reading-errors.ts');
-const { clinicalParametersService } = projectRequire('services/clinical-parameters.ts');
+const readings = projectRequire('src/modules/monitoring/application/readings.ts');
+const { readingErrorsFromApi } = projectRequire('src/modules/monitoring/application/reading-errors.ts');
+const { clinicalParametersService } = projectRequire('src/modules/monitoring/application/clinical-parameters.ts');
 
 const PATIENT = fakes.userId;
 let catalog;

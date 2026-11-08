@@ -2,15 +2,15 @@ import { Redirect, useRouter } from "expo-router";
 
 import { Alert, Platform } from "react-native";
 
-import { Action, Card, Copy, FlowPage } from "@/components/flow-ui";
-import { LeavePatientAction } from "@/components/relationships/leave-patient-action";
-import { LINK_TYPE_LABELS, takeLinkConfirmation } from "@/services/link-codes";
+import { Action, Card, Copy, FlowPage } from "@/src/shared/presentation/components/flow-ui";
+import { LeavePatientAction } from "@/src/modules/relationships/presentation/components/leave-patient-action";
+import { LINK_TYPE_LABELS, takeLinkConfirmation } from "@/src/modules/relationships/application/link-codes";
 
-import { useAppState } from "@/hooks/use-app-state";
-import { useAuth } from "@/hooks/use-auth";
-import { useDemo } from "@/hooks/use-demo";
-import { appState } from "@/services/app-state";
-import { authService } from "@/services/authservice";
+import { useAppState } from "@/src/core/presentation/session/use-app-state";
+import { useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
+import { useDemo } from "@/src/modules/demo/presentation/use-demo";
+import { appState } from "@/src/core/application/session/app-state";
+import { authService } from "@/src/modules/identity/application/authservice";
 import { useEffect, useState } from "react";
 
 export default function SelectPatient() {

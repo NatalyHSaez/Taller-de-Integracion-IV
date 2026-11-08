@@ -9,15 +9,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 let myPatients = [];
-mockModule('services/api.ts', {
-  getMePatients: async () => myPatients.map((p) => ({ ...p })),
+mockModule('src/core/infrastructure/http/api-client.ts', {
   setApiAccessTokenProvider() {},
   invalidateApiSession() {},
 });
+mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
+  getMePatients: async () => myPatients.map((p) => ({ ...p })),
+});
 
-const { authSession } = projectRequire('services/auth-session.ts');
-const { demo } = projectRequire('services/demo-store.ts');
-const { appState, permissionsFromCodes } = projectRequire('services/app-state.ts');
+const { authSession } = projectRequire('src/core/application/session/auth-session.ts');
+const { demo } = projectRequire('src/modules/demo/infrastructure/demo-store.ts');
+const { appState, permissionsFromCodes } = projectRequire('src/core/application/session/app-state.ts');
 
 const caregiver = { id: 'cui-1', email: 'cui@x.cl', fullName: 'Cuidadora Ana', roles: ['CAREGIVER'], status: 'active' };
 const link = (patientId, permissions) => ({
@@ -69,8 +71,8 @@ test('el registro envía la medición al paciente seleccionado por el cuidador',
   myPatients = [link('pia', ['MEASUREMENT_CREATE'])];
   await loginAsCaregiver();
   appState.selectPatient('pia');
-  const source = fs.readFileSync(path.resolve(__dirname, '..', 'services', 'readings.ts'), 'utf8');
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'monitoring', 'application', 'readings.ts'), 'utf8');
   assert.match(source, /if \(user\.roles\.includes\('CAREGIVER'\)\) \{\s*const selected = appState\.snapshot\(\)\.selectedPatient;\s*if \(selected\) return selected\.id;/);
-  const boundary = fs.readFileSync(path.resolve(__dirname, '..', 'components', 'access-boundary.tsx'), 'utf8');
+  const boundary = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'identity', 'presentation', 'components', 'access-boundary.tsx'), 'utf8');
   assert.match(boundary, /path === "\/registrar-medicion" && !permissions\.write/, 'el guardián usa estos permisos');
 });

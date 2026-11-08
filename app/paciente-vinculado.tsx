@@ -1,9 +1,9 @@
-import { HealthInformation } from '@/components/profile/health-information';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
+import { HealthInformation } from '@/src/modules/monitoring/presentation/components/health-information';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useRouter } from 'expo-router';
@@ -18,8 +18,8 @@ import {
   View,
 } from 'react-native';
 
-import { useAppState } from '@/hooks/use-app-state';
-import { useAuth } from '@/hooks/use-auth';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
 import {
   createPatientProfile,
   formatAge,
@@ -27,7 +27,7 @@ import {
   formatBirthDate,
   formatManagementMode,
   resolveProfilePatientId,
-} from '@/services/patient-profile';
+} from '@/src/modules/identity/application/patient-profile';
 
 export default function LinkedPatientScreen() {
   const router = useRouter();
@@ -886,4 +886,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.65,
   },
-});
+});

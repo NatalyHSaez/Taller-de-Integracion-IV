@@ -21,7 +21,7 @@ servicio `notificaciones`.
 | POST | `/api/v1/notifications/{notificationId}/read` | Marca como leída. Responde **204** sin cuerpo, también si ya estaba leída. 404 `NOTIFICATION_NOT_FOUND` si no existe o no es del usuario. |
 
 No hay `GET` de una notificación individual: el detalle usa los datos ya
-recibidos en la lista (caché en memoria de `services/notifications.ts`). Si la
+recibidos en la lista (caché en memoria de `src/modules/notifications/application/notifications.ts`). Si la
 app se abre directamente en el detalle, primero se carga la primera página.
 
 ## Comportamiento en la app

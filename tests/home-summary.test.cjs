@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 installFakes();
-const { createHomeSummary, pickPriorityAlert, classifyHomeError } = projectRequire('services/home-summary.ts');
+const { createHomeSummary, pickPriorityAlert, classifyHomeError } = projectRequire('src/modules/dashboard/application/home-summary.ts');
 
 const bp = (id, day, systolic) => ({ id, readingId: id, type: 'blood_pressure', measuredAt: `2026-11-0${day}T10:00:00.000Z`, systolic, diastolic: 80, heartRate: 70 });
 const alert = (id, severity, createdAt, status = 'OPEN') => ({ id, readingId: null, ruleCode: 'R', severity, explanation: `Alerta ${id}`, status, createdAt, readAt: null });

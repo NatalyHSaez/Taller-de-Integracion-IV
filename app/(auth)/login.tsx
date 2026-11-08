@@ -14,14 +14,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BrandColors, Colors } from "@/constants/theme";
-import { GatewayHealthCard } from "@/components/gateway-health-card";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useDemo } from "@/hooks/use-demo";
-import { appState } from "@/services/app-state";
-import { authService } from "@/services/authservice";
-import { demo } from "@/services/demo-store";
-import { loginErrorMessage } from "@/services/login-validation";
+import { BrandColors, Colors } from "@/src/shared/presentation/theme";
+import { GatewayHealthCard } from "@/src/shared/presentation/components/gateway-health-card";
+import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
+import { useDemo } from "@/src/modules/demo/presentation/use-demo";
+import { appState } from "@/src/core/application/session/app-state";
+import { authService } from "@/src/modules/identity/application/authservice";
+import { demo } from "@/src/modules/demo/infrastructure/demo-store";
+import { loginErrorMessage } from "@/src/modules/identity/application/login-validation";
 
 export default function LoginScreen() {
   const router = useRouter();

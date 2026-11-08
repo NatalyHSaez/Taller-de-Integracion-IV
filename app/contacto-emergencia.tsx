@@ -10,14 +10,14 @@ import {
     View,
 } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useAppState } from '@/hooks/use-app-state';
-import { useAuth } from '@/hooks/use-auth';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
 import {
     getEmergencyContact,
     saveEmergencyContact,
-} from '@/services/emergency-contact';
+} from '@/src/modules/identity/infrastructure/emergency-contact-storage';
 
 export default function ContactoEmergenciaScreen() {
   const router = useRouter();

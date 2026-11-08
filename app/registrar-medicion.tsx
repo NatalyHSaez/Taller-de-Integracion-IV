@@ -12,32 +12,32 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ReadingConfirmationModal } from "@/components/readings/reading-confirmation";
-import { ReadingResult } from "@/components/readings/reading-result";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { BrandColors, Colors, MeasurementColors } from "@/constants/theme";
-import { useAppState } from "@/hooks/use-app-state";
-import { useClinicalParameters } from "@/hooks/use-clinical-parameters";
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ReadingConfirmationModal } from "@/src/modules/monitoring/presentation/components/reading-confirmation";
+import { ReadingResult } from "@/src/modules/monitoring/presentation/components/reading-result";
+import { ThemedText } from "@/src/shared/presentation/components/themed-text";
+import { ThemedView } from "@/src/shared/presentation/components/themed-view";
+import { BrandColors, Colors, MeasurementColors } from "@/src/shared/presentation/theme";
+import { useAppState } from "@/src/core/presentation/session/use-app-state";
+import { useClinicalParameters } from "@/src/modules/monitoring/presentation/hooks/use-clinical-parameters";
+import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
 import {
   clinicalParametersService,
   validateAgainstParameter,
-} from "@/services/clinical-parameters";
-import { createReadingFlow } from "@/services/reading-flow";
+} from "@/src/modules/monitoring/application/clinical-parameters";
+import { createReadingFlow } from "@/src/modules/monitoring/application/reading-flow";
 import {
   buildCreateReadingRequest,
   READING_CONTEXT_LABELS,
   readingsService,
   resolveActivePatientId,
-} from "@/services/readings";
+} from "@/src/modules/monitoring/application/readings";
 import type {
   ClinicalParameterCode,
   ClinicalParameterResponse,
   CreateReadingRequest,
   ReadingContext,
-} from "@/types/api";
-import type { MeasurementType } from "@/types/measurement";
+} from "@/src/core/infrastructure/http/dto";
+import type { MeasurementType } from "@/src/modules/monitoring/domain/measurement";
 import { useRouter } from "expo-router";
 
 type MeasuredAtError = Error & { field: "measuredAt" };
@@ -127,7 +127,7 @@ export default function RegisterMeasurementScreen() {
   const [date, setDate] = useState(formatDate(now));
   const [time, setTime] = useState(formatTime(now));
   const [showReview, setShowReview] = useState(false);
-  // Flujo envío → confirmación → resultado (services/reading-flow.ts).
+  // Flujo envío → confirmación → resultado (src/modules/monitoring/application/reading-flow.ts).
   const flow = useMemo(() => createReadingFlow(readingsService), []);
   const flowState = useSyncExternalStore(flow.subscribe, flow.getState, flow.getState);
   const submitting = flowState.step === "submitting";

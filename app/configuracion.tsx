@@ -1,11 +1,11 @@
-import { authService } from '@/services/authservice';
+import { authService } from '@/src/modules/identity/application/authservice';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
 
-import { Action, Card, Copy, Field, FlowPage } from '@/components/flow-ui';
-import { useDemo } from '@/hooks/use-demo';
-import { demo } from '@/services/demo-store';
+import { Action, Card, Copy, Field, FlowPage } from '@/src/shared/presentation/components/flow-ui';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
+import { demo } from '@/src/modules/demo/infrastructure/demo-store';
 
 function EditarCorreo() {
   const { user } = useDemo();
@@ -204,4 +204,4 @@ export default function Configuracion() {
       />
     </FlowPage>
   );
-}
+}

@@ -1,8 +1,8 @@
-import { authService } from '@/services/authservice';
+import { authService } from '@/src/modules/identity/application/authservice';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Action, Card, Copy, Field, FlowPage } from '@/components/flow-ui';
-import { demo, type Profile } from '@/services/demo-store';
+import { Action, Card, Copy, Field, FlowPage } from '@/src/shared/presentation/components/flow-ui';
+import { demo, type Profile } from '@/src/modules/demo/infrastructure/demo-store';
 export default function DemoScreen() {
   const router = useRouter(); const [name, setName] = useState('Juan Pérez'); const [email, setEmail] = useState('juan@ejemplo.com');
   const [profile, setProfile] = useState<Profile>(); const [error, setError] = useState('');

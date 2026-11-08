@@ -11,11 +11,11 @@ const assert = require('node:assert/strict');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 installFakes();
-const { createReadingsHistory } = projectRequire('services/readings-history.ts');
-const { createReadingDetail, classifyDetailError } = projectRequire('services/reading-detail.ts');
-const { createMeasurementSeries } = projectRequire('services/measurement-series.ts');
-const { createPatientAlerts, classifyAlertError } = projectRequire('services/patient-alerts.ts');
-const { createNotificationsStore, classifyNotificationError } = projectRequire('services/notifications.ts');
+const { createReadingsHistory } = projectRequire('src/modules/monitoring/application/readings-history.ts');
+const { createReadingDetail, classifyDetailError } = projectRequire('src/modules/monitoring/application/reading-detail.ts');
+const { createMeasurementSeries } = projectRequire('src/modules/monitoring/application/measurement-series.ts');
+const { createPatientAlerts, classifyAlertError } = projectRequire('src/modules/evaluation/application/patient-alerts.ts');
+const { createNotificationsStore, classifyNotificationError } = projectRequire('src/modules/notifications/application/notifications.ts');
 
 const ERRORS = {
   '401': () => apiError('AUTHENTICATION_REQUIRED', 401),

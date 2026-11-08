@@ -9,18 +9,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BrandColors, Colors, StatusColors } from '@/constants/theme';
-import { useClinicalParameters } from '@/hooks/use-clinical-parameters';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useHealthConditions } from '@/hooks/use-health-conditions';
-import type { ClinicalParameterCatalog } from '@/services/clinical-parameters';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { BrandColors, Colors, StatusColors } from '@/src/shared/presentation/theme';
+import { useClinicalParameters } from '@/src/modules/monitoring/presentation/hooks/use-clinical-parameters';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useHealthConditions } from '@/src/modules/monitoring/presentation/hooks/use-health-conditions';
+import type { ClinicalParameterCatalog } from '@/src/modules/monitoring/application/clinical-parameters';
 import {
   ASSIGNED_CONDITIONS_API_AVAILABLE,
   type HealthProgram,
-} from '@/services/health-conditions';
-import type { ClinicalParameterCode } from '@/types/api';
+} from '@/src/modules/monitoring/application/health-conditions';
+import type { ClinicalParameterCode } from '@/src/core/infrastructure/http/dto';
 
 type Theme = (typeof Colors)['light'] | (typeof Colors)['dark'];
 

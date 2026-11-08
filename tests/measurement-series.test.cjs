@@ -6,7 +6,7 @@ const { installFakes, apiError } = require('./support/fakes.cjs');
 
 installFakes();
 const { createMeasurementSeries, toSeries, pairBloodPressure, rangeFor, loadChartMeasurements, CHART_PARAMETER_CODES } =
-  projectRequire('services/measurement-series.ts');
+  projectRequire('src/modules/monitoring/application/measurement-series.ts');
 
 const NOW = new Date('2026-11-06T12:00:00.000Z');
 const at = (day, hour = 12) => new Date(Date.UTC(2026, 10, day, hour)).toISOString();

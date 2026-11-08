@@ -6,11 +6,12 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
-const { createNotificationsStore, backendNotificationsApi, classifyNotificationError, mergeNotifications } =
-  projectRequire('services/notifications.ts');
-const { Colors } = projectRequire('constants/theme.ts');
+const { createNotificationsStore, classifyNotificationError, mergeNotifications } =
+  projectRequire('src/modules/notifications/application/notifications.ts');
+const { backendNotificationsApi } = projectRequire('src/modules/notifications/infrastructure/notifications-api.ts');
+const { Colors } = projectRequire('src/shared/presentation/theme.ts');
 const { NotificationItem, NotificationsEmpty, NotificationDetailView, INTERNAL_NOTICE } =
-  projectRequire('components/notifications/notifications-view.tsx');
+  projectRequire('src/modules/notifications/presentation/components/notifications-view.tsx');
 
 const theme = Colors.light;
 const NOW = new Date('2026-11-06T12:00:00.000Z');
@@ -180,7 +181,11 @@ test('vista: estados, aviso de notificaciones internas y detalle', () => {
 test('la app ya no usa la ruta en español /notificaciones del backend', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const source = fs.readFileSync(path.resolve(__dirname, '..', 'services', 'notifications.ts'), 'utf8');
-  assert.doesNotMatch(source, /['"`]\/notificaciones/);
-  assert.doesNotMatch(source, /mockApi|MOCK_/);
+  const read = (layer, file) =>
+    fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'notifications', layer, file), 'utf8');
+  for (const source of [read('application', 'notifications.ts'), read('infrastructure', 'notifications-api.ts')]) {
+    assert.doesNotMatch(source, /['"`]\/notificaciones/);
+    assert.doesNotMatch(source, /mockApi|MOCK_/);
+  }
+  assert.match(read('infrastructure', 'notifications-api.ts'), /['"`]\/notifications['"`]/);
 });

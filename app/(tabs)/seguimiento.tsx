@@ -3,10 +3,10 @@ import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { AccentColors, BrandColors, Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { AccentColors, BrandColors, Colors } from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 

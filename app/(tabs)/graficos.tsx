@@ -11,21 +11,21 @@ import {
 import { LineChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import {
   BrandColors,
   Colors,
   MeasurementColors,
-} from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
-import type { MeasurementType } from '@/types/measurement';
+} from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
+import type { MeasurementType } from '@/src/modules/monitoring/domain/measurement';
 
-import { useAppState } from '@/hooks/use-app-state';
-import { useAuth } from '@/hooks/use-auth';
-import { loadChartMeasurements } from '@/services/measurement-series';
-import type { Measurement } from '@/types/measurement';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
+import { loadChartMeasurements } from '@/src/modules/monitoring/application/measurement-series';
+import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 
 type GraphType = MeasurementType;
 
@@ -1670,4 +1670,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.76,
   },
-});
+});

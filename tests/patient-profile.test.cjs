@@ -13,7 +13,7 @@ const {
   formatAge,
   formatBiologicalSex,
   formatManagementMode,
-} = projectRequire('services/patient-profile.ts');
+} = projectRequire('src/modules/identity/application/patient-profile.ts');
 
 const profile = (id, extra = {}) => ({
   id, fullName: `Paciente ${id}`, birthDate: '1950-03-07', age: 76, biologicalSex: 'FEMALE', managementMode: 'autonomo', ...extra,

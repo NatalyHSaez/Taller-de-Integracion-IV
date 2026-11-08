@@ -2,21 +2,17 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
-import { AlertCard, AlertDetail, AlertFilters, AlertsEmpty } from '@/components/alerts/alerts-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useAppState } from '@/hooks/use-app-state';
-import { useAuth } from '@/hooks/use-auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { MOCK_ALERTS } from '@/services/mocks/api-data';
-import {
-  type AlertsService,
-  backendAlertsService,
-  createPatientAlerts,
-  type PatientAlert,
-  toPatientAlert,
-} from '@/services/patient-alerts';
+import { AlertCard, AlertDetail, AlertFilters, AlertsEmpty } from '@/src/modules/evaluation/presentation/components/alerts-view';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { MOCK_ALERTS } from '@/src/modules/demo/infrastructure/mocks/api-data';
+import { type AlertsService, type PatientAlert } from '@/src/modules/evaluation/domain/alert';
+import { backendAlertsService, toPatientAlert } from '@/src/modules/evaluation/infrastructure/alerts-api';
+import { createPatientAlerts } from '@/src/modules/evaluation/application/patient-alerts';
 
 /**
  * Sesión de demostración (sin servidor): alertas de ejemplo del paciente

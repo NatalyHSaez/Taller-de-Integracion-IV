@@ -1,10 +1,10 @@
-import { Action, Card, Copy, Field, FlowPage } from '@/components/flow-ui';
-import { useAppState } from '@/hooks/use-app-state';
-import { useDemo } from '@/hooks/use-demo';
+import { Action, Card, Copy, Field, FlowPage } from '@/src/shared/presentation/components/flow-ui';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 // Agregado: normaliza el código (espacios, guiones, minúsculas) y traduce los errores del backend.
-import { consumeLinkCode } from '@/services/link-codes';
-import { appState } from '@/services/app-state';
-import { demo, type Invitation } from '@/services/demo-store';
+import { consumeLinkCode } from '@/src/modules/relationships/application/link-codes';
+import { appState } from '@/src/core/application/session/app-state';
+import { demo, type Invitation } from '@/src/modules/demo/infrastructure/demo-store';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';

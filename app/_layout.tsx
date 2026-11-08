@@ -1,8 +1,8 @@
-import { AccessBoundary } from "@/components/access-boundary";
-import { Colors } from "@/constants/theme";
-import { AppStateProvider } from "@/contexts/app-state-context";
-import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
+import { Colors } from "@/src/shared/presentation/theme";
+import { AppStateProvider } from "@/src/core/presentation/session/app-state-context";
+import { AuthProvider, useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
+import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
 
 import { Stack } from "expo-router";
 import {

@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { ApiError } = projectRequire('services/errors/index.ts');
+const { ApiError } = projectRequire('src/core/infrastructure/http/errors/index.ts');
 const apiError = (code, status) => new ApiError({ code, status, message: `backend ${code}` });
 
 /** Backend simulado con la lógica de relaciones/rutas.py. */
@@ -27,7 +27,7 @@ function active(id) {
   return row;
 }
 
-mockModule('services/api.ts', {
+mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
   async updateCaregiverPermissions(id, permissions) {
     calls.push(['PUT', id, permissions]);
     const row = active(id);
@@ -52,14 +52,17 @@ mockModule('services/api.ts', {
   },
 });
 
-const actions = projectRequire('services/relationship-actions.ts');
+const actions = {
+  ...projectRequire('src/modules/relationships/application/relationship-actions.ts'),
+  ...projectRequire('src/modules/relationships/presentation/confirm-dialog.ts'),
+};
 
 test('PUT envía el conjunto completo y reemplaza; los permisos sobreviven al volver a consultar', async () => {
   resetDb();
   await actions.updateCaregiverPermissions('rel-1', ['PATIENT_PROFILE_VIEW', 'ALERT_VIEW', 'ALERT_VIEW']);
   assert.deepEqual(calls[0], ['PUT', 'rel-1', ['PATIENT_PROFILE_VIEW', 'ALERT_VIEW']]);
   assert.deepEqual(db.get('rel-1').permissions, ['PATIENT_PROFILE_VIEW', 'ALERT_VIEW'], 'MEASUREMENT_VIEW ya no está');
-  const [mine] = await projectRequire('services/api.ts').getMePatients();
+  const [mine] = await projectRequire('src/modules/relationships/infrastructure/relationships-api.ts').getMePatients();
   assert.deepEqual(mine.permissions, ['PATIENT_PROFILE_VIEW', 'ALERT_VIEW']);
 });
 
@@ -106,7 +109,7 @@ test('el cuidador deja su vínculo: busca su relationshipId y lo revoca', async 
   resetDb();
   await actions.leaveCaregiverRelationship('pia');
   assert.deepEqual(calls.at(-1), ['DELETE', 'rel-1']);
-  assert.deepEqual(await projectRequire('services/api.ts').getMePatients(), [], 'ya no aparece en su lista');
+  assert.deepEqual(await projectRequire('src/modules/relationships/infrastructure/relationships-api.ts').getMePatients(), [], 'ya no aparece en su lista');
   await actions.leaveCaregiverRelationship('pia'); // ya no hay vínculo: no falla
 });
 
@@ -135,7 +138,7 @@ test('las pantallas usan estas funciones y agregan "Dejar de acompañar"', () =>
   const path = require('node:path');
   const read = (...p) => fs.readFileSync(path.resolve(__dirname, '..', ...p), 'utf8').replace(/\r/g, '');
   const links = read('app', '(tabs)', 'vinculos.tsx');
-  assert.match(links, /from '@\/services\/relationship-actions'/);
+  assert.match(links, /from '@\/src\/modules\/relationships\/application\/relationship-actions'/);
   assert.doesNotMatch(links, /import \{[^}]*\bAlert\b[^}]*\} from 'react-native'/);
   assert.match(links, /onStaleRelationship/);
   const select = read('app', '(auth)', 'select-patient.tsx');

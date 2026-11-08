@@ -12,18 +12,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ReadingHistoryItem } from '@/components/history/reading-history-item';
-import { MeasurementCard } from '@/components/measurement-card';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { type AppTheme, BrandColors, Colors } from '@/constants/theme';
-import { useAppState } from '@/hooks/use-app-state';
-import { useAuth } from '@/hooks/use-auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useDemo } from '@/hooks/use-demo';
-import type { ReadingResponse } from '@/services/api';
-import { createReadingsHistory, lastDaysRange } from '@/services/readings-history';
-import type { Measurement, MeasurementFilter } from '@/types/measurement';
+import { ReadingHistoryItem } from '@/src/modules/monitoring/presentation/components/reading-history-item';
+import { MeasurementCard } from '@/src/modules/monitoring/presentation/components/measurement-card';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { type AppTheme, BrandColors, Colors } from '@/src/shared/presentation/theme';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useDemo } from '@/src/modules/demo/presentation/use-demo';
+import type { ReadingResponse } from '@/src/modules/monitoring/infrastructure/readings-api';
+import { createReadingsHistory, lastDaysRange } from '@/src/modules/monitoring/application/readings-history';
+import type { Measurement, MeasurementFilter } from '@/src/modules/monitoring/domain/measurement';
 
 /** Filtro por parámetro: se envía como parameterCode. */
 const PARAMETER_FILTERS: { label: string; code: string | null }[] = [

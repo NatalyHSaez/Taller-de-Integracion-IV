@@ -6,9 +6,10 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
-const { createPatientAlerts, backendAlertsService, classifyAlertError } = projectRequire('services/patient-alerts.ts');
-const { Colors } = projectRequire('constants/theme.ts');
-const { AlertCard, AlertDetail, AlertFilters, AlertsEmpty } = projectRequire('components/alerts/alerts-view.tsx');
+const { createPatientAlerts, classifyAlertError } = projectRequire('src/modules/evaluation/application/patient-alerts.ts');
+const { backendAlertsService } = projectRequire('src/modules/evaluation/infrastructure/alerts-api.ts');
+const { Colors } = projectRequire('src/shared/presentation/theme.ts');
+const { AlertCard, AlertDetail, AlertFilters, AlertsEmpty } = projectRequire('src/modules/evaluation/presentation/components/alerts-view.tsx');
 
 const theme = Colors.light;
 const NOW = new Date('2026-11-06T12:00:00.000Z');
@@ -244,6 +245,6 @@ test('ningún archivo llama a la ruta inexistente /alerts/{alertId} (sin /read)'
       }
     }
   };
-  for (const dir of ['app', 'services', 'hooks', 'components']) walk(path.join(root, dir));
+  for (const dir of ['app', 'src']) walk(path.join(root, dir));
   assert.deepEqual(offenders, []);
 });

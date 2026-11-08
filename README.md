@@ -31,45 +31,30 @@ Este repositorio contiene específicamente la **aplicación móvil** (INFO1173),
 ...
 ## 📁 Estructura de carpetas
 
+La app sigue **arquitectura limpia por capas**, con un módulo por cada microservicio del backend.
+El detalle, las reglas entre capas y cómo agregar un endpoint están en
+[`docs/arquitectura.md`](docs/arquitectura.md). `npm run check:arch` verifica las reglas.
+
 ```
 Taller-de-Integracion-IV/
-│
-├── src/                        # Código fuente de la aplicación
-│   ├── app/                    # Rutas y pantallas (Expo Router)
-│   │   ├── _layout.tsx         # Layout raíz de la navegación
-│   │   ├── index.tsx           # Pantalla de inicio (Home)
-│   │   └── explore.tsx         # Pantalla de ejemplo del template
-│   ├── components/             # Componentes reutilizables de UI
-│   │   └── ui/                 # Sub-componentes genéricos
-│   ├── constants/               # Constantes (colores, tema, config)
-│   │   └── theme.ts
-│   ├── hooks/                    # Hooks personalizados de React
-│   └── global.css                 # Estilos globales (NativeWind)
-│
-├── assets/                      # Íconos, splash screen, imágenes
-├── scripts/                      # Scripts de utilidad
-│   └── reset-project.js          # Resetea la app a un estado limpio
-│
-├── .vscode/                       # Configuración de VS Code del equipo
-├── .claude/                        # Configuración de asistente de IA
-│
-├── app.json                         # Configuración de la app (nombre, ícono, splash)
-├── package.json                      # Dependencias y scripts del proyecto
-├── package-lock.json                  # Versión exacta de cada dependencia
-├── tsconfig.json                       # Configuración de TypeScript
-├── .gitignore                           # Archivos ignorados por Git
-├── AGENTS.md                             # Guía de contexto para agentes de IA
-├── CLAUDE.md                              # Contexto del proyecto para Claude Code
-└── LICENSE                                 # Licencia del proyecto
+├── app/                      # Pantallas y rutas (Expo Router)
+├── src/
+│   ├── core/                 # Núcleo: cliente HTTP, errores, DTO, tokens, sesión
+│   ├── modules/
+│   │   ├── identity/         #   ↔ identidad      (login, registro, perfil, ficha)
+│   │   ├── relationships/    #   ↔ relaciones     (vínculos, permisos, códigos QR)
+│   │   ├── monitoring/       #   ↔ seguimiento    (lecturas, mediciones, gráficos)
+│   │   ├── evaluation/       #   ↔ evaluacion     (alertas)
+│   │   ├── notifications/    #   ↔ notificaciones
+│   │   ├── dashboard/        #   Inicio
+│   │   └── demo/             #   Modo demostración
+│   │       (cada módulo: domain/ application/ infrastructure/ presentation/)
+│   └── shared/presentation/  # UI y tema comunes
+├── tests/                    # Pruebas (npm test)
+├── scripts/                  # Pruebas de línea de comandos y check-architecture
+├── docs/                     # Documentación
+└── assets/                   # Íconos, splash e imágenes
 ```
-
-### Descripción de las carpetas clave
-
-- **`src/app/`** — Pantallas de la app, con navegación basada en archivos (Expo Router). Cada pantalla nueva del proyecto (registro de signos vitales, historial, recordatorios, perfil) se agrega aquí.
-- **`src/components/`** — Componentes de interfaz reutilizados en más de una pantalla (botones, tarjetas, badges de alerta). Evita duplicar UI entre pantallas.
-- **`src/constants/`** — Valores fijos del proyecto: colores del tema, paleta de alertas (verde/amarillo/rojo), tamaños de fuente.
-- **`src/hooks/`** — Lógica reutilizable (ej. un hook para consumir la API o manejar la sesión del usuario).
-- **`assets/`** — Solo recursos estáticos, sin código.
 
 ### Carpetas que NO se suben al repositorio
 

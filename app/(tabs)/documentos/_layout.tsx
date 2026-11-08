@@ -1,9 +1,9 @@
 import { Link, Stack } from 'expo-router';
 import { View } from 'react-native';
 
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { IconSymbol } from '@/src/shared/presentation/components/ui/icon-symbol';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 
 export default function DocumentosLayout() {
   const colorScheme = useColorScheme();
@@ -26,4 +26,4 @@ export default function DocumentosLayout() {
       <Stack.Screen name="[id]" options={{ title: 'Detalle del documento' }} />
     </Stack>
   );
-}
+}

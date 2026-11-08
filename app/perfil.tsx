@@ -1,18 +1,18 @@
-import { HealthInformation } from "@/components/profile/health-information";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Colors } from "@/constants/theme";
-import { useAppState } from "@/hooks/use-app-state";
-import { useAuth } from "@/hooks/use-auth";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useDemo } from "@/hooks/use-demo";
-import { demo } from "@/services/demo-store";
+import { HealthInformation } from "@/src/modules/monitoring/presentation/components/health-information";
+import { ThemedText } from "@/src/shared/presentation/components/themed-text";
+import { ThemedView } from "@/src/shared/presentation/components/themed-view";
+import { Colors } from "@/src/shared/presentation/theme";
+import { useAppState } from "@/src/core/presentation/session/use-app-state";
+import { useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
+import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
+import { useDemo } from "@/src/modules/demo/presentation/use-demo";
+import { demo } from "@/src/modules/demo/infrastructure/demo-store";
 
-import { getPatient } from "@/services/api";
+import { getPatient } from "@/src/modules/identity/infrastructure/identity-api";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { updateMyProfile, profileErrorMessage } from "@/services/profile";
+import { updateMyProfile, profileErrorMessage } from "@/src/modules/identity/application/profile";
 
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, } from "react-native";
 

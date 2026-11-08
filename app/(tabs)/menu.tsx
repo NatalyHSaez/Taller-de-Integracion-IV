@@ -11,11 +11,11 @@ import {
   View,
 } from "react-native";
 
-import { BrandColors, Colors } from "@/constants/theme";
-import { useAppState } from "@/hooks/use-app-state";
-import { useAuth } from "@/hooks/use-auth";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useDemo } from "@/hooks/use-demo";
+import { BrandColors, Colors } from "@/src/shared/presentation/theme";
+import { useAppState } from "@/src/core/presentation/session/use-app-state";
+import { useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
+import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
+import { useDemo } from "@/src/modules/demo/presentation/use-demo";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 

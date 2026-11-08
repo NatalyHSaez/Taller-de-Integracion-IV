@@ -33,8 +33,8 @@ async function fakeFetch(url, options) {
 function load(filename) {
   let file = filename;
   if (!path.extname(file)) file = fs.existsSync(file + '.ts') ? file + '.ts' : path.join(file, 'index.ts');
-  if (file === path.join(root, 'config/api.ts')) return { IS_API_CONFIGURED: true, API_V1_URL: 'http://test.local/api/v1' };
-  if (file === path.join(root, 'services/token-storage.ts')) return storage;
+  if (file === path.join(root, 'src/core/infrastructure/config/api-config.ts')) return { IS_API_CONFIGURED: true, API_V1_URL: 'http://test.local/api/v1' };
+  if (file === path.join(root, 'src/core/infrastructure/storage/token-storage.ts')) return storage;
   if (cache.has(file)) return cache.get(file);
   const exports = {};
   cache.set(file, exports);
@@ -48,10 +48,10 @@ function load(filename) {
   return exports;
 }
 async function main() {
-  const { authService } = load(path.join(root, 'services/authservice'));
-  const { authSession } = load(path.join(root, 'services/auth-session'));
-  const { appState } = load(path.join(root, 'services/app-state'));
-  const { buildProfileUpdate, updateMyProfile, profileErrorMessage } = load(path.join(root, 'services/profile'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
+  const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
+  const { buildProfileUpdate, updateMyProfile, profileErrorMessage } = load(path.join(root, 'src/modules/identity/application/profile'));
   for (const invalid of ['', '  ', 'ab', 'x'.repeat(201)]) assert.throws(() => buildProfileUpdate(invalid));
   assert.equal(buildProfileUpdate('  Ana  ').fullName, 'Ana');
   for (const userRole of ['PATIENT', 'CAREGIVER']) {
@@ -85,7 +85,7 @@ async function main() {
     await authService.logout();
     await assert.rejects(updateMyProfile('Sin sesión'));
   }
-  const { ApiError } = load(path.join(root, 'services/errors'));
+  const { ApiError } = load(path.join(root, 'src/core/infrastructure/http/errors'));
   assert.match(profileErrorMessage(new ApiError({ code: 'VALIDATION_ERROR', status: 422, message: 'Error' })), /rechazó el nombre/);
   console.log('Perfil aprobado: validación, PATCH autenticado, solo fullName, ambos roles, sincronización, persistencia simulada y errores sin modificar identidad local.');
 }

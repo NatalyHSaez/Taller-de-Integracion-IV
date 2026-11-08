@@ -1,6 +1,6 @@
 // Run with npm run test:onboarding. Uses only fictitious data and an isolated store.
 const assert = require('node:assert/strict');
-const { demo } = require('../tmp/onboarding-tests/services/demo-store.js');
+const { demo } = require('../tmp/onboarding-tests/modules/demo/infrastructure/demo-store.js');
 demo.login('paciente@ejemplo.com', 'Paciente123');
 assert.equal(demo.user().role, 'patient');
 assert.equal(demo.patient().id, 'demo-patient');

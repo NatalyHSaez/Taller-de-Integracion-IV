@@ -6,9 +6,9 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { installFakes } = require('./support/fakes.cjs');
 
 installFakes();
-const { describeRecordedBy, createLinkedPeopleLoader } = projectRequire('services/recorded-by.ts');
-const { ReadingDetailView } = projectRequire('components/readings/reading-detail-view.tsx');
-const { Colors } = projectRequire('constants/theme.ts');
+const { describeRecordedBy, createLinkedPeopleLoader } = projectRequire('src/modules/monitoring/application/recorded-by.ts');
+const { ReadingDetailView } = projectRequire('src/modules/monitoring/presentation/components/reading-detail-view.tsx');
+const { Colors } = projectRequire('src/shared/presentation/theme.ts');
 
 const person = (userId, fullName) => ({ relationshipId: `rel-${userId}`, userId, fullName, permissions: [], linkedAt: '' });
 const people = { caregivers: [person('cui-1', 'Ana Pérez')], doctors: [person('doc-1', 'Dr. Soto')] };

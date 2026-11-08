@@ -8,13 +8,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { ApiError } = projectRequire('services/errors/index.ts');
+const { ApiError } = projectRequire('src/core/infrastructure/http/errors/index.ts');
 const apiError = (code, status) => new ApiError({ code, status, message: `backend ${code}` });
 
 /** Backend simulado con la lógica de relaciones/rutas.py (usar_codigo). */
 const codes = new Map();
 const sentCodes = [];
-mockModule('services/api.ts', {
+mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
   async consumeLinkCode(code) {
     sentCodes.push(code);
     if (!/^[A-Z0-9]{6}$/.test(code)) throw apiError('INVALID_CODE_FORMAT', 422);
@@ -26,7 +26,7 @@ mockModule('services/api.ts', {
   },
 });
 
-const links = projectRequire('services/link-codes.ts');
+const links = projectRequire('src/modules/relationships/application/link-codes.ts');
 const read = (...p) => fs.readFileSync(path.resolve(__dirname, '..', ...p), 'utf8').replace(/\r/g, '');
 
 test('normaliza espacios, guiones y minúsculas (también enlaces escaneados)', () => {
@@ -95,12 +95,12 @@ test('pantallas: QR solo con code, cuenta regresiva, código para médico y conf
   assert.match(vinculos, /<LinkCodeCountdown\s+expiresAt=\{realLinkCode\.expiresAt\}/);
   assert.match(vinculos, /<DoctorLinkCodeCard patientId=\{user\.id\} \/>/);
 
-  const doctor = read('components', 'relationships', 'doctor-link-code-card.tsx');
+  const doctor = read('src', 'modules', 'relationships', 'presentation', 'components', 'doctor-link-code-card.tsx');
   assert.match(doctor, /createPatientLinkCode\(patientId, 'DOCTOR'\)/);
   assert.match(doctor, /<QRCode value=\{linkCode\.code\}/);
 
   const invitacion = read('app', 'invitacion.tsx');
-  assert.match(invitacion, /import \{ consumeLinkCode \} from '@\/services\/link-codes';/);
+  assert.match(invitacion, /import \{ consumeLinkCode \} from '@\/src\/modules\/relationships\/application\/link-codes';/);
   assert.match(invitacion, /<CameraView/, 'lectura por cámara');
   const realStart = invitacion.indexOf("sessionMode === 'backend' && user?.role === 'caregiver' ? (");
   const realEnd = invitacion.indexOf('    ) : (\n      <>', realStart);

@@ -7,12 +7,12 @@ import {
   NotificationFilters,
   NotificationItem,
   NotificationsEmpty,
-} from '@/components/notifications/notifications-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useNotifications } from '@/hooks/use-notifications';
+} from '@/src/modules/notifications/presentation/components/notifications-view';
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { Colors } from '@/src/shared/presentation/theme';
+import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { useNotifications } from '@/src/modules/notifications/presentation/hooks/use-notifications';
 
 export default function NotificacionesScreen() {
   const router = useRouter();

@@ -19,7 +19,7 @@ async function main() {
       deleteItemAsync: async key => store.removeItem(key),
     };
     const exports = {};
-    const source = fs.readFileSync(path.join(__dirname, '../services/token-storage.ts'), 'utf8');
+    const source = fs.readFileSync(path.join(__dirname, '../src/core/infrastructure/storage/token-storage.ts'), 'utf8');
     vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, {
       exports, localStorage: store,
       require: name => name === 'react-native' ? { Platform: { OS: platform } } : native,

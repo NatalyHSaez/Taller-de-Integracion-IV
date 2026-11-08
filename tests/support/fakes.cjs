@@ -27,7 +27,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
     return typeof reply === 'function' ? reply() : reply;
   };
 
-  mockModule('services/api.ts', {
+  mockModule('src/core/infrastructure/http/api-client.ts', {
     apiClient: {
       post: async (path, body) => {
         calls.post.push({ path, body });
@@ -40,7 +40,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
     },
   });
   const session = { role };
-  mockModule('services/auth-session.ts', {
+  mockModule('src/core/application/session/auth-session.ts', {
     authSession: {
       mode: () => mode,
       user: () => ({ id: userId, fullName: 'Prueba', email: 'p@x.cl', roles: [session.role] }),
@@ -49,10 +49,10 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
   });
   // Paciente elegido en el selector real (solo lo usan los cuidadores).
   const selection = { selectedPatient: null };
-  mockModule('services/app-state.ts', {
+  mockModule('src/core/application/session/app-state.ts', {
     appState: { snapshot: () => ({ selectedPatient: selection.selectedPatient }) },
   });
-  mockModule('services/demo-store.ts', {
+  mockModule('src/modules/demo/infrastructure/demo-store.ts', {
     demo: {
       save: () => { calls.demoSave += 1; },
       patient: () => ({ id: 'demo-patient', name: 'Demo', email: 'd@x.cl' }),
@@ -60,7 +60,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
       permissions: () => ({ read: true, write: true, alerts: true }),
     },
   });
-  mockModule('services/data/index.ts', {
+  mockModule('src/core/infrastructure/http/data/index.ts', {
     dataClient: {
       get: async (path) => {
         calls.dataGet.push(path);
@@ -72,7 +72,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
       invalidate() {},
     },
   });
-  mockModule('services/mocks/index.ts', { mockApi: {} });
+  mockModule('src/modules/demo/infrastructure/mocks/index.ts', { mockApi: {} });
 
   return {
     calls,
@@ -89,7 +89,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
 
 /** Error con la forma que produce services/errors para respuestas HTTP. */
 function apiError(code, status, details = {}, message = `${code} (prueba)`) {
-  const { ApiError } = projectRequire('services/errors/index.ts');
+  const { ApiError } = projectRequire('src/core/infrastructure/http/errors/index.ts');
   return new ApiError({ code, status, message, details });
 }
 
