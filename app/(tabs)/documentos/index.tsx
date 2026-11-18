@@ -1,35 +1,59 @@
 import { useRouter } from 'expo-router';
-import { FlatList, Pressable, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import {
+  countByKind,
+  filterDocuments,
+  type DocumentFilter,
+} from '@/src/modules/care/domain/clinical-document';
+import { DEMO_DOCUMENTS } from '@/src/modules/care/infrastructure/demo-documents';
+import {
+  DocumentCard,
+  DocumentsEmpty,
+  DocumentsHero,
+  InfoNotice,
+  SectionTitle,
+} from '@/src/modules/care/presentation/components/documents-ui';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
-import { Colors } from '@/src/shared/presentation/theme';
-import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 
-// TODO: reemplazar por datos reales cuando esté el endpoint de documentos
-const DOCUMENTOS = [
-  { id: 'receta-medica', nombre: 'Receta médica.pdf' },
-  { id: 'orden-examenes', nombre: 'Orden de exámenes.pdf' },
-];
+const SECTION_TITLES: Record<DocumentFilter, string> = {
+  ALL: 'Todos tus documentos',
+  prescription: 'Recetas médicas',
+  exam_order: 'Órdenes de exámenes',
+  other: 'Otros documentos',
+};
 
 export default function DocumentosScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const [filter, setFilter] = useState<DocumentFilter>('ALL');
+  const counts = countByKind(DEMO_DOCUMENTS);
+  const visible = filterDocuments(DEMO_DOCUMENTS, filter);
 
   return (
     <ThemedView style={styles.container}>
       <FlatList
-        data={DOCUMENTOS}
+        data={visible}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <DocumentsHero filter={filter} counts={counts} onFilter={setFilter} />
+            <InfoNotice text="Vista previa con documentos de ejemplo. Los documentos de tus consultas aparecerán aquí cuando el servicio de Atención los publique." />
+            <SectionTitle>{SECTION_TITLES[filter]}</SectionTitle>
+          </View>
+        }
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={
+          <DocumentsEmpty
+            title="No hay documentos en esta categoría"
+            text="Cuando tu médico agregue uno, lo verás aquí."
+            action={filter === 'ALL' ? undefined : { label: 'Ver todos', onPress: () => setFilter('ALL') }}
+          />
+        }
         renderItem={({ item }) => (
-          <Pressable
-            style={[styles.row, { borderBottomColor: theme.border }]}
-            onPress={() => router.push(`/documentos/${item.id}`)}>
-            <ThemedText>{item.nombre}</ThemedText>
-            <ThemedText type="link">Ver documento</ThemedText>
-          </Pressable>
+          <DocumentCard document={item} onOpen={() => router.push(`/documentos/${item.id}`)} />
         )}
       />
     </ThemedView>
@@ -38,12 +62,7 @@ export default function DocumentosScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 16, gap: 12 },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  list: { paddingBottom: 32, paddingHorizontal: 16, paddingTop: 18 },
+  header: { gap: 16, marginBottom: 12 },
+  separator: { height: 12 },
 });

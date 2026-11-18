@@ -1,29 +1,24 @@
-import { Link, Stack } from 'expo-router';
-import { View } from 'react-native';
+import { Stack } from 'expo-router';
 
-import { IconSymbol } from '@/src/shared/presentation/components/ui/icon-symbol';
-import { Colors } from '@/src/shared/presentation/theme';
-import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
+import { AppHeader } from '@/src/modules/dashboard/presentation/components/app-header';
 
 export default function DocumentosLayout() {
-  const colorScheme = useColorScheme();
-  const tint = Colors[colorScheme === 'dark' ? 'dark' : 'light'].tint;
-
-  const headerRight = () => (
-    <View style={{ flexDirection: 'row', gap: 16, marginRight: 16 }}>
-      <Link href="/notificaciones">
-        <IconSymbol size={22} name="bell.fill" color={tint} />
-      </Link>
-      <Link href="/perfil">
-        <IconSymbol size={22} name="person.fill" color={tint} />
-      </Link>
-    </View>
-  );
-
   return (
     <Stack>
-      <Stack.Screen name="index" options={{ title: 'Documentos', headerRight }} />
-      <Stack.Screen name="[id]" options={{ title: 'Detalle del documento' }} />
+      <Stack.Screen
+        name="index"
+        options={{
+          title: 'Documentos',
+          header: () => <AppHeader back title="Documentos" subtitle="Recetas, órdenes y archivos" />,
+        }}
+      />
+      <Stack.Screen
+        name="[id]"
+        options={{
+          title: 'Detalle del documento',
+          header: () => <AppHeader back title="Documento" subtitle="Detalle del archivo" />,
+        }}
+      />
     </Stack>
   );
-}
+}

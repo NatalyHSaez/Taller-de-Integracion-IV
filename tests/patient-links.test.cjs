@@ -21,12 +21,15 @@ test('formatos: permisos, fecha de vinculación e identificador', () => {
 });
 
 test('cuidadores y médicos muestran fecha, permisos y vínculo', () => {
-  assert.match(source, /<Copy>\{caregiver\.fullName\}<\/Copy>\n\s*<LinkDetails link=\{caregiver\} \/>/);
-  assert.match(source, /<Copy>\{doctor\.fullName\}<\/Copy>\n\s*<LinkDetails link=\{doctor\} \/>/);
+  assert.match(source, /<PersonHeader name=\{caregiver\.fullName\} role="caregiver" \/>\n\s*<LinkDetails link=\{caregiver\} \/>/);
+  assert.match(source, /<PersonHeader name=\{doctor\.fullName\} role="doctor" \/>\n\s*<LinkDetails link=\{doctor\} \/>/);
+  assert.match(source, /<PermissionChips codes=\{doctor\.permissions\} \/>/);
 });
 
 test('actualización manual, al volver a la pestaña y reintento', () => {
-  assert.match(source, /Actualizar vínculos/);
+  assert.match(source, /onRefresh=\{sessionMode === 'backend' && isPatient \? \(\) => \{ void manualRefreshLinks\(\); \}/);
+  const ui = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'relationships', 'presentation', 'components', 'links-ui.tsx'), 'utf8');
+  assert.match(ui, /accessibilityLabel="Actualizar vínculos"/);
   assert.match(source, /label="Reintentar"/);
   assert.match(source, /useIsFocused\(\)/);
   assert.match(source, /await refreshRealLinks\(\)/, 'reutiliza la recarga de Martín');
@@ -39,7 +42,7 @@ test('administración solo para el paciente y sin datos simulados en la sesión 
   const backendBlock = source.slice(backendStart, demoStart);
   assert.match(backendBlock, /user\?\.role === 'patient' \? \(/);
   assert.doesNotMatch(backendBlock, /RequestCard|demo\.|links\.map/);
-  const caregiverStart = backendBlock.indexOf(') : (\n          <Card>\n            <Copy>\n              Para vincularte');
+  const caregiverStart = backendBlock.indexOf(') : (\n          <Panel>\n            <PanelHeader\n              icon="qrcode-scan"');
   assert.ok(caregiverStart > 0, 'existe la rama del cuidador');
   assert.doesNotMatch(backendBlock.slice(caregiverStart), /RealCaregiverCard|RealDoctorCard|revoke|Actualizar vínculos/);
 });

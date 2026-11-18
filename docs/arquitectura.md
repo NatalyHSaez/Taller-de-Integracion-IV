@@ -38,6 +38,7 @@ scripts/check-architecture.cjs   Verifica las reglas de este documento (npm run 
 | `monitoring`    | seguimiento     | `/patients/{id}/readings`, `/patients/{id}/measurements`, `/clinical-parameters`, `/health-conditions` |
 | `evaluation`    | evaluacion      | `/patients/{id}/alerts` (y `/parameter-limits`, ver excepciones)                   |
 | `notifications` | notificaciones  | `/notifications`                                                                    |
+| `care`          | atencion        | `/documents` (pendiente: el servicio aún no expone rutas; se usan documentos de ejemplo) |
 
 ## Las cuatro capas de cada módulo
 

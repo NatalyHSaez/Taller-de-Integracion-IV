@@ -2,7 +2,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
-import { AlertCard, AlertDetail, AlertFilters, AlertsEmpty } from '@/src/modules/evaluation/presentation/components/alerts-view';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+
+import { AlertCard, AlertDetail, AlertsEmpty, AlertsHero, SECTION_TITLES } from '@/src/modules/evaluation/presentation/components/alerts-view';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import { Colors } from '@/src/shared/presentation/theme';
@@ -89,16 +91,22 @@ export default function AlertasScreen() {
         }
         ListHeaderComponent={
           <View style={styles.header}>
-            {state.patientId && <AlertFilters state={state} theme={theme} onFilter={(f) => void alerts.setFilter(f)} />}
+            <AlertsHero state={state} theme={theme} onFilter={(f) => void alerts.setFilter(f)} />
             {state.error && state.loaded && (
-              <ThemedText accessibilityRole="alert" style={[styles.small, { color: theme.danger }]}>
-                No se pudo actualizar: {state.error.message}
-              </ThemedText>
+              <View
+                accessibilityRole="alert"
+                style={[styles.notice, { backgroundColor: theme.dangerBackground, borderColor: theme.dangerBorder }]}>
+                <MaterialCommunityIcons name="cloud-alert-outline" size={20} color={theme.danger} />
+                <ThemedText style={[styles.small, styles.noticeText, { color: theme.danger }]}>
+                  No se pudo actualizar: {state.error.message}
+                </ThemedText>
+              </View>
             )}
             {markError && (
               <View
                 accessibilityRole="alert"
                 style={[styles.notice, { backgroundColor: theme.dangerBackground, borderColor: theme.dangerBorder }]}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={20} color={theme.danger} />
                 <ThemedText style={[styles.small, styles.noticeText, { color: theme.danger }]}>
                   {markError.message}
                 </ThemedText>
@@ -111,6 +119,11 @@ export default function AlertasScreen() {
                   </Pressable>
                 )}
               </View>
+            )}
+            {state.loaded && state.items.length > 0 && (
+              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+                {SECTION_TITLES[state.filter]}
+              </ThemedText>
             )}
           </View>
         }
@@ -125,10 +138,17 @@ export default function AlertasScreen() {
           />
         )}
         ItemSeparatorComponent={Separator}
+        ListFooterComponent={
+          state.patientId ? (
+            <View style={styles.disclaimer}>
+              <MaterialCommunityIcons name="information-outline" size={16} color={theme.mutedText} />
+              <ThemedText style={[styles.disclaimerText, { color: theme.mutedText }]}>
+                Las alertas las genera el servicio de evaluación; no reemplazan la indicación de tu equipo de salud.
+              </ThemedText>
+            </View>
+          ) : null
+        }
       />
-      <ThemedText style={[styles.disclaimer, { color: theme.mutedText }]}>
-        Las alertas las genera el servicio de evaluación; no reemplazan la indicación de tu equipo de salud.
-      </ThemedText>
 
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => alerts.close()}>
         <View style={styles.backdrop}>
@@ -157,14 +177,17 @@ function Separator() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 16 },
+  // Mismos márgenes que Seguimiento.
+  list: { paddingBottom: 32, paddingHorizontal: 16, paddingTop: 18 },
   grow: { flexGrow: 1 },
-  header: { gap: 10, marginBottom: 12 },
+  header: { gap: 17, marginBottom: 14 },
+  sectionTitle: { fontSize: 20, fontWeight: '700', lineHeight: 26, marginTop: 2 },
   separator: { height: 12 },
   small: { fontSize: 13, lineHeight: 18 },
   bold: { fontWeight: '700' },
-  notice: { alignItems: 'center', borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 10, padding: 10 },
+  notice: { alignItems: 'center', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 10, padding: 12 },
   noticeText: { flex: 1 },
-  disclaimer: { fontSize: 12, paddingHorizontal: 24, paddingVertical: 12, textAlign: 'center' },
+  disclaimer: { alignItems: 'flex-start', flexDirection: 'row', gap: 6, marginTop: 20, paddingHorizontal: 4 },
+  disclaimerText: { flex: 1, fontSize: 12, lineHeight: 17 },
   backdrop: { backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'flex-end', padding: 12 },
 });

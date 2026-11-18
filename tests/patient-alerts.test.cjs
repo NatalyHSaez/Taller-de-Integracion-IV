@@ -9,7 +9,7 @@ const fakes = installFakes();
 const { createPatientAlerts, classifyAlertError } = projectRequire('src/modules/evaluation/application/patient-alerts.ts');
 const { backendAlertsService } = projectRequire('src/modules/evaluation/infrastructure/alerts-api.ts');
 const { Colors } = projectRequire('src/shared/presentation/theme.ts');
-const { AlertCard, AlertDetail, AlertFilters, AlertsEmpty } = projectRequire('src/modules/evaluation/presentation/components/alerts-view.tsx');
+const { AlertCard, AlertDetail, AlertFilters, AlertsEmpty, AlertsHero, SECTION_TITLES } = projectRequire('src/modules/evaluation/presentation/components/alerts-view.tsx');
 
 const theme = Colors.light;
 const NOW = new Date('2026-11-06T12:00:00.000Z');
@@ -122,9 +122,10 @@ test('ALERT_NOT_FOUND quita la alerta y lo explica', async () => {
   const service = fakeService(DATA);
   const alerts = createPatientAlerts(service, { now: () => NOW });
   await alerts.setPatient('p1');
-  alerts.open('a1');
+  // Otra sesión ya la eliminó: al abrirla, el marcado automático recibe 404.
   service.db.alerts = service.db.alerts.filter((a) => a.id !== 'a1');
-  await alerts.markRead('a1');
+  alerts.open('a1');
+  await alerts.markRead('a1'); // espera la misma llamada en curso
   const state = alerts.getState();
   assert.equal(state.markError.kind, 'not_found');
   assert.ok(!state.items.some((a) => a.id === 'a1'));
@@ -170,6 +171,51 @@ test('el detalle usa los datos de la lista', async () => {
   assert.equal(service.calls.list.length, 1, 'abrir el detalle no consulta nada');
 });
 
+test('abrir una alerta sin leer la marca como leída (una sola vez) y el detalle se mantiene', async () => {
+  const service = fakeService(DATA);
+  const alerts = createPatientAlerts(service, { now: () => NOW });
+  await alerts.setPatient('p1');
+  await alerts.setFilter('OPEN');
+
+  alerts.open('a1');
+  assert.equal(alerts.getState().selectedId, 'a1');
+  assert.ok(alerts.getState().marking.includes('a1'), 'se marca al abrir');
+  alerts.open('a1'); // abrirla de nuevo mientras se marca no repite la llamada
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(service.calls.markRead.map((c) => c.alertId), ['a1']);
+  assert.equal(service.db.alerts.find((a) => a.id === 'a1').status, 'READ', 'persiste en el backend');
+
+  // Con el filtro "Sin leer" sale de la lista, pero el detalle sigue abierto y muestra "Leída".
+  assert.ok(!alerts.getState().items.some((a) => a.id === 'a1'));
+  assert.equal(alerts.selected().status, 'READ');
+  assert.equal(alerts.getState().counts.open, 1);
+});
+
+test('abrir una alerta ya leída no llama al backend', async () => {
+  const service = fakeService(DATA);
+  const alerts = createPatientAlerts(service, { now: () => NOW });
+  await alerts.setPatient('p1');
+  alerts.open('a2');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(service.calls.markRead, []);
+  assert.equal(alerts.selected().id, 'a2');
+});
+
+test('si falla marcar al abrir, sigue sin leer y se puede reintentar desde el detalle', async () => {
+  const service = fakeService(DATA);
+  let fail = true;
+  const flaky = { list: service.list, markRead: (p, id) => (fail ? Promise.reject(new TypeError('Network request failed')) : service.markRead(p, id)) };
+  const alerts = createPatientAlerts(flaky, { now: () => NOW });
+  await alerts.setPatient('p1');
+  alerts.open('a3');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(alerts.selected().status, 'OPEN');
+  assert.equal(alerts.getState().markError.kind, 'network');
+  fail = false;
+  await alerts.markRead('a3');
+  assert.equal(alerts.selected().status, 'READ');
+});
+
 test('el cambio de paciente limpia la lista y descarta respuestas tardías', async () => {
   const gates = [];
   const service = {
@@ -196,9 +242,17 @@ const base = {
 
 test('la vista muestra contadores, severidad, explicación, fecha y estado', () => {
   const filters = text(AlertFilters({ state: base, theme, onFilter() {} }));
-  assert.match(filters, /Todas \(3\)/);
-  assert.match(filters, /Sin leer \(2\)/);
-  assert.match(filters, /Leídas \(1\)/);
+  assert.match(filters, /3 Todas/);
+  assert.match(filters, /2 Sin leer/);
+  assert.match(filters, /1 Leídas/);
+
+  // La cabecera (como en Seguimiento) muestra cuántas faltan por revisar y los filtros.
+  const hero = text(AlertsHero({ state: base, theme, onFilter() {} }));
+  assert.match(hero, /Tus alertas/);
+  assert.match(hero, /Tienes 2 avisos por revisar/);
+  assert.match(hero, /2 Sin leer/);
+  assert.match(text(AlertsHero({ state: { ...base, patientId: null, counts: null }, theme, onFilter() {} })), /Elige a quién acompañas/);
+  assert.equal(SECTION_TITLES.OPEN, 'Alertas sin leer');
 
   let marked = null;
   const card = AlertCard({ alert: alert('a1', 'OPEN', '2026-11-05T10:00:00Z'), marking: false, theme, onMarkRead: (id) => { marked = id; }, onOpen() {} });

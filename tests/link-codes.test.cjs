@@ -91,13 +91,15 @@ test('mensajes para vencido, usado, anulado, rol, ya vinculado, propio código e
 
 test('pantallas: QR solo con code, cuenta regresiva, código para médico y confirmación', () => {
   const vinculos = read('app', '(tabs)', 'vinculos.tsx');
-  assert.match(vinculos, /<QRCode value=\{realLinkCode\.code\}/, 'el QR del cuidador contiene solo code');
-  assert.match(vinculos, /<LinkCodeCountdown\s+expiresAt=\{realLinkCode\.expiresAt\}/);
+  assert.match(vinculos, /<LinkCodeDisplay\s+code=\{realLinkCode\.code\}\s+expiresAt=\{realLinkCode\.expiresAt\}/);
+  const ui = read('src', 'modules', 'relationships', 'presentation', 'components', 'links-ui.tsx');
+  assert.match(ui, /<QRCode value=\{code\}/, 'el QR contiene solo code');
+  assert.match(ui, /<LinkCodeCountdown expiresAt=\{expiresAt\} onExpired=\{onExpired\} \/>/);
   assert.match(vinculos, /<DoctorLinkCodeCard patientId=\{user\.id\} \/>/);
 
   const doctor = read('src', 'modules', 'relationships', 'presentation', 'components', 'doctor-link-code-card.tsx');
   assert.match(doctor, /createPatientLinkCode\(patientId, 'DOCTOR'\)/);
-  assert.match(doctor, /<QRCode value=\{linkCode\.code\}/);
+  assert.match(doctor, /<LinkCodeDisplay\s+code=\{linkCode\.code\}/);
 
   const invitacion = read('app', 'invitacion.tsx');
   assert.match(invitacion, /import \{ consumeLinkCode \} from '@\/src\/modules\/relationships\/application\/link-codes';/);

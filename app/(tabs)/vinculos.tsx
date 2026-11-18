@@ -1,30 +1,68 @@
 import { authService } from '@/src/modules/identity/application/authservice';
-import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 import { createPatientLinkCode, getPatientCaregivers, getPatientDoctors, type LinkCodeResponse, type LinkedUserResponse } from '@/src/modules/relationships/infrastructure/relationships-api';
 import { demo, type Permissions, type Relation } from '@/src/modules/demo/infrastructure/demo-store';
-import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/src/modules/relationships/presentation/link-format';
+import { formatLinkedAt, shortRelationshipId } from '@/src/modules/relationships/presentation/link-format';
 import { DoctorLinkCodeCard } from '@/src/modules/relationships/presentation/components/doctor-link-code-card';
-import { LinkCodeCountdown } from '@/src/modules/relationships/presentation/components/link-code-countdown';
+import {
+  Divider,
+  EmptyState,
+  LinkButton,
+  LinkCodeDisplay,
+  LinksHero,
+  Loading,
+  MetaRow,
+  Notice,
+  Panel,
+  PanelHeader,
+  Paragraph,
+  PermissionChips,
+  PermissionToggle,
+  PERMISSION_ICONS,
+  PersonHeader,
+  SectionHeader,
+  useLinksTheme,
+  type IconName,
+} from '@/src/modules/relationships/presentation/components/links-ui';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { Share, Switch, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, View } from 'react-native';
 // Agregado: mismas funciones con manejo de errores del vínculo y un Alert que también funciona en la web.
 import { Alert } from '@/src/modules/relationships/presentation/confirm-dialog';
 import { onStaleRelationship, revokeCaregiverRelationship, revokeDoctorRelationship, updateCaregiverPermissions } from '@/src/modules/relationships/application/relationship-actions';
-import QRCode from 'react-native-qrcode-svg';
+const DEMO_PERMISSIONS: { key: keyof Permissions; label: string; icon: IconName }[] = [
+  { key: 'alerts', label: 'Recibir alertas', icon: 'bell-alert-outline' },
+  { key: 'read', label: 'Consultar mediciones', icon: 'chart-line' },
+  { key: 'write', label: 'Ayudar a registrar mediciones', icon: 'pencil-plus-outline' },
+];
+
 function RequestCard({ relation }: { relation: Relation }) {
   const { accounts } = useDemo(); const [permissions, setPermissions] = useState<Permissions>({ alerts: true, read: true, write: false });
   const [error, setError] = useState('');
   const account = accounts.find((a) => a.id === relation.caregiverId);
   const decide = (status: Relation['status']) => { try { demo.decide(relation.id, status, permissions); } catch (e) { setError((e as Error).message); } };
-  return <Card><Copy>{account?.name}</Copy><Copy>{account?.email}</Copy><Copy>{relation.status === 'pending' ? 'Solicita acompañarte. Revisa su identidad y los permisos antes de aceptar.' : 'Vínculo aprobado'}</Copy>
-    {relation.status === 'pending' ? <>{(['alerts', 'read', 'write'] as const).map((key) => <View key={key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Switch accessibilityLabel={{ alerts: 'Recibir alertas', read: 'Consultar mediciones', write: 'Registrar mediciones' }[key]} value={permissions[key]} onValueChange={(value) => setPermissions({ ...permissions, [key]: value })} /><View style={{ flex: 1 }}><Copy>{{ alerts: 'Recibir alertas', read: 'Consultar mediciones', write: 'Ayudar a registrar mediciones' }[key]}</Copy></View></View>)}<Action label="Aceptar vínculo con estos permisos" onPress={() => decide('approved')} /><Action secondary label="Rechazar solicitud" onPress={() => decide('rejected')} /></> : <><Copy>Permisos: {[relation.permissions.alerts && 'alertas', relation.permissions.read && 'consultar mediciones', relation.permissions.write && 'registrar mediciones'].filter(Boolean).join(', ') || 'ninguno'}.</Copy><Action secondary label="Retirar acceso" onPress={() => decide('revoked')} /></>}
-    {!!error && <Copy>{error}</Copy>}
-  </Card>;
+  const pending = relation.status === 'pending';
+  const granted = [relation.permissions.alerts && 'ALERT_VIEW', relation.permissions.read && 'MEASUREMENT_VIEW', relation.permissions.write && 'MEASUREMENT_CREATE'].filter(Boolean) as string[];
+  return <Panel>
+    <PersonHeader name={account?.name ?? 'Cuidador'} email={account?.email} role="caregiver"
+      badge={pending ? { label: 'Pendiente', tone: 'pending' } : { label: 'Aprobado', tone: 'approved' }} />
+    {pending ? <>
+      <Notice tone="info" text="Solicita acompañarte. Revisa su identidad y los permisos antes de aceptar." />
+      <View>{DEMO_PERMISSIONS.map(({ key, label, icon }) => (
+        <PermissionToggle key={key} icon={icon} label={label} value={permissions[key]}
+          onChange={(value) => setPermissions({ ...permissions, [key]: value })} />
+      ))}</View>
+      <LinkButton icon="check" label="Aceptar vínculo con estos permisos" onPress={() => decide('approved')} />
+      <LinkButton variant="secondary" icon="close" label="Rechazar solicitud" onPress={() => decide('rejected')} />
+    </> : <>
+      <PermissionChips codes={granted} />
+      <LinkButton variant="danger" icon="account-remove-outline" label="Retirar acceso" onPress={() => decide('revoked')} />
+    </>}
+    {!!error && <Notice tone="error" text={error} />}
+  </Panel>;
 }
 
 const CAREGIVER_PERMISSIONS = [
@@ -36,11 +74,10 @@ const CAREGIVER_PERMISSIONS = [
 
 /** Agregado: fecha de vinculación, permisos e identificador real del vínculo. */
 function LinkDetails({ link }: { link: LinkedUserResponse }) {
-  return <>
-    <Copy>Vinculado el {formatLinkedAt(link.linkedAt) ?? 'fecha no informada'}.</Copy>
-    <Copy>Permisos: {describePermissions(link.permissions)}.</Copy>
-    <Copy>Vínculo: {shortRelationshipId(link.relationshipId)}</Copy>
-  </>;
+  return <View style={styles.details}>
+    <MetaRow icon="calendar-check-outline">Vinculado el {formatLinkedAt(link.linkedAt) ?? 'fecha no informada'}</MetaRow>
+    <MetaRow icon="link-variant">Vínculo {shortRelationshipId(link.relationshipId)}</MetaRow>
+  </View>;
 }
 
 function RealCaregiverCard({ caregiver, onChanged }: {
@@ -76,26 +113,29 @@ function RealCaregiverCard({ caregiver, onChanged }: {
       })(); } },
     ]);
   }
-  return <View style={{ gap: 8, marginTop: 12 }}>
-    <Copy>{caregiver.fullName}</Copy>
+  return <Panel>
+    <PersonHeader name={caregiver.fullName} role="caregiver" />
     <LinkDetails link={caregiver} />
-    {CAREGIVER_PERMISSIONS.map(({ code, label }) => (
-      <View key={code} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Switch
-          accessibilityLabel={label}
+    <Divider />
+    <Paragraph muted>Qué puede hacer</Paragraph>
+    <View>
+      {CAREGIVER_PERMISSIONS.map(({ code, label }) => (
+        <PermissionToggle
+          key={code}
+          icon={PERMISSION_ICONS[code]}
+          label={label}
           disabled={busy}
           value={selected.includes(code)}
-          onValueChange={enabled => setSelected(current => enabled
+          onChange={enabled => setSelected(current => enabled
             ? (current.includes(code) ? current : [...current, code])
             : current.filter(item => item !== code))}
         />
-        <View style={{ flex: 1 }}><Copy>{label}</Copy></View>
-      </View>
-    ))}
-    {changed && <Action label={busy ? 'Guardando...' : 'Guardar permisos'} onPress={() => { if (!busy) void save(); }} />}
-    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del cuidador'} onPress={() => { if (!busy) confirmRevoke(); }} />
-    {!!message && <Copy>{message}</Copy>}
-  </View>;
+      ))}
+    </View>
+    {changed && <LinkButton icon="content-save-outline" busy={busy} label={busy ? 'Guardando...' : 'Guardar permisos'} onPress={() => { if (!busy) void save(); }} />}
+    <LinkButton variant="danger" icon="account-remove-outline" disabled={busy} label={busy ? 'Procesando...' : 'Retirar acceso del cuidador'} onPress={() => { if (!busy) confirmRevoke(); }} />
+    {!!message && <Notice tone={message === 'Permisos actualizados.' ? 'success' : 'error'} text={message} />}
+  </Panel>;
 }
 
 function RealDoctorCard({ doctor, onChanged }: {
@@ -115,12 +155,13 @@ function RealDoctorCard({ doctor, onChanged }: {
       })(); } },
     ]);
   }
-  return <View style={{ gap: 8, marginTop: 12 }}>
-    <Copy>{doctor.fullName}</Copy>
+  return <Panel>
+    <PersonHeader name={doctor.fullName} role="doctor" />
     <LinkDetails link={doctor} />
-    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del médico'} onPress={() => { if (!busy) confirmRevoke(); }} />
-    {!!message && <Copy>{message}</Copy>}
-  </View>;
+    <PermissionChips codes={doctor.permissions} />
+    <LinkButton variant="danger" icon="account-remove-outline" disabled={busy} label={busy ? 'Procesando...' : 'Retirar acceso del médico'} onPress={() => { if (!busy) confirmRevoke(); }} />
+    {!!message && <Notice tone="error" text={message} />}
+  </Panel>;
 }
 
 export default function Links() {
@@ -129,7 +170,6 @@ export default function Links() {
     useState<LinkCodeResponse | null>(null);
 
   const [generatingCode, setGeneratingCode] = useState(false);
-  const [showRealQr, setShowRealQr] = useState(false);
   const patientId = sessionMode === 'backend' && user?.role === 'patient' ? user.id : null;
   const [caregivers, setCaregivers] = useState<LinkedUserResponse[]>([]);
   const [doctors, setDoctors] = useState<LinkedUserResponse[]>([]);
@@ -215,7 +255,6 @@ export default function Links() {
 
     setError('');
     setRealLinkCode(null);
-    setShowRealQr(false);
     setGeneratingCode(true);
 
     try {
@@ -238,174 +277,146 @@ export default function Links() {
   const links = relations.filter((r) => r.patientId === selectedPatient?.id && ['pending', 'approved'].includes(r.status));
   const url = invitation ? Linking.createURL('/invitacion', { queryParams: { token: invitation.token } }) : '';
   
+  const { theme } = useLinksTheme();
+  const isPatient = user?.role === 'patient';
+  const subtitle = isPatient
+    ? 'Decide quién te acompaña y qué puede ver de tu salud.'
+    : 'Conéctate con los pacientes que acompañas.';
+  const realStats = sessionMode === 'backend' && isPatient
+    ? [
+        { icon: 'account-heart-outline' as const, label: loadingLinks ? 'Cuidadores…' : `${caregivers.length} ${caregivers.length === 1 ? 'cuidador' : 'cuidadores'}` },
+        { icon: 'stethoscope' as const, label: loadingLinks ? 'Médicos…' : `${doctors.length} ${doctors.length === 1 ? 'médico' : 'médicos'}` },
+      ]
+    : undefined;
+
   return (
-    <FlowPage
-      title="Vínculos"
-      subtitle="Gestiona las personas que pueden acompañarte."
-    >
-      <Action
-        secondary
-        label="Volver al inicio"
-        onPress={() => router.replace('/(tabs)')}
-      />
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <LinksHero
+          subtitle={subtitle}
+          stats={realStats}
+          onRefresh={sessionMode === 'backend' && isPatient ? () => { void manualRefreshLinks(); } : undefined}
+          refreshing={refreshingLinks}
+          refreshDisabled={loadingLinks || refreshingLinks}
+        />
 
       {sessionMode === 'backend' ? (
         user?.role === 'patient' ? (
           <>
-            <Action
-              secondary
-              disabled={loadingLinks || refreshingLinks}
-              label={refreshingLinks ? 'Actualizando vínculos...' : 'Actualizar vínculos'}
-              onPress={() => { void manualRefreshLinks(); }}
-            />
             {!!linksError && !loadingLinks && !refreshingLinks && (
-              <Action label="Reintentar" onPress={() => { void manualRefreshLinks(); }} />
+              <Notice
+                tone="error"
+                text={linksError}
+                action={<LinkButton variant="secondary" icon="refresh" label="Reintentar" onPress={() => { void manualRefreshLinks(); }} />}
+              />
             )}
 
-            <Card>
-              <Copy>Cuidadores vinculados ({caregivers.length})</Copy>
+            <SectionHeader title="Cuidadores" count={loadingLinks ? undefined : caregivers.length} />
+            {loadingLinks ? (
+              <Loading text="Cargando cuidadores..." />
+            ) : linksError ? null : caregivers.length === 0 ? (
+              <EmptyState icon="account-heart-outline" title="Sin cuidadores vinculados" text="Invita a un familiar o cuidador con un código temporal." />
+            ) : (
+              caregivers.map((caregiver) => (
+                <RealCaregiverCard key={caregiver.relationshipId} caregiver={caregiver}
+                  onChanged={refreshRealLinks} />
+              ))
+            )}
 
-              {loadingLinks ? (
-                <Copy>Cargando cuidadores...</Copy>
-              ) : linksError ? (
-                <Copy>{linksError}</Copy>
-              ) : caregivers.length === 0 ? (
-                <Copy>No tienes cuidadores vinculados.</Copy>
-              ) : (
-                caregivers.map((caregiver) => (
-                  <RealCaregiverCard key={caregiver.relationshipId} caregiver={caregiver}
-                    onChanged={refreshRealLinks} />
-                ))
-              )}
-            </Card>
+            <SectionHeader title="Médicos" count={loadingLinks ? undefined : doctors.length} />
+            {loadingLinks ? (
+              <Loading text="Cargando médicos..." />
+            ) : linksError ? null : doctors.length === 0 ? (
+              <EmptyState icon="stethoscope" title="Sin médicos vinculados" text="Tu médico puede vincularse con el código para médicos." />
+            ) : (
+              doctors.map((doctor) => (
+                <RealDoctorCard key={doctor.relationshipId} doctor={doctor}
+                  onChanged={refreshRealLinks} />
+              ))
+            )}
 
-            <Card>
-              <Copy>Médicos vinculados ({doctors.length})</Copy>
+            <SectionHeader title="Invitar" />
+            <Panel>
+              <PanelHeader
+                icon="account-plus-outline"
+                title="Invitar cuidador"
+                description="Genera un código temporal para que un cuidador se vincule a tu cuenta. Dura 5 minutos y solo puede usarse una vez."
+              />
 
-              {loadingLinks ? (
-                <Copy>Cargando médicos...</Copy>
-              ) : linksError ? (
-                <Copy>{linksError}</Copy>
-              ) : doctors.length === 0 ? (
-                <Copy>No tienes médicos vinculados.</Copy>
-              ) : (
-                doctors.map((doctor) => (
-                  <RealDoctorCard key={doctor.relationshipId} doctor={doctor}
-                    onChanged={refreshRealLinks} />
-                ))
-              )}
-            </Card>
-          <Card>
-            <Copy>Invitar cuidador</Copy>
-            <Copy>
-              Genera un código temporal para que un cuidador
-              pueda vincularse a tu cuenta.
-              El código dura 5 minutos y solo puede usarse una vez.
-            </Copy>
-
-            <Action
-              label={
-                generatingCode
-                  ? 'Generando código...'
-                  : realLinkCode
-                    ? 'Generar nuevo código'
-                    : 'Generar código de vinculación'
-              }
-              onPress={() => {
-                if (!generatingCode) {
-                  void generateRealLinkCode();
-                }
-              }}
-            />
-
-            {realLinkCode && (
-              <>
-                <Copy>Código: {realLinkCode.code}</Copy>
-                <Copy>
-                  Vence: {new Date(realLinkCode.expiresAt).toLocaleString('es-CL')}
-                </Copy>
-                {/* Agregado: cuenta regresiva; al vencer se ocultan el código y el QR. */}
-                <LinkCodeCountdown
+              {realLinkCode && (
+                /* Agregado: cuenta regresiva; al vencer se ocultan el código y el QR. */
+                <LinkCodeDisplay
+                  code={realLinkCode.code}
                   expiresAt={realLinkCode.expiresAt}
                   onExpired={() => {
                     setRealLinkCode(null);
-                    setShowRealQr(false);
                     setError('El código venció. Genera uno nuevo.');
                   }}
+                  qrHint="Escanea este QR desde la cuenta del cuidador. Contiene el mismo código temporal de un solo uso."
+                  shareMessage={
+                    `Código de vinculación Domicilia: ${realLinkCode.code}\n` +
+                    'Abre Domicilia e introduce este código para vincularte.'
+                  }
+                  onShareError={() => setError('No fue posible compartir el código.')}
                 />
+              )}
 
-                <Action
-                  secondary
-                  label={showRealQr ? 'Ocultar QR' : 'Mostrar QR escaneable'}
-                  onPress={() => setShowRealQr((previous) => !previous)}
-                />
-                {showRealQr && (
-                  <View style={{ alignItems: 'center', paddingVertical: 12, gap: 8 }}>
-                    <View style={{ padding: 14, backgroundColor: '#FFFFFF' }}>
-                      <QRCode value={realLinkCode.code} size={220} />
-                    </View>
-                    <Copy>Escanea este QR desde la cuenta del cuidador o médico.</Copy>
-                    <Copy>El QR contiene el mismo código temporal de un solo uso.</Copy>
-                  </View>
-                )}
-
-                <Action
-                  label="Compartir código"
-                  onPress={() => {
-                    void Share.share({
-                      message:
-                        `Código de vinculación Domicilia: ${realLinkCode.code}\n` +
-                        'Abre Domicilia e introduce este código para vincularte.',
-                    }).catch(() =>
-                      setError('No fue posible compartir el código.')
-                    );
-                  }}
-                />
-              </>
-            )}
-          </Card>
-          {/* Agregado: código para vincular a un médico (tipo DOCTOR). */}
-          {!!user?.id && <DoctorLinkCodeCard patientId={user.id} />}
+              <LinkButton
+                variant={realLinkCode ? 'secondary' : 'primary'}
+                icon={realLinkCode ? 'refresh' : 'key-plus'}
+                busy={generatingCode}
+                label={
+                  generatingCode
+                    ? 'Generando código...'
+                    : realLinkCode
+                      ? 'Generar nuevo código'
+                      : 'Generar código de vinculación'
+                }
+                onPress={() => {
+                  if (!generatingCode) {
+                    void generateRealLinkCode();
+                  }
+                }}
+              />
+            </Panel>
+            {/* Agregado: código para vincular a un médico (tipo DOCTOR). */}
+            {!!user?.id && <DoctorLinkCodeCard patientId={user.id} />}
           </>
         ) : (
-          <Card>
-            <Copy>
-              Para vincularte con un paciente, introduce el código
-              que te haya proporcionado.
-            </Copy>
-            <Action
+          <Panel>
+            <PanelHeader
+              icon="qrcode-scan"
+              title="Vincularte con un paciente"
+              description="Para vincularte con un paciente, introduce el código que te haya proporcionado o escanea su QR."
+            />
+            <LinkButton
+              icon="keyboard-outline"
               label="Introducir código"
               onPress={() => router.push('/invitacion')}
             />
-          </Card>
+          </Panel>
         )
       ) : (
         user?.role === 'patient' ? (
           <>
-            <Card>
-              <Copy>Invitar cuidador (demostración)</Copy>
-              <Copy>
-                Comparte una invitación temporal.
-                Tendrás que aprobar cada solicitud antes de dar acceso.
-              </Copy>
-
-              <Action
-                label={invitation ? 'Generar nueva invitación' : 'Invitar cuidador'}
-                onPress={() => {
-                  demo.invite();
-                  setShowQr(false);
-                }}
+            <Panel>
+              <PanelHeader
+                icon="account-plus-outline"
+                title="Invitar cuidador (demostración)"
+                description="Comparte una invitación temporal. Tendrás que aprobar cada solicitud antes de dar acceso."
               />
 
               {invitation && (
                 <>
-                  <Copy>Código: {invitation.token}</Copy>
-                  <Copy>
-                    Vence: {new Date(invitation.expires).toLocaleString('es-CL')}
-                  </Copy>
-                  <Copy>{url}</Copy>
+                  <View style={[styles.demoCode, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+                    <Paragraph muted>Código</Paragraph>
+                    <Paragraph>{invitation.token}</Paragraph>
+                    <MetaRow icon="timer-sand">Vence: {new Date(invitation.expires).toLocaleString('es-CL')}</MetaRow>
+                    <MetaRow icon="link-variant">{url}</MetaRow>
+                  </View>
 
-                  <Action
+                  <LinkButton
+                    icon="share-variant-outline"
                     label="Compartir enlace"
                     onPress={() => {
                       void Share.share({
@@ -416,28 +427,30 @@ export default function Links() {
                     }}
                   />
 
-                  <Action
-                    secondary
+                  <LinkButton
+                    variant="secondary"
+                    icon="qrcode"
                     label="Mostrar código QR (simulación)"
                     onPress={() => setShowQr(!showQr)}
                   />
 
                   {showQr && (
-                    <>
+                    <View style={styles.demoQr}>
                       <MaterialCommunityIcons
                         name="qrcode"
                         size={130}
-                        color="#0F4C81"
+                        color={theme.primary}
                       />
-                      <Copy>
+                      <Paragraph muted>
                         QR ilustrativo de {invitation.token}.
                         No es escaneable con una cámara.
-                      </Copy>
-                    </>
+                      </Paragraph>
+                    </View>
                   )}
 
-                  <Action
-                    secondary
+                  <LinkButton
+                    variant="secondary"
+                    icon="account-switch-outline"
                     label="Continuar como familiar (demostración)"
                     onPress={() => {
                       const token = invitation.token;
@@ -453,12 +466,22 @@ export default function Links() {
                   />
                 </>
               )}
-            </Card>
 
-            <Copy>Solicitudes y cuidadores ({links.length})</Copy>
+              <LinkButton
+                variant={invitation ? 'secondary' : 'primary'}
+                icon={invitation ? 'refresh' : 'account-plus-outline'}
+                label={invitation ? 'Generar nueva invitación' : 'Invitar cuidador'}
+                onPress={() => {
+                  demo.invite();
+                  setShowQr(false);
+                }}
+              />
+            </Panel>
+
+            <SectionHeader title="Solicitudes y cuidadores" count={links.length} />
 
             {links.length === 0 && (
-              <Copy>Aún no hay solicitudes ni cuidadores autorizados.</Copy>
+              <EmptyState icon="account-clock-outline" title="Nada por ahora" text="Aún no hay solicitudes ni cuidadores autorizados." />
             )}
 
             {links.map((relation) => (
@@ -466,20 +489,31 @@ export default function Links() {
             ))}
           </>
         ) : (
-          <>
-            <Copy>
-              Consulta tus pacientes aprobados o solicita otro vínculo.
-            </Copy>
-            <Action
+          <Panel>
+            <PanelHeader
+              icon="account-group-outline"
+              title="Tus pacientes"
+              description="Consulta tus pacientes aprobados o solicita otro vínculo."
+            />
+            <LinkButton
+              icon="arrow-right"
               label="Mis pacientes y solicitudes"
               onPress={() => router.push('/(auth)/select-patient')}
             />
-          </>
+          </Panel>
         )
       )}
 
-      {!!error && <Copy>{error}</Copy>}
-    </FlowPage>
+        {!!error && <Notice tone="error" text={error} />}
+      </ScrollView>
+    </View>
   );
-
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  content: { gap: 14, paddingBottom: 36, paddingHorizontal: 16, paddingTop: 12 },
+  details: { gap: 4 },
+  demoCode: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 4, padding: 14 },
+  demoQr: { alignItems: 'center', gap: 6 },
+});
