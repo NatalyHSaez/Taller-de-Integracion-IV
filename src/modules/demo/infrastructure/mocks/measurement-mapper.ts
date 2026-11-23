@@ -19,8 +19,7 @@ export function readingsToMeasurements(readings: ReadingResponse[]): Measurement
 
     if (
       sbp?.valueNumeric != null &&
-      dbp?.valueNumeric != null &&
-      heartRate?.valueNumeric != null
+      dbp?.valueNumeric != null
     ) {
       result.push({
         id: reading.readingId,
@@ -33,8 +32,27 @@ export function readingsToMeasurements(readings: ReadingResponse[]): Measurement
         type: 'blood_pressure',
         systolic: sbp.valueNumeric,
         diastolic: dbp.valueNumeric,
-        heartRate: heartRate.valueNumeric,
+        ...(heartRate?.valueNumeric != null ? { heartRate: heartRate.valueNumeric } : {}),
       });
+    }
+
+    if (sbp?.valueNumeric != null && dbp?.valueNumeric == null) {
+      result.push({ id: sbp.measurementId, readingId: reading.readingId,
+        patientId: reading.patientId, recordedById: reading.recordedByUserId,
+        recordedBy: 'Datos simulados', measuredAt: reading.measuredAt,
+        type: 'single_pressure', parameter: 'SBP', value: sbp.valueNumeric, unit: 'mmHg' });
+    }
+    if (dbp?.valueNumeric != null && sbp?.valueNumeric == null) {
+      result.push({ id: dbp.measurementId, readingId: reading.readingId,
+        patientId: reading.patientId, recordedById: reading.recordedByUserId,
+        recordedBy: 'Datos simulados', measuredAt: reading.measuredAt,
+        type: 'single_pressure', parameter: 'DBP', value: dbp.valueNumeric, unit: 'mmHg' });
+    }
+    if (heartRate?.valueNumeric != null && (sbp?.valueNumeric == null || dbp?.valueNumeric == null)) {
+      result.push({ id: heartRate.measurementId, readingId: reading.readingId,
+        patientId: reading.patientId, recordedById: reading.recordedByUserId,
+        recordedBy: 'Datos simulados', measuredAt: reading.measuredAt,
+        type: 'heart_rate', value: heartRate.valueNumeric, unit: 'bpm' });
     }
 
     const glucose = byCode.get('GLUCOSE');

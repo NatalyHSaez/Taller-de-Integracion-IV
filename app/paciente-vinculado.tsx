@@ -1,25 +1,22 @@
-import { HealthInformation } from '@/src/modules/monitoring/presentation/components/health-information';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import { Colors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
-import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
+import { authSession } from '@/src/core/application/session/auth-session';
 import {
   createPatientProfile,
   formatAge,
@@ -29,11 +26,10 @@ import {
   resolveProfilePatientId,
 } from '@/src/modules/identity/application/patient-profile';
 
-export default function LinkedPatientScreen() {
+function LinkedPatientContent() {
   const router = useRouter();
 
   const { selectedPatient, sessionMode } = useAppState();
-  const { patient: demoPatient } = useDemo();
 
   const { user: authUser } = useAuth();
 
@@ -66,67 +62,19 @@ export default function LinkedPatientScreen() {
   const loadingPatient = isRealSession && Boolean(patientId) && (profileState.loading || profileState.patientId !== patientId);
   const profileError =
     isRealSession && profileState.patientId === patientId ? profileState.error : null;
-  const patientError = Boolean(profileError);
 
-  const patient = isRealSession
-    ? realPatient
-      ? {
-          name: realPatient.fullName,
-          id: realPatient.id,
-        }
-      : null
-    : demoPatient;
+  const patient = realPatient ? { name: realPatient.fullName, id: realPatient.id } : null;
 
   const colorScheme = useColorScheme();
 
   const theme =
     Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
-  // Demo: fecha editable solo en el teléfono. Backend: la del paciente
-  // (si es nula queda vacía y se muestra "Sin información").
-  const [demoBirthDate, setBirthDate] = useState('');
-  const birthDate = isRealSession
-    ? formatBirthDate(realPatient?.birthDate) ?? ''
-    : demoBirthDate;
+  // Fecha de nacimiento informada por el servidor. Sin edición local.
+  const birthDate = formatBirthDate(realPatient?.birthDate) ?? '';
 
-  const [draftBirthDate, setDraftBirthDate] =
-    useState(birthDate);
-
-  const [editing, setEditing] = useState(false);
-
-  /*
-   * Si por algún motivo se entra a esta pantalla
-   * sin haber seleccionado un paciente, volvemos atrás.
-   */
-  
-  useEffect(() => {
-    if (isRealSession) {
-      if (patientId || loadingPatient || patientError) {
-        return;
-      }
-    } else if (demoPatient) {
-      return;
-    }
-
-    Alert.alert(
-      'Paciente no disponible',
-      'No hay un paciente seleccionado.',
-      [
-        {
-          text: 'Volver',
-          onPress: () => router.back(),
-        },
-      ]
-    );
-  }, [
-    isRealSession,
-    patientId,
-    loadingPatient,
-    patientError,
-    demoPatient,
-    router,
-  ]);
-
+  // LinkedPatientContent tiene una key por sesión y paciente; al cambiar
+  // identidad se desmonta y los borradores locales se reinician de forma segura.
 
   const patientInitials =
     patient?.name
@@ -137,38 +85,6 @@ export default function LinkedPatientScreen() {
       .join('')
       .toUpperCase() ?? 'P';
 
-  const startEditing = () => {
-    setDraftBirthDate(birthDate);
-    setEditing(true);
-  };
-
-  const cancelEditing = () => {
-    setDraftBirthDate(birthDate);
-    setEditing(false);
-  };
-
-  const saveInformation = () => {
-    const cleanBirthDate = draftBirthDate.trim();
-
-    if (!cleanBirthDate) {
-      Alert.alert(
-        'Fecha requerida',
-        'Ingresa la fecha de nacimiento.'
-      );
-
-      return;
-    }
-
-    setBirthDate(cleanBirthDate);
-    setEditing(false);
-
-    Alert.alert(
-      'Información actualizada',
-      'Los datos del paciente se actualizaron correctamente.'
-    );
-  };
-
-  
   if (isRealSession && patientId && loadingPatient && !realPatient) {
     return (
       <ThemedView style={styles.center}>
@@ -403,155 +319,20 @@ export default function LinkedPatientScreen() {
             },
           ]}
         >
-          {!editing ? (
-            <>
-              {/* Nombre */}
-              <InfoRow
-                icon="account-outline"
-                label="Nombre"
-                value={patient.name}
-                color={theme.primary}
-              />
-
-              <Divider color={theme.border} />
-
-              {/* Fecha nacimiento */}
-              <InfoRow
-                icon="calendar-outline"
-                label="Fecha de nacimiento"
-                value={birthDate}
-                color={theme.primary}
-              />
-
-              {isRealSession && (
-                <>
-                  <Divider color={theme.border} />
-                  <InfoRow
-                    icon="cake-variant-outline"
-                    label="Edad"
-                    value={formatAge(realPatient?.age) ?? ''}
-                    color={theme.primary}
-                  />
-
-                  <Divider color={theme.border} />
-                  <InfoRow
-                    icon="human-male-female"
-                    label="Sexo biológico"
-                    value={formatBiologicalSex(realPatient?.biologicalSex) ?? ''}
-                    color={theme.primary}
-                  />
-
-                  <Divider color={theme.border} />
-                  <InfoRow
-                    icon="account-cog-outline"
-                    label="Modo de gestión"
-                    value={formatManagementMode(realPatient?.managementMode) ?? ''}
-                    color={theme.primary}
-                  />
-                </>
-              )}
-
-              {!isRealSession && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={startEditing}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  {
-                    backgroundColor: theme.primary,
-                  },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="pencil-outline"
-                  size={19}
-                  color="#FFFFFF"
-                />
-
-                <ThemedText
-                  style={styles.primaryButtonText}
-                >
-                  Editar información
-                </ThemedText>
-              </Pressable>
-              )}
-            </>
-          ) : (
-            <>
-              <View style={styles.formField}>
-                <ThemedText style={styles.formLabel}>
-                  Fecha de nacimiento
-                </ThemedText>
-
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor:
-                        theme.background,
-                      color: theme.text,
-                    },
-                  ]}
-                  value={draftBirthDate}
-                  onChangeText={setDraftBirthDate}
-                  placeholder="DD/MM/AAAA"
-                  placeholderTextColor={
-                    theme.mutedText
-                  }
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={saveInformation}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  {
-                    backgroundColor: theme.primary,
-                  },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="check"
-                  size={20}
-                  color="#FFFFFF"
-                />
-
-                <ThemedText
-                  style={styles.primaryButtonText}
-                >
-                  Guardar cambios
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={cancelEditing}
-                style={({ pressed }) => [
-                  styles.secondaryButton,
-                  {
-                    borderColor: theme.primary,
-                  },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ThemedText
-                  style={[
-                    styles.secondaryButtonText,
-                    {
-                      color: theme.primary,
-                    },
-                  ]}
-                >
-                  Cancelar
-                </ThemedText>
-              </Pressable>
-            </>
-          )}
+          <InfoRow icon="account-outline" label="Nombre"
+            value={patient.name} color={theme.primary} />
+          <Divider color={theme.border} />
+          <InfoRow icon="calendar-outline" label="Fecha de nacimiento"
+            value={birthDate || 'Sin información'} color={theme.primary} />
+          <Divider color={theme.border} />
+          <InfoRow icon="cake-variant-outline" label="Edad"
+            value={formatAge(realPatient?.age) ?? 'Sin información'} color={theme.primary} />
+          <Divider color={theme.border} />
+          <InfoRow icon="human-male-female" label="Sexo biológico"
+            value={formatBiologicalSex(realPatient?.biologicalSex) ?? 'Sin información'} color={theme.primary} />
+          <Divider color={theme.border} />
+          <InfoRow icon="account-cog-outline" label="Modo de gestión"
+            value={formatManagementMode(realPatient?.managementMode) ?? 'Sin información'} color={theme.primary} />
         </View>
 
         {/* Información de salud */}
@@ -581,49 +362,22 @@ export default function LinkedPatientScreen() {
             },
           ]}
         >
-          {isRealSession ? (
-            <ThemedText style={{ color: theme.mutedText }}>
-              La información de enfermedades y medicamentos
-              todavía no está disponible desde el backend.
-            </ThemedText>
-          ) : (
-            <HealthInformation />
-          )}
-        </View>
-
-        {/* Nota temporal: solo en modo demostración */}
-        {!isRealSession && (
-        <View
-          style={[
-            styles.notice,
-            {
-              backgroundColor: theme.primarySoft,
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={20}
-            color={theme.primary}
-          />
-
-          <ThemedText
-            style={[
-              styles.noticeText,
-              {
-                color: theme.primary,
-              },
-            ]}
-          >
-            Los datos médicos se encuentran en modo de
-            demostración hasta realizar la conexión con el
-            backend.
+          <ThemedText style={{ color: theme.mutedText }}>
+            La información de enfermedades y medicamentos todavía no está disponible desde el backend.
           </ThemedText>
         </View>
-        )}
+
       </ScrollView>
     </ThemedView>
   );
+}
+
+/** Aislamiento estricto entre fichas de cuentas o pacientes distintos. */
+export default function LinkedPatientScreen() {
+  const { user, sessionMode, selectedPatient } = useAppState();
+  const generation = authSession.generation();
+  const identity = `${generation}:${sessionMode ?? 'none'}:${user?.id ?? 'none'}:${selectedPatient?.id ?? 'none'}`;
+  return <LinkedPatientContent key={identity} />;
 }
 
 function InfoRow({

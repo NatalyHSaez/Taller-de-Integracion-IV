@@ -2,7 +2,6 @@ import type { CurrentUserResponse, UpdateMeRequest } from '@/src/core/infrastruc
 import { apiClient } from '../../../core/infrastructure/http/api-client';
 import { authSession } from '../../../core/application/session/auth-session';
 import { dataClient } from '../../../core/infrastructure/http/data';
-import { demo } from '../../demo/infrastructure/demo-store';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 import { validateLoginUser } from './login-validation';
 
@@ -29,7 +28,6 @@ export async function updateMyProfile(name: string): Promise<CurrentUserResponse
     throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió. Inicia sesión y revisa tu perfil.' });
   }
   dataClient.clearCache();
-  demo.syncBackendIdentity(user);
   authSession.setUser(user);
   return user;
 }

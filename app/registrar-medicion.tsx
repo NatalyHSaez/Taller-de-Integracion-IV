@@ -42,8 +42,11 @@ import { useRouter } from "expo-router";
 
 type MeasuredAtError = Error & { field: "measuredAt" };
 
+/** El formulario captura las tres mediciones compuestas; los tipos aislados solo se muestran en historial y gráficos. */
+type FormMeasurementType = Extract<MeasurementType, 'blood_pressure' | 'glucose' | 'weight'>;
+
 type MeasurementOption = {
-  value: MeasurementType;
+  value: FormMeasurementType;
   label: string;
   icon: "heart-pulse" | "water-outline" | "scale-bathroom";
 };
@@ -67,7 +70,7 @@ const MEASUREMENT_OPTIONS: MeasurementOption[] = [
 ];
 
 /** Parámetros del catálogo que necesita cada tipo de formulario. */
-const REQUIRED_PARAMETERS: Record<MeasurementType, ClinicalParameterCode[]> = {
+const REQUIRED_PARAMETERS: Record<FormMeasurementType, ClinicalParameterCode[]> = {
   blood_pressure: ["SBP", "DBP", "HEART_RATE"],
   glucose: ["GLUCOSE"],
   weight: ["WEIGHT"],
@@ -115,7 +118,7 @@ export default function RegisterMeasurementScreen() {
   const now = useMemo(() => new Date(), []);
 
   const [measurementType, setMeasurementType] =
-    useState<MeasurementType>("blood_pressure");
+    useState<FormMeasurementType>("blood_pressure");
   const [systolic, setSystolic] = useState("");
   const [diastolic, setDiastolic] = useState("");
   const [heartRate, setHeartRate] = useState("");
@@ -143,19 +146,24 @@ export default function RegisterMeasurementScreen() {
     retry: retryCatalog,
   } = useClinicalParameters();
 
-  const isTypeAvailable = (type: MeasurementType) =>
+  const isTypeAvailable = (type: FormMeasurementType) =>
     !!catalog && REQUIRED_PARAMETERS[type].every((code) => !!catalog[code]);
   const typeAvailable = isTypeAvailable(measurementType);
   const parameter = (code: ClinicalParameterCode) => catalog?.[code];
   const unitOf = (code: ClinicalParameterCode) => parameter(code)?.unit ?? "";
 
   useEffect(() => {
-    if (!catalog || isTypeAvailable(measurementType)) return;
-    const firstAvailable = MEASUREMENT_OPTIONS.find((option) =>
-      isTypeAvailable(option.value),
-    );
-    if (firstAvailable) setMeasurementType(firstAvailable.value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (!active || !catalog) return;
+      setMeasurementType((current) => {
+        if (REQUIRED_PARAMETERS[current].every((code) => !!catalog[code])) return current;
+        return MEASUREMENT_OPTIONS.find((option) =>
+          REQUIRED_PARAMETERS[option.value].every((code) => !!catalog[code]),
+        )?.value ?? current;
+      });
+    });
+    return () => { active = false; };
   }, [catalog]);
 
   const fieldValues: Record<ClinicalParameterCode, string> = {
@@ -208,7 +216,7 @@ export default function RegisterMeasurementScreen() {
   )!;
   const selectedColors = MeasurementColors[themeName][measurementType];
 
-  function selectMeasurementType(value: MeasurementType) {
+  function selectMeasurementType(value: FormMeasurementType) {
     setMeasurementType(value);
     setShowReview(false);
     flow.clearErrors();

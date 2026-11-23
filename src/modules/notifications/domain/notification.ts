@@ -1,7 +1,7 @@
 /** Notificación interna del usuario (entidad) y el contrato del repositorio que la provee. */
 
 export type NotificationStatus = 'pending' | 'sent' | 'read';
-export type NotificationFilter = 'all' | NotificationStatus;
+export type NotificationFilter = 'unread' | 'read' | 'all' | 'pending' | 'sent';
 
 export type AppNotification = {
   id: string;

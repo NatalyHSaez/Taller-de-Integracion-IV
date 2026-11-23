@@ -134,7 +134,8 @@ test('al cambiar de paciente se limpian resultados y caché, y se ignoran respue
   const calls = [];
   const fetchPage = (patientId, query) => {
     calls.push({ patientId, ...query });
-    const response = { total: 1, page: 1, size: 20, items: [reading(`${patientId}-r`, minutesAgo(1))] };
+    const record = { ...reading(`${patientId}-r`, minutesAgo(1)), patientId };
+    const response = { total: 1, page: 1, size: 20, items: [record] };
     return new Promise((resolve) => gates.push(() => resolve(response)));
   };
   const history = createReadingsHistory(fetchPage, { now: () => NOW });

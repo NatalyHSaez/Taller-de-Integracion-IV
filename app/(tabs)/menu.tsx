@@ -11,11 +11,10 @@ import {
   View,
 } from "react-native";
 
-import { BrandColors, Colors } from "@/src/shared/presentation/theme";
 import { useAppState } from "@/src/core/presentation/session/use-app-state";
 import { useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
 import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
-import { useDemo } from "@/src/modules/demo/presentation/use-demo";
+import { BrandColors, Colors } from "@/src/shared/presentation/theme";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -75,9 +74,8 @@ const ACCOUNT_OPTIONS: MenuOption[] = [
 ];
 
 export default function MenuScreen() {
-  const { user: demoUser } = useDemo();
   const { user: authUser, signOut } = useAuth();
-  const { user: globalUser, sessionMode } = useAppState();
+  const { user: globalUser } = useAppState();
 
   const router = useRouter();
 
@@ -85,18 +83,7 @@ export default function MenuScreen() {
   const isDark = colorScheme === "dark";
   const theme = Colors[isDark ? "dark" : "light"];
 
-  /*
-   * Usuario real:
-   * fullName proviene de /me.
-   *
-   * Usuario mock:
-   * name proviene de demo-store.
-   */
-  const displayName: string =
-    sessionMode === "backend"
-      ? authUser?.fullName ?? globalUser?.name ?? "Usuario"
-      : demoUser?.name ?? "Usuario";
-
+  const displayName = authUser?.fullName ?? globalUser?.name ?? "Usuario";
   const initials = displayName
     .trim()
     .split(/\s+/)
@@ -127,15 +114,8 @@ export default function MenuScreen() {
 
   const performLogout = async () => {
     try {
-      /*
-       * Limpiamos cualquier estado mock/local.
-       */
-
-      /*
-       * Limpia la sesión real:
-       * - elimina los tokens persistidos;
-       * - establece el usuario real en null.
-       */
+      // authService.logout() cierra la sesión real, borra los tokens
+      // persistidos y limpia los datos locales de la sesión.
       await signOut();
 
       router.replace("/(auth)/login");

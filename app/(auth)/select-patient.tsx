@@ -1,227 +1,207 @@
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Alert, Platform } from "react-native";
+import { appState } from '@/src/core/application/session/app-state';
+import { authSession } from '@/src/core/application/session/auth-session';
+import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { authService } from '@/src/modules/identity/application/authservice';
+import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
+import { LINK_TYPE_LABELS, takeLinkConfirmation } from '@/src/modules/relationships/application/link-codes';
+import { LeavePatientAction } from '@/src/modules/relationships/presentation/components/leave-patient-action';
+import { Alert } from '@/src/modules/relationships/presentation/confirm-dialog';
+import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
 
-import { Action, Card, Copy, FlowPage } from "@/src/shared/presentation/components/flow-ui";
-import { LeavePatientAction } from "@/src/modules/relationships/presentation/components/leave-patient-action";
-import { LINK_TYPE_LABELS, takeLinkConfirmation } from "@/src/modules/relationships/application/link-codes";
-
-import { useAppState } from "@/src/core/presentation/session/use-app-state";
-import { useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
-import { useDemo } from "@/src/modules/demo/presentation/use-demo";
-import { appState } from "@/src/core/application/session/app-state";
-import { authService } from "@/src/modules/identity/application/authservice";
-import { useEffect, useState } from "react";
+type PatientsLoadState = {
+  scope: string;
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+};
 
 export default function SelectPatient() {
   const router = useRouter();
-
   const { user, patients, selectPatient, sessionMode } = useAppState();
-
-  const { relations, profiles } = useDemo();
-
   const { setUser } = useAuth();
-  const [patientsLoading, setPatientsLoading] = useState(false);
-  const [patientsError, setPatientsError] = useState(false);
-  // Agregado: confirmación del vínculo recién creado con un código.
-  const [linkConfirmation] = useState(() => takeLinkConfirmation());
+
+  const isBackendCaregiver = sessionMode === 'backend' && user?.source === 'backend' && user.role === 'caregiver';
+  const userId = user?.id;
+  const scope = isBackendCaregiver ? `${authSession.generation()}:${userId ?? ''}` : '';
+  const [loadState, setLoadState] = useState<PatientsLoadState>({
+    scope: '', loading: false, loaded: false, error: null,
+  });
+  const [actionError, setActionError] = useState('');
+  const [selecting, setSelecting] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const requestSerial = useRef(0);
+  const [confirmation] = useState(() => ({
+    userId: appState.snapshot().user?.id ?? null,
+    value: takeLinkConfirmation(),
+  }));
+
+  // Esta carga usa la API real de main. No depende de campos ausentes en useAppState.
+  const reloadPatients = useCallback(async (): Promise<void> => {
+    if (!isBackendCaregiver) return;
+    const serial = ++requestSerial.current;
+    setLoadState({ scope, loading: true, loaded: false, error: null });
+    try {
+      await appState.loadRealPatients();
+      if (serial === requestSerial.current && appState.snapshot().user?.id === userId) {
+        setLoadState({ scope, loading: false, loaded: true, error: null });
+      }
+    } catch (cause) {
+      if (serial === requestSerial.current && appState.snapshot().user?.id === userId) {
+        setLoadState({
+          scope, loading: false, loaded: false,
+          error: getApiErrorMessage(cause, 'No fue posible actualizar los pacientes vinculados.'),
+        });
+      }
+    }
+  }, [isBackendCaregiver, scope, userId]);
 
   useEffect(() => {
-    if (!user || user.source !== "backend" || user.role !== "caregiver") {
-      return;
-    }
-
-    let cancelled = false;
-
-    setPatientsLoading(true);
-    setPatientsError(false);
-
-    appState
-      .loadRealPatients()
-      .catch((error) => {
-        console.error("Error consultando pacientes:", error);
-
-        if (!cancelled) {
-          setPatientsError(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setPatientsLoading(false);
-        }
-      });
-
+    let active = true;
+    // Diferimos la carga para permitir la limpieza del efecto al cambiar de cuenta.
+    void Promise.resolve().then(() => {
+      if (active) void reloadPatients();
+    });
     return () => {
-      cancelled = true;
+      active = false;
+      requestSerial.current += 1;
     };
-  }, [user?.id, user?.source, user?.role]);
+  }, [reloadPatients]);
 
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
+  if (!user) return <Redirect href="/(auth)/login" />;
+  if (user.role === 'patient') return <Redirect href="/(tabs)" />;
+
+  const loading = isBackendCaregiver && (loadState.scope !== scope || loadState.loading);
+  const loadError = isBackendCaregiver && loadState.scope === scope ? loadState.error : null;
+  const patientsLoaded = isBackendCaregiver && loadState.scope === scope && loadState.loaded;
+  const linkedConfirmation = user.source === 'backend' && confirmation.userId === user.id
+    ? confirmation.value
+    : null;
+
+  async function choose(patientId: string) {
+    if (selecting || loading) return;
+    setSelecting(patientId);
+    setActionError('');
+    try {
+      if (sessionMode === 'backend') {
+        // La lista puede haber cambiado desde que se mostró la pantalla.
+        await appState.loadRealPatients();
+        const current = appState.snapshot();
+        if (current.user?.id !== user?.id || current.sessionMode !== 'backend') return;
+        if (!current.patients.some((patient) => patient.id === patientId)) {
+          throw new Error('El vínculo ya no está activo. Actualiza tus pacientes.');
+        }
+      }
+
+      selectPatient(patientId);
+      if (appState.snapshot().selectedPatient?.id !== patientId) {
+        throw new Error('No se pudo seleccionar al paciente. Comprueba que el vínculo siga vigente.');
+      }
+      router.replace('/(tabs)');
+    } catch (cause) {
+      setActionError(getApiErrorMessage(cause, 'No fue posible seleccionar el paciente.'));
+    } finally {
+      setSelecting(null);
+    }
   }
 
-  /*
-   * Ejecuta realmente el cierre de sesión.
-   */
-  const performLogout = async () => {
+  async function performLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    setActionError('');
     try {
-      /*
-       * authService.logout() se encarga de:
-       * - cerrar sesión backend cuando corresponde;
-       * - eliminar tokens;
-       * - limpiar authSession;
-       * - limpiar caché;
-       * - limpiar demo-store.
-       */
       await authService.logout();
-
-      /*
-       * También sincronizamos AuthProvider.
-       */
       setUser(null);
-
-      router.replace("/(auth)/login");
-    } catch (error) {
-      console.log("Error cerrando sesión:", error);
-
-      if (Platform.OS === "web") {
-        window.alert("No se pudo cerrar la sesión correctamente.");
-      } else {
-        Alert.alert("Error", "No se pudo cerrar la sesión correctamente.");
-      }
+      router.replace('/(auth)/login');
+    } catch (cause) {
+      setActionError(getApiErrorMessage(cause, 'No se pudo cerrar la sesión correctamente.'));
+    } finally {
+      setLoggingOut(false);
     }
-  };
+  }
 
-  /*
-   * Pide confirmación antes de cerrar sesión.
-   */
-  const confirmLogout = () => {
-    if (Platform.OS === "web") {
-      const confirmed = window.confirm("¿Deseas cerrar tu sesión?");
-
-      if (confirmed) {
-        void performLogout();
-      }
-
-      return;
-    }
-
-    Alert.alert("Cerrar sesión", "¿Deseas cerrar tu sesión?", [
-      {
-        text: "Cancelar",
-        style: "cancel",
-      },
-      {
-        text: "Cerrar sesión",
-        style: "destructive",
-        onPress: () => void performLogout(),
-      },
+  function confirmLogout() {
+    if (loggingOut) return;
+    Alert.alert('Cerrar sesión', '¿Deseas cerrar tu sesión?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: () => void performLogout() },
     ]);
-  };
+  }
 
   return (
     <FlowPage
-      title={
-        patients.length
-          ? "¿A quién acompañas hoy?"
-          : "Aún no tienes pacientes vinculados"
-      }
-      subtitle={`Hola, ${user.name}. Solo puedes acceder a vínculos aprobados.`}
-    >
-      {linkConfirmation && (
+      title={loading && patients.length === 0
+        ? 'Consultando tus pacientes…'
+        : patients.length > 0 ? '¿A quién acompañas hoy?' : 'Aún no tienes pacientes vinculados'}
+      subtitle={`Hola, ${user.name}. Solo puedes acceder a vínculos aprobados.`}>
+
+      {linkedConfirmation && (
         <Card>
           <Copy>
-            ✓ Te vinculaste con {linkConfirmation.patientName} como{" "}
-            {LINK_TYPE_LABELS[linkConfirmation.relationshipType] ?? "acompañante"}.
+            ✓ Te vinculaste con {linkedConfirmation.patientName} como{' '}
+            {LINK_TYPE_LABELS[linkedConfirmation.relationshipType] ?? 'acompañante'}.
           </Copy>
           <Copy>
-            {linkConfirmation.relationshipType === "CAREGIVER"
-              ? "El paciente puede ajustar tus permisos desde su pantalla de Vínculos."
-              : "Ya puedes ver la información clínica del paciente."}
+            {linkedConfirmation.relationshipType === 'CAREGIVER'
+              ? 'El paciente puede ajustar tus permisos desde su pantalla de Vínculos.'
+              : 'Tu vinculación quedó registrada. Los accesos dependen de tu rol y permisos.'}
           </Copy>
         </Card>
       )}
 
-      {patientsLoading && (
-        <Card>
-          <Copy>Cargando pacientes vinculados...</Copy>
-        </Card>
+      {isBackendCaregiver && (
+        <>
+          {loading && <Copy>Actualizando relaciones y permisos desde el servidor…</Copy>}
+          {!!loadError && <Card><Copy>{loadError}</Copy></Card>}
+          {patientsLoaded && patients.length === 0 && (
+            <Copy>No existen vínculos activos para esta cuenta. Solicita un código de vinculación al paciente.</Copy>
+          )}
+          <Action
+            secondary
+            disabled={loading || Boolean(selecting) || loggingOut}
+            label={loading ? 'Actualizando pacientes…' : 'Actualizar mis pacientes'}
+            onPress={() => void reloadPatients()}
+          />
+        </>
       )}
 
-      {patientsError && (
-        <Card>
-          <Copy>
-            No se pudieron cargar los pacientes. Intenta nuevamente más tarde.
-          </Copy>
-        </Card>
-      )}
+      {!!actionError && <Card><Copy>{actionError}</Copy></Card>}
+
       {patients.map((patient) => (
         <Card key={patient.id}>
           <Copy>{patient.name}</Copy>
-
           <Action
-            label="Acompañar a este paciente"
-            onPress={() => {
-              selectPatient(patient.id);
-
-              router.replace("/(tabs)");
-            }}
+            label={selecting === patient.id ? 'Verificando vínculo…' : 'Acompañar a este paciente'}
+            disabled={loading || Boolean(selecting) || loggingOut}
+            onPress={() => void choose(patient.id)}
           />
-
-          {user.source === "backend" && (
+          {isBackendCaregiver && (
             <LeavePatientAction
               patientId={patient.id}
               patientName={patient.name}
-              onLeft={() => appState.loadRealPatients()}
+              onLeft={reloadPatients}
             />
           )}
         </Card>
       ))}
 
-      {(user.source === "backend" ? [] : relations)
-        .filter(
-          (relation) =>
-            relation.caregiverId === user.id && relation.status !== "approved",
-        )
-        .map((relation) => {
-          const profile = profiles.find(
-            (item) => item.id === relation.patientId,
-          );
-
-          return (
-            <Card key={relation.id}>
-              <Copy>{profile?.name ?? "Paciente"}</Copy>
-
-              <Copy>
-                {relation.status === "pending"
-                  ? "Solicitud pendiente de aprobación. Todavía no tienes acceso a información clínica."
-                  : relation.status === "rejected"
-                    ? "El paciente rechazó la solicitud."
-                    : "El paciente retiró tu acceso."}
-              </Copy>
-            </Card>
-          );
-        })}
-
       <Action
-        label="Escanear QR o abrir invitación"
-        onPress={() => router.push("/invitacion")}
+        label="Escanear QR o ingresar código de vinculación"
+        disabled={loggingOut}
+        onPress={() => router.push('/invitacion')}
       />
-      {user.source === "backend" && patients.length === 0 && !patientsLoading && !patientsError && (
-        <Action
-          secondary
-          label="Ir a mi perfil"
-          onPress={() => router.replace("/perfil")}
-        />
+      {isBackendCaregiver && patientsLoaded && patients.length === 0 && (
+        <Action secondary label="Ir a mi perfil" onPress={() => router.replace('/perfil')} />
       )}
-
-      <Action secondary label="Cerrar sesión" onPress={confirmLogout} />
-
-      {sessionMode !== 'backend' && <Action
+      <Action
         secondary
-        label="Ver guía de demostración"
-        onPress={() => router.push("/demo")}
-      />}
+        label={loggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
+        disabled={loggingOut}
+        onPress={confirmLogout}
+      />
     </FlowPage>
   );
 }

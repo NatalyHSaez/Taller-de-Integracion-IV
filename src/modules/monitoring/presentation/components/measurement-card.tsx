@@ -25,15 +25,23 @@ function formatDecimal(value: number) {
 
 function getPresentation(measurement: Measurement): MeasurementPresentation {
   switch (measurement.type) {
+    case 'heart_rate':
+      return { icon: 'heart-outline', label: 'Frecuencia cardíaca', value: String(measurement.value),
+        unit: 'lpm', spokenValue: `${measurement.value} latidos por minuto` };
+    case 'single_pressure':
+      return { icon: 'heart-pulse',
+        label: measurement.parameter === 'SBP' ? 'Presión sistólica' : 'Presión diastólica',
+        value: String(measurement.value), unit: 'mmHg',
+        spokenValue: `${measurement.value} milímetros de mercurio` };
     case 'blood_pressure':
       return {
         icon: 'heart-pulse',
         label: 'Presión arterial',
         value: `${measurement.systolic} / ${measurement.diastolic}`,
         unit: 'mmHg',
-        supportingText: `Frecuencia cardíaca: ${measurement.heartRate} lpm`,
+        supportingText: measurement.heartRate == null ? undefined : `Frecuencia cardíaca: ${measurement.heartRate} lpm`,
         spokenValue: `${measurement.systolic} sobre ${measurement.diastolic} milímetros de mercurio`,
-        spokenSupportingText: `Frecuencia cardíaca: ${measurement.heartRate} latidos por minuto`,
+        spokenSupportingText: measurement.heartRate == null ? undefined : `Frecuencia cardíaca: ${measurement.heartRate} latidos por minuto`,
       };
     case 'glucose':
       return {
@@ -93,6 +101,13 @@ export function MeasurementCard({ measurement }: { measurement: Measurement }) {
       ]}>
       {measurement.recordedBy && <ThemedText>Registrado por {measurement.recordedBy}</ThemedText>}
       {measurement.context && <ThemedText>{measurement.context}</ThemedText>}
+      {measurement.readingStatus && (
+        <ThemedText style={{ color: measurement.readingStatus === 'REQUIRES_CONFIRMATION'
+          ? theme.danger : theme.icon }}>
+          {measurement.readingStatus === 'REQUIRES_CONFIRMATION' ? 'Requiere confirmación' :
+           measurement.readingStatus === 'PENDING' ? 'Evaluación pendiente' : 'Evaluada'}
+        </ThemedText>
+      )}
       <View style={styles.topRow}>
         <View style={styles.identity}>
           <View

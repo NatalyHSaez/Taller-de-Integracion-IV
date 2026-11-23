@@ -1,12 +1,11 @@
-import { HealthInformation } from "@/src/modules/monitoring/presentation/components/health-information";
 import { ThemedText } from "@/src/shared/presentation/components/themed-text";
 import { ThemedView } from "@/src/shared/presentation/components/themed-view";
 import { Colors } from "@/src/shared/presentation/theme";
 import { useAppState } from "@/src/core/presentation/session/use-app-state";
 import { useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
+import { appState } from "@/src/core/application/session/app-state";
+import { authSession } from "@/src/core/application/session/auth-session";
 import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
-import { useDemo } from "@/src/modules/demo/presentation/use-demo";
-import { demo } from "@/src/modules/demo/infrastructure/demo-store";
 
 import { getPatient } from "@/src/modules/identity/infrastructure/identity-api";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -17,13 +16,13 @@ import { updateMyProfile, profileErrorMessage } from "@/src/modules/identity/app
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, } from "react-native";
 
 export default function Profile() {
+  const { user, sessionMode } = useAppState();
+  const scope = `${authSession.generation()}:${sessionMode ?? 'guest'}:${user?.id ?? 'none'}`;
+  return <ProfileContent key={scope} />;
+}
+
+function ProfileContent() {
   
-const {
-  user: demoUser,
-  patients,
-  patient: activePatient,
-  selectedId,
-} = useDemo();
 
 const {
   user: authUser,
@@ -37,6 +36,8 @@ const {
   patients: globalPatients,
   selectedPatient,
   selectPatient,
+  sessionMode,
+  refreshPatients,
 } = useAppState();
 
 const colorScheme = useColorScheme();
@@ -47,39 +48,13 @@ const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
 // TI4-8: DATOS REALES DEL USUARIO
 // ==========================================================
 
-// Mientras se restaura la sesión, no mostramos datos mock.
-const isRealSession = authenticated;
-
-// Nombre y correo provenientes de GET /me cuando
-// existe una sesión autenticada.
-const displayName: string = authLoading
-  ? "Cargando..."
-  : isRealSession
-    ? authUser?.fullName ?? "Usuario"
-    : demoUser?.name ?? "Usuario";
-
-const displayEmail: string = authLoading
-  ? ""
-  : isRealSession
-    ? authUser?.email ?? ""
-    : demoUser?.email ?? "";
-
-// El rol real tiene prioridad absoluta sobre el mock.
+// Única fuente de identidad: GET /me del backend.
+const isRealSession = sessionMode === 'backend';
+const displayName = authLoading ? 'Cargando...' : (authUser?.fullName ?? 'Usuario');
+const displayEmail = authLoading ? '' : (authUser?.email ?? '');
 const realRole = authUser?.roles?.[0];
-
-const displayRole: string = authLoading
-  ? "Usuario"
-  : isRealSession
-    ? realRole === "PATIENT"
-      ? "Paciente"
-      : realRole === "CAREGIVER"
-        ? "Cuidador"
-        : "Usuario"
-    : demoUser?.role === "patient"
-      ? "Paciente"
-      : demoUser?.role === "caregiver"
-        ? "Cuidador"
-        : "Usuario";
+const displayRole = realRole === 'PATIENT' ? 'Paciente'
+  : realRole === 'CAREGIVER' ? 'Cuidador' : 'Usuario';
 
   // ==========================================================
   // EDICIÓN DEL PERFIL
@@ -103,77 +78,96 @@ const [birthDateLoading, setBirthDateLoading] = useState(false);
 const [birthDateError, setBirthDateError] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [selectingPatientId, setSelectingPatientId] = useState<string | null>(null);
+  const [selectError, setSelectError] = useState("");
+  const [refreshingPatients, setRefreshingPatients] = useState(false);
+  const [patientsError, setPatientsError] = useState("");
   const savingRef = useRef(false);
   const [profileError, setProfileError] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
+const backendUserId = authUser?.id;
+const isPatientAccount = Boolean(authUser?.roles.includes("PATIENT"));
+const isCaregiverAccount = Boolean(authUser?.roles.includes("CAREGIVER"));
 useEffect(() => {
   let cancelled = false;
-
-  // Cada vez que cambia la cuenta, limpiamos los
-  // datos del paciente anterior.
-  setBirthDate("");
-  setBirthDateError(false);
-  setBirthDateLoading(false);
-
-  if (
-    !authenticated ||
-    authLoading ||
-    !authUser?.id ||
-    !authUser.roles?.includes("PATIENT")
-  ) {
-    return;
-  }
-
-  setBirthDateLoading(true);
-
-  async function loadPatientProfile() {
+  // El componente tiene una key por sesión; no conserva fechas del usuario anterior.
+  if (!authenticated || authLoading || !backendUserId || !isPatientAccount) return;
+  void Promise.resolve().then(async () => {
+    if (cancelled) return;
+    setBirthDateLoading(true);
     try {
-      const patient = await getPatient(authUser!.id);
-
+      const patient = await getPatient(backendUserId);
       if (cancelled) return;
-
       if (patient.birthDate) {
-        const [year, month, day] =
-          patient.birthDate.split("-");
-
+        const [year, month, day] = patient.birthDate.split("-");
         setBirthDate(`${day}/${month}/${year}`);
       }
-    } catch (error) {
-      if (cancelled) return;
-
-      console.warn(
-        "[perfil] No fue posible obtener los datos del paciente:",
-        error,
-      );
-
-      setBirthDateError(true);
+    } catch {
+      if (!cancelled) setBirthDateError(true);
     } finally {
-      if (!cancelled) {
-        setBirthDateLoading(false);
-      }
+      if (!cancelled) setBirthDateLoading(false);
     }
-  }
+  });
+  return () => { cancelled = true; };
+}, [authenticated, authLoading, backendUserId, isPatientAccount]);
 
-  void loadPatientProfile();
+const displayedPatients = globalPatients;
+const activeSelectedId = selectedPatient?.id ?? null;
 
-  return () => {
-    cancelled = true;
+  // La lista del cuidador proviene únicamente de GET /me/patients.
+  // Una actualización sin conexión no sustituye pacientes reales por mocks.
+  useEffect(() => {
+    if (sessionMode !== "backend" || !isCaregiverAccount) return;
+    const revision = authSession.generation();
+    let active = true;
+    void Promise.resolve().then(async () => {
+      if (!active) return;
+      setRefreshingPatients(true);
+      setPatientsError("");
+      try {
+        await refreshPatients();
+      } catch {
+        if (active && revision === authSession.generation()) {
+          setPatientsError("No pudimos actualizar tus pacientes. Reintenta cuando tengas conexión.");
+        }
+      } finally {
+        if (active) setRefreshingPatients(false);
+      }
+    });
+    return () => { active = false; };
+  }, [sessionMode, backendUserId, isCaregiverAccount, refreshPatients]);
+
+  const retryPatients = async () => {
+    if (refreshingPatients) return;
+    setRefreshingPatients(true);
+    setPatientsError("");
+    try { await refreshPatients(); }
+    catch { setPatientsError("No pudimos actualizar tus pacientes. Reintenta cuando tengas conexión."); }
+    finally { setRefreshingPatients(false); }
   };
-}, [
-  authenticated,
-  authLoading,
-  authUser?.id,
-  authUser?.roles,
-]);
-  
 
-const displayedPatients = isRealSession
-  ? globalPatients
-  : patients;
-
-const activeSelectedId = isRealSession
-  ? selectedPatient?.id ?? null
-  : selectedId;
+  const choosePatient = async (patientId: string) => {
+    if (selectingPatientId || refreshingPatients) return;
+    setSelectError("");
+    const revision = authSession.generation();
+    setSelectingPatientId(patientId);
+    try {
+      await refreshPatients();
+      if (authSession.generation() !== revision || authSession.mode() !== "backend") return;
+      const current = appState.snapshot();
+      if (!current.patients.some((item) => item.id === patientId)) {
+        throw new Error("Este paciente ya no está vinculado a tu cuenta.");
+      }
+      selectPatient(patientId);
+      if (appState.snapshot().selectedPatient?.id !== patientId) {
+        throw new Error("No fue posible seleccionar al paciente.");
+      }
+    } catch (cause) {
+      if (authSession.generation() === revision) {
+        setSelectError(cause instanceof Error ? cause.message : "No fue posible verificar el vínculo.");
+      }
+    } finally { setSelectingPatientId(null); }
+  };
 
   const startEditing = () => {
     setName(displayName === "Usuario" ? "" : displayName);
@@ -195,11 +189,7 @@ const activeSelectedId = isRealSession
     setSaving(true);
     setProfileError("");
     try {
-      if (authenticated) {
-        await updateMyProfile(name);
-      } else {
-        demo.updateProfile(name.trim(), email.trim());
-      }
+      await updateMyProfile(name);
       setEditing(false);
       setProfileNotice("Perfil actualizado correctamente.");
     } catch (error) {
@@ -216,8 +206,6 @@ const activeSelectedId = isRealSession
 
   const performLogout = async () => {
     try {
-      // Limpia cualquier sesión mock.
-
       // Limpia la sesión real y sus tokens.
       await signOut();
 
@@ -471,7 +459,7 @@ const activeSelectedId = isRealSession
                     },
                   ]}
                   accessibilityLabel="Correo electrónico"
-                  editable={!authenticated && !saving}
+                  editable={false}
                   value={email}
                   onChangeText={setEmail}
                   placeholder="Ingresa tu correo"
@@ -483,26 +471,7 @@ const activeSelectedId = isRealSession
                 />
               </FormField>
 
-              {authenticated ? <ThemedText>Solo puedes editar tu nombre. El correo y la fecha de nacimiento no se modifican desde este perfil.</ThemedText> : <FormField label="Fecha de nacimiento">
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      borderColor: theme.border,
-
-                      backgroundColor: theme.background,
-
-                      color: theme.text,
-                    },
-                  ]}
-                  editable={!authenticated && !saving}
-                  value={birthDate}
-                  onChangeText={setBirthDate}
-                  placeholder="DD/MM/AAAA"
-                  placeholderTextColor={theme.mutedText}
-                  keyboardType="numeric"
-                />
-              </FormField>}
+              <ThemedText>Solo puedes editar tu nombre. El correo y la fecha de nacimiento no se modifican desde este perfil.</ThemedText>
 
               <Pressable
                 accessibilityRole="button"
@@ -587,9 +556,7 @@ const activeSelectedId = isRealSession
                 },
               ]}
             >
-              {authenticated ? (
-                <ThemedText>La información de salud estará disponible cuando se complete su integración.</ThemedText>
-              ) : <HealthInformation />}
+              <ThemedText>La información de salud estará disponible cuando el backend exponga estos datos.</ThemedText>
             </View>
           </>
         )}
@@ -624,6 +591,18 @@ const activeSelectedId = isRealSession
                 },
               ]}
             >
+              {isRealSession && refreshingPatients && (
+                <ThemedText>Actualizando pacientes vinculados...</ThemedText>
+              )}
+              {!!patientsError && <ThemedText accessibilityRole="alert" style={{ color: theme.danger }}>{patientsError}</ThemedText>}
+              {!!selectError && <ThemedText accessibilityRole="alert" style={{ color: theme.danger }}>{selectError}</ThemedText>}
+              {isRealSession && (
+                <Pressable accessibilityRole="button" disabled={refreshingPatients || Boolean(selectingPatientId)}
+                  onPress={() => { void retryPatients(); }}
+                  style={({ pressed }) => [styles.secondaryButton, { borderColor: theme.primary, marginBottom: 12 }, pressed && styles.pressed]}>
+                  <ThemedText style={[styles.secondaryButtonText, { color: theme.primary }]}>Actualizar pacientes</ThemedText>
+                </Pressable>
+              )}
               {displayedPatients.length > 0 ? (
                 displayedPatients.map((patient) => (
                   <View key={patient.id}>
@@ -631,22 +610,9 @@ const activeSelectedId = isRealSession
                     key={patient.id}
                     accessibilityRole="button"
                     accessibilityLabel={`Seleccionar a ${patient.name}`}
-                    onPress={() => {
-                      if (isRealSession) {
-                        selectPatient(patient.id);
-                        return;
-                      }
-                      try {
-                        demo.select(patient.id);
-                      } catch (error) {
-                        Alert.alert(
-                          "Error al seleccionar paciente",
-                          error instanceof Error
-                            ? error.message
-                            : "No fue posible seleccionar al paciente.",
-                        );
-                      }
-                    }}
+                    onPress={() => { void choosePatient(patient.id); }}
+                    disabled={Boolean(selectingPatientId) || refreshingPatients}
+                    accessibilityState={{ disabled: Boolean(selectingPatientId) || refreshingPatients }}
                     style={({ pressed }) => [
                       styles.patientRow,
 
@@ -752,7 +718,7 @@ const activeSelectedId = isRealSession
                       },
                     ]}
                   >
-                    {authenticated ? "La consulta de pacientes vinculados aún no está disponible." : "No tienes pacientes vinculados."}
+                    {refreshingPatients ? 'Consultando pacientes...' : 'No tienes pacientes vinculados actualmente.'}
                   </ThemedText>
                 </View>
               )}

@@ -1,59 +1,32 @@
 import type { ISODateTime, UUID } from './common';
-
+/** Los únicos permisos de cuidador implementados actualmente. */
 export type CaregiverPermissionCode =
   | 'PATIENT_PROFILE_VIEW'
   | 'MEASUREMENT_CREATE'
   | 'MEASUREMENT_VIEW'
-  | 'ALERT_VIEW'
-  | 'CLINICAL_VISIT_VIEW'
-  | 'PRESCRIPTION_VIEW'
-  | 'DOCUMENT_VIEW';
-
-export type DoctorPermissionCode =
-  | 'PATIENT_PROFILE_VIEW'
-  | 'MEASUREMENT_VIEW'
-  | 'ALERT_VIEW'
-  | 'CLINICAL_VISIT_VIEW'
-  | 'CLINICAL_VISIT_CREATE'
-  | 'PRESCRIPTION_CREATE'
-  | 'PRESCRIPTION_VIEW'
-  | 'DOCUMENT_CREATE'
-  | 'DOCUMENT_VIEW';
-
-export type RelationshipStatus = 'ACTIVE' | 'REVOKED';
+  | 'ALERT_VIEW';
 export type LinkCodeType = 'CAREGIVER' | 'DOCTOR';
-export type LinkCodeStatus = 'ACTIVE' | 'USED' | 'REVOKED' | 'EXPIRED';
-
-export type CaregiverRelationshipResponse = {
+/** GET /patients/{id}/caregivers y /doctors: LinkedUserOut. */
+export type LinkedUserResponse = {
   relationshipId: UUID;
-  caregiverUserId: UUID;
-  patientId: UUID;
-  status: RelationshipStatus;
-  permissions: CaregiverPermissionCode[];
-  createdAt: ISODateTime;
-  revokedAt: ISODateTime | null;
+  userId: UUID;
+  fullName: string;
+  permissions: string[];
+  linkedAt: ISODateTime;
 };
-
-export type DoctorRelationshipResponse = {
+export type CaregiverRelationshipResponse = LinkedUserResponse;
+export type DoctorRelationshipResponse = LinkedUserResponse;
+export type UpdateCaregiverPermissionsRequest = { permissions: CaregiverPermissionCode[] };
+/** POST /patients/{id}/link-codes. El QR lleva únicamente code. */
+export type CreateLinkCodeRequest = { type: LinkCodeType };
+export type LinkCodeResponse = { id: UUID; code: string; type: LinkCodeType; expiresAt: ISODateTime };
+export type ConsumeLinkCodeRequest = { code: string };
+/** POST /link-codes/consume y PUT /caregiver-relationships/{id}/permissions. */
+export type RelationshipResponse = {
   relationshipId: UUID;
-  doctorId: UUID;
-  doctorUserId: UUID;
+  relationshipType: LinkCodeType;
   patientId: UUID;
-  status: RelationshipStatus;
-  permissions: DoctorPermissionCode[];
-  createdAt: ISODateTime;
-  revokedAt: ISODateTime | null;
-};
-
-/**
- * Respuesta provisional al crear un código temporal de vinculación.
- * El backend debe entregar el token al cliente, aunque en BD se almacene solo su hash.
- */
-export type LinkCodeResponse = {
-  linkCodeId: UUID;
-  patientId: UUID;
-  linkType: LinkCodeType;
-  status: LinkCodeStatus;
-  token: string;
-  expiresAt: ISODateTime;
+  patientName: string;
+  permissions: string[];
+  linkedAt: ISODateTime;
 };

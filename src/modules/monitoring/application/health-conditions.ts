@@ -3,7 +3,6 @@ import type { HealthConditionResponse } from '@/src/core/infrastructure/http/dto
 import { authSession } from '../../../core/application/session/auth-session';
 import { dataClient } from '../../../core/infrastructure/http/data';
 import { ApiError } from '../../../core/infrastructure/http/errors';
-import { mockApi } from '../../demo/infrastructure/mocks';
 
 /**
  * Catálogo global de programas de seguimiento (GET /api/v1/health-conditions).
@@ -12,7 +11,7 @@ import { mockApi } from '../../demo/infrastructure/mocks';
  *   diagnósticos del paciente.
  * - No se consultan rutas /patients/{id}/conditions: la API de condiciones
  *   asignadas todavía no existe (ver ASSIGNED_CONDITIONS_API_AVAILABLE).
- * - En sesión backend la única fuente es el Gateway; en sesión mock, el mock.
+ * - Los datos provienen exclusivamente del Gateway.
  * - La caché es solo en memoria (ver services/data/README.md).
  */
 
@@ -107,7 +106,7 @@ function toPrograms(items: unknown): HealthProgram[] {
 export const healthConditionsService = {
   async list(options: { forceRefresh?: boolean } = {}): Promise<HealthProgram[]> {
     if (authSession.mode() !== 'backend') {
-      return toPrograms(await mockApi.catalog.healthConditions());
+      throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para consultar el servidor.' });
     }
 
     const items = await dataClient.get<HealthConditionResponse[]>(PATH, {

@@ -12,6 +12,8 @@ const files = [];
 (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name)) files.push(p); } })('src');
 const re = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)(['"])([^'"]+)\1/gm;
 function where(p) {
+  // Windows entrega rutas con '\\'; las reglas usan rutas del repositorio con '/'.
+  p = p.replace(/\\/g, '/');
   const m = p.match(/^src\/(core|shared|modules\/([^/]+))\/(domain|application|infrastructure|presentation)\//);
   if (!m) return null;
   return { area: m[2] ?? m[1], layer: m[3] };

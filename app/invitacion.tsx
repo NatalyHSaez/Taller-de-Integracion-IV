@@ -1,126 +1,203 @@
-import { Action, Card, Copy, Field, FlowPage } from '@/src/shared/presentation/components/flow-ui';
-import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { useDemo } from '@/src/modules/demo/presentation/use-demo';
-// Agregado: normaliza el código (espacios, guiones, minúsculas) y traduce los errores del backend.
-import { consumeLinkCode } from '@/src/modules/relationships/application/link-codes';
-import { appState } from '@/src/core/application/session/app-state';
-import { demo, type Invitation } from '@/src/modules/demo/infrastructure/demo-store';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { View } from 'react-native';
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRef, useState } from "react";
+import { View } from "react-native";
 
-export default function InvitationScreen() {
-  const router = useRouter(); const params = useLocalSearchParams<{ token?: string }>();
-  const { user, selectedPatient, sessionMode } = useAppState();
-  const { pendingToken, profiles, invitations } = useDemo();
-  const [code, setCode] = useState(params.token ?? pendingToken ?? ''); const [preview, setPreview] = useState<Invitation>();
-  const [error, setError] = useState(''); const [scanner, setScanner] = useState(false); const [install, setInstall] = useState(false);
-  const [scanTime, setScanTime] = useState(() => Date.now());
+import { appState } from "@/src/core/application/session/app-state";
+import { useAppState } from "@/src/core/presentation/session/use-app-state";
+import {
+  consumeLinkCode,
+  describeLinkCodeError,
+  normalizeLinkCode,
+} from "@/src/modules/relationships/application/link-codes";
+import type { ConsumeLinkCodeResponse } from "@/src/modules/relationships/infrastructure/relationships-api";
+import {
+  Action,
+  Card,
+  Copy,
+  Field,
+  FlowPage,
+} from "@/src/shared/presentation/components/flow-ui";
+
+/** La vinculación real nunca utiliza invitaciones ni pacientes simulados. */
+function RealInvitationScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    token?: string | string[];
+    code?: string | string[];
+  }>();
+  const { user } = useAppState();
+  const initialCode = params.code ?? params.token;
+  const [code, setCode] = useState(
+    Array.isArray(initialCode) ? (initialCode[0] ?? "") : (initialCode ?? ""),
+  );
+  const [error, setError] = useState("");
+  const [refreshError, setRefreshError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [linked, setLinked] = useState<ConsumeLinkCodeResponse | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [realScannerOpen, setRealScannerOpen] = useState(false);
-  const [linking, setLinking] = useState(false);
+  const scanHandled = useRef(false);
 
-  function extractCode(value: string): string {
-    const trimmed = value.trim();
-    const match = trimmed.match(/[?&](?:token|code)=([^&#]+)/i);
-    if (match) {
-      try { return decodeURIComponent(match[1]).trim().toUpperCase(); }
-      catch { return match[1].trim().toUpperCase(); }
+  async function openScanner() {
+    setError("");
+    scanHandled.current = false;
+    try {
+      const permission = cameraPermission?.granted
+        ? cameraPermission
+        : await requestCameraPermission();
+      if (!permission.granted) {
+        setError(
+          "Debes permitir el uso de la cámara para escanear el QR. También puedes escribir el código.",
+        );
+        return;
+      }
+      setScannerOpen(true);
+    } catch {
+      setError(
+        "No fue posible abrir la cámara. Introduce el código manualmente.",
+      );
     }
-    return trimmed.toUpperCase();
   }
 
-  async function openRealScanner() {
-    setError('');
-    const permission = cameraPermission?.granted
-      ? cameraPermission
-      : await requestCameraPermission();
-    if (!permission.granted) {
-      setError('Debes permitir el uso de la cámara para escanear el QR. También puedes escribir el código.');
+  async function refreshPatients() {
+    setRefreshError("");
+    try {
+      await appState.loadRealPatients();
+      router.replace("/(auth)/select-patient");
+    } catch {
+      // El POST de vinculación YA fue confirmado: nunca volvemos a consumir el código.
+      setRefreshError(
+        "El vínculo se creó, pero no pudimos actualizar la lista de pacientes. Intenta cargarla nuevamente.",
+      );
+    }
+  }
+
+  async function linkPatient() {
+    if (busy || linked || user?.role !== "caregiver") return;
+    const normalized = normalizeLinkCode(code);
+    if (!normalized) {
+      setError("Escribe o escanea el código de vinculación.");
       return;
     }
-    setRealScannerOpen(true);
-  }
-  async function linkRealPatient() {
-    if (linking) return;
-    setError('');
-    setLinking(true);
 
+    setBusy(true);
+    setError("");
+    setScannerOpen(false);
     try {
-      await consumeLinkCode(extractCode(code));
-
-      // Actualizar la lista real desde /me/patients.
-      await appState.loadRealPatients();
-
-      // Ir al selector para visualizar los pacientes vinculados.
-      router.replace('/(auth)/select-patient');
+      const relationship = await consumeLinkCode(normalized);
+      setLinked(relationship);
+      await refreshPatients();
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : 'No fue posible vincular al paciente.'
-      );
+      setError(describeLinkCodeError(cause).message);
     } finally {
-      setLinking(false);
+      setBusy(false);
     }
   }
-  function inspect(value: string) { try { const token = value.includes('token=') ? decodeURIComponent(value.split('token=')[1].split('&')[0]) : value.trim(); const invitation = demo.invitation(token); setPreview(invitation); demo.remember(invitation.token); setError(''); } catch (e) { setPreview(undefined); setError((e as Error).message); } }
-  return <FlowPage title="Invitación de cuidado" subtitle="Abrir una invitación no da acceso a los datos del paciente.">
-    {sessionMode === 'backend' && user?.role === 'caregiver' ? (
-      <>
-        <Field
-          label="Código de vinculación"
-          value={code}
-          onChangeText={setCode}
-          autoCapitalize="characters"
-        />
 
-        <Action
-          secondary
-          label={realScannerOpen ? 'Cerrar cámara' : 'Escanear QR real'}
-          onPress={() => {
-            if (realScannerOpen) setRealScannerOpen(false);
-            else void openRealScanner();
-          }}
-        />
-        {realScannerOpen && (
-          <View style={{ height: 300, overflow: 'hidden', borderRadius: 12 }}>
-            <CameraView
-              style={{ flex: 1 }}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={({ data }) => {
-                setCode(extractCode(data));
-                setRealScannerOpen(false);
-                setError('');
-              }}
-            />
-          </View>
-        )}
-        {!!error && <Copy>{error}</Copy>}
-
-        <Action
-          label={linking ? 'Vinculando...' : 'Vincular paciente'}
-          onPress={() => { if (!linking) void linkRealPatient(); }}
-        />
-
-        <Action
-          secondary
-          label="Volver a Inicio"
-          onPress={() => router.replace('/(tabs)')}
-        />
-      </>
-    ) : (
-      <>
-    <Field label="Código o enlace de invitación" value={code} onChangeText={(v) => { setCode(v); setPreview(undefined); }} autoCapitalize="none" />
-    <Action label="Revisar invitación" onPress={() => inspect(code)} />
-    <Action secondary label="Escanear QR (simulación)" onPress={() => { setScanTime(Date.now()); setScanner(!scanner); }} />
-    {scanner && <Card><Copy>Simula la lectura del QR mostrado por el paciente. Elige una invitación generada en esta sesión.</Copy>{invitations.filter((i) => i.expires > scanTime).map((i) => <Action key={i.token} secondary label={`Leer QR de ${profiles.find((p) => p.id === i.patientId)?.name}`} onPress={() => { setCode(i.token); inspect(i.token); setScanner(false); }} />)}{!invitations.some((i) => i.expires > scanTime) && <Copy>No hay invitaciones vigentes. Pide al paciente que genere una.</Copy>}</Card>}
-    {!!error && <Copy>{error}</Copy>}
-    {preview && <Card><Copy>{profiles.find((p) => p.id === preview.patientId)?.name} te invita a acompañarle.</Copy><Copy>Vence: {new Date(preview.expires).toLocaleString('es-CL')}</Copy>{!user ? <><Action label="Iniciar sesión para continuar" onPress={() => router.push('/(auth)/login')} /><Action secondary label="Crear cuenta de cuidador" onPress={() => router.push('/(auth)/register')} /><Action secondary label="Simular que no tengo la app" onPress={() => setInstall(true)} />{install && <><Copy>En producción, este enlace te orientará a instalar Domicilia. Aquí simulamos la instalación y conservamos la invitación.</Copy><Action label="Simular instalación y retomar invitación" onPress={() => { setInstall(false); router.push('/(auth)/register'); }} /></>}</> : user.role === 'caregiver' ? <Action label="Solicitar vínculo" onPress={() => { try { demo.request(preview.token); router.replace('/(auth)/select-patient'); } catch (e) { setError((e as Error).message); } }} /> : <Copy>Estás usando una cuenta de paciente. Cierra sesión para continuar como cuidador.</Copy>}</Card>}
-    <Action secondary label={user ? 'Volver a mi cuenta' : 'Volver al acceso'} onPress={() => router.replace(user ? selectedPatient ? '/(tabs)' : '/(auth)/select-patient' : '/(auth)/login')} />
+  return (
+    <FlowPage
+      title="Vincular paciente"
+      subtitle="Usa el código temporal que te entregó el paciente."
+    >
+      {!user ? (
+        <>
+          <Copy>
+            Debes iniciar sesión como cuidador para utilizar un código real.
+          </Copy>
+          <Action
+            label="Iniciar sesión"
+            onPress={() => router.push("/(auth)/login")}
+          />
         </>
-)}
-  </FlowPage>;
+      ) : user.role !== "caregiver" ? (
+        <Copy>Esta opción está disponible para cuentas de cuidador.</Copy>
+      ) : linked ? (
+        <Card>
+          <Copy>Te vinculaste con {linked.patientName}.</Copy>
+          <Copy>
+            El código ya fue utilizado y no es necesario ingresarlo nuevamente.
+          </Copy>
+          {!!refreshError && <Copy>{refreshError}</Copy>}
+          <Action
+            label={
+              refreshError
+                ? "Reintentar carga de pacientes"
+                : "Ver mis pacientes"
+            }
+            onPress={() => void refreshPatients()}
+          />
+        </Card>
+      ) : (
+        <>
+          <Field
+            label="Código de vinculación"
+            value={code}
+            onChangeText={(value) => {
+              setCode(value);
+              setError("");
+            }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="Código de 6 caracteres"
+          />
+          <Action
+            secondary
+            label={scannerOpen ? "Cerrar cámara" : "Escanear código QR"}
+            disabled={busy}
+            onPress={() => {
+              if (scannerOpen) setScannerOpen(false);
+              else void openScanner();
+            }}
+          />
+          {scannerOpen && (
+            <View style={{ height: 300, overflow: "hidden", borderRadius: 12 }}>
+              <CameraView
+                style={{ flex: 1 }}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                onBarcodeScanned={({ data }) => {
+                  if (scanHandled.current) return;
+                  scanHandled.current = true;
+                  setCode(normalizeLinkCode(data));
+                  setScannerOpen(false);
+                  setError("");
+                }}
+              />
+            </View>
+          )}
+          {!!error && (
+            <Card>
+              <Copy>{error}</Copy>
+            </Card>
+          )}
+          <Action
+            label={busy ? "Vinculando…" : "Vincular paciente"}
+            disabled={busy || !normalizeLinkCode(code)}
+            onPress={() => void linkPatient()}
+          />
+          <Copy>
+            El código vence a los 5 minutos y solo puede utilizarse una vez.
+          </Copy>
+        </>
+      )}
+      <Action
+        secondary
+        label="Volver"
+        onPress={() =>
+          router.replace(
+            user
+              ? user.role === "caregiver"
+                ? "/(auth)/select-patient"
+                : "/(tabs)"
+              : "/(auth)/login",
+          )
+        }
+      />
+    </FlowPage>
+  );
+}
+
+export default function InvitationScreen() {
+  return <RealInvitationScreen />;
 }

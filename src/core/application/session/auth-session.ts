@@ -1,7 +1,13 @@
-import type { AuthTokensResponse, CurrentUserResponse } from '@/src/core/infrastructure/http/dto';
-import { setApiAccessTokenProvider, invalidateApiSession } from '../../infrastructure/http/api-client';
+import {
+  invalidateApiSession,
+  setApiAccessTokenProvider,
+} from "@/src/core/infrastructure/http/api-client";
+import type {
+  AuthTokensResponse,
+  CurrentUserResponse,
+} from "@/src/core/infrastructure/http/dto";
 
-export type AuthSessionMode = 'backend' | 'mock';
+export type AuthSessionMode = "backend";
 
 export type SessionState = {
   mode: AuthSessionMode | null;
@@ -9,29 +15,34 @@ export type SessionState = {
   user: CurrentUserResponse | null;
 };
 
-let state: SessionState = {
-  mode: null,
-  tokens: null,
-  user: null,
-};
-
+/** Estado observable. Las credenciales reales se persisten por separado en SecureStore. */
+let state: SessionState = { mode: null, tokens: null, user: null };
+let sessionGeneration = 0;
 const listeners = new Set<() => void>();
 
-function replaceState(nextState: SessionState) {
-  state = nextState;
+function publish(next: SessionState): void {
+  state = next;
   listeners.forEach((listener) => listener());
 }
 
 /**
- * Sesión temporal de autenticación.
- *
- * Representación en memoria de los tokens persistidos por token-storage.
- * Publica cambios de identidad y renovación para el resto de la aplicación.
+ * Iniciar o terminar una sesión invalida las solicitudes HTTP anteriores.
+ * Cambiar tokens durante un refresh NO inicia una sesión nueva.
  */
+function replaceSession(next: SessionState): void {
+  invalidateApiSession();
+  sessionGeneration += 1;
+  publish(next);
+}
+
 export const authSession = {
+  // Referencia estable hasta el siguiente cambio: compatible con useSyncExternalStore.
   snapshot: () => state,
 
-  subscribe(listener: () => void) {
+  // Permite descartar respuestas que pertenezcan a una cuenta o sesión anterior.
+  generation: () => sessionGeneration,
+
+  subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => {
       listeners.delete(listener);
@@ -41,47 +52,42 @@ export const authSession = {
   mode: () => state.mode,
   tokens: () => state.tokens,
   user: () => state.user,
-  accessToken: () => state.tokens?.accessToken ?? null,
-  refreshToken: () => state.tokens?.refreshToken ?? null,
 
-  startBackend(tokens: AuthTokensResponse) {
-    invalidateApiSession();
-    replaceState({
-      mode: 'backend',
-      tokens,
-      user: null,
-    });
+  // Solo se exponen tokens de una sesión autenticada contra el backend.
+  accessToken: () =>
+    state.mode === "backend" ? (state.tokens?.accessToken ?? null) : null,
+  refreshToken: () =>
+    state.mode === "backend" ? (state.tokens?.refreshToken ?? null) : null,
+
+  startBackend(
+    tokens: AuthTokensResponse,
+    user: CurrentUserResponse | null = null,
+  ): void {
+    replaceSession({ mode: "backend", tokens, user });
   },
 
-  startMock(tokens: AuthTokensResponse, user: CurrentUserResponse) {
-    invalidateApiSession();
-    replaceState({
-      mode: 'mock',
-      tokens,
-      user,
-    });
+
+  /** El refresh conserva el usuario y el número de generación de su sesión. */
+  updateTokens(tokens: AuthTokensResponse): void {
+    if (state.mode !== "backend") return;
+    publish({ ...state, tokens });
   },
 
-  updateTokens(tokens: AuthTokensResponse) {
-    if (state.mode === 'backend') replaceState({ ...state, tokens });
+  /** Alias para conservar compatibilidad con el nombre usado en Cristian. */
+  rotateBackendTokens(tokens: AuthTokensResponse): void {
+    if (state.mode !== "backend") return;
+    publish({ ...state, tokens });
   },
 
-  setUser(user: CurrentUserResponse) {
-    replaceState({
-      ...state,
-      user,
-    });
+  setUser(user: CurrentUserResponse | null): void {
+    if (!state.mode) return;
+    publish({ ...state, user });
   },
 
-  clear() {
-    invalidateApiSession();
-    replaceState({
-      mode: null,
-      tokens: null,
-      user: null,
-    });
+  clear(): void {
+    replaceSession({ mode: null, tokens: null, user: null });
   },
 };
 
-// apiClient obtiene siempre el token desde un único punto.
+// El API Gateway siempre obtiene el access token de la sesión real activa.
 setApiAccessTokenProvider(() => authSession.accessToken());

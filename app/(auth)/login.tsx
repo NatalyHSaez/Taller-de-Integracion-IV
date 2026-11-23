@@ -14,19 +14,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BrandColors, Colors } from "@/src/shared/presentation/theme";
-import { GatewayHealthCard } from "@/src/shared/presentation/components/gateway-health-card";
-import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
-import { useDemo } from "@/src/modules/demo/presentation/use-demo";
 import { appState } from "@/src/core/application/session/app-state";
 import { authService } from "@/src/modules/identity/application/authservice";
-import { demo } from "@/src/modules/demo/infrastructure/demo-store";
 import { loginErrorMessage } from "@/src/modules/identity/application/login-validation";
+import { GatewayHealthCard } from "@/src/shared/presentation/components/gateway-health-card";
+import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
+import { BrandColors, Colors } from "@/src/shared/presentation/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { pendingToken } = useDemo();
-  const [demoMode, setDemoMode] = useState(false);
   const submitting = useRef(false);
   const theme = Colors[useColorScheme() === "dark" ? "dark" : "light"];
 
@@ -44,6 +40,7 @@ export default function LoginScreen() {
 
   async function submit() {
     if (submitting.current) return;
+
     const cleanEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setError("Ingresa un correo electrónico válido.");
@@ -53,29 +50,24 @@ export default function LoginScreen() {
       setError("Ingresa tu contraseña.");
       return;
     }
+
     submitting.current = true;
     setLoading(true);
     setError("");
+
     try {
-      await authService.login(cleanEmail, password, demoMode ? 'mock' : 'backend');
-      // Cuidador con sesión real: carga sus pacientes vinculados (GET /me/patients)
-      // antes de decidir la navegación. Si falla, igual entra: Inicio y
-      // "Seleccionar paciente" permiten reintentar.
-      if (!demoMode && appState.snapshot().user?.role === 'caregiver') {
+      await authService.login(cleanEmail, password);
+      const state = appState.snapshot();
+
+      // La sesión real ya cargó /me dentro de authService.login.
+      // Consultamos los pacientes del cuidador sin impedir el acceso si
+      // falla la red; las pantallas de Inicio y selección permiten reintentar.
+      if (state.user?.role === "caregiver") {
         await appState.loadRealPatients().catch(() => {});
       }
-      const state = appState.snapshot();
-      // /me ya fue consultado por login: no duplicar ni publicar una sesión a medias.
+
       setPassword("");
-      router.replace(
-        demoMode && state.user?.role === 'caregiver' && demo.snapshot().pendingToken
-          ? '/invitacion'
-          : // En sesión real, pacientes y cuidadores (aunque aún no tengan
-            // pacientes vinculados) entran a Inicio.
-            state.sessionMode === 'backend' || state.selectedPatient
-            ? '/(tabs)'
-            : '/(auth)/select-patient'
-      );
+      router.replace("/(tabs)");
     } catch (cause) {
       setError(loginErrorMessage(cause));
     } finally {
@@ -129,37 +121,6 @@ export default function LoginScreen() {
                 Ingresa con tu correo y contraseña.
               </Text>
             </View>
-
-            <Pressable accessibilityRole="switch" accessibilityState={{ checked: demoMode }}
-              disabled={loading} onPress={() => { setDemoMode(!demoMode); setError(''); }}>
-              <Text style={{ color: theme.primary, paddingVertical: 12 }}>
-                {demoMode ? 'Modo demostración activado · Cambiar a cuenta real' : 'Usar cuentas de demostración'}
-              </Text>
-            </Pressable>
-            {demoMode && <Text style={{ color: theme.mutedText }}>Este acceso utiliza cuentas ficticias y datos de ejemplo.</Text>}
-
-            {demoMode && pendingToken && (
-              <View
-                style={[
-                  styles.invitationNotice,
-                  {
-                    backgroundColor: theme.primarySoft,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  color={theme.primary}
-                  name="link-variant"
-                  size={19}
-                />
-
-                <Text style={[styles.invitationText, { color: theme.text }]}>
-                  Tienes una invitación pendiente. La retomaremos al iniciar
-                  sesión como cuidador.
-                </Text>
-              </View>
-            )}
 
             <View style={styles.form}>
               <View style={styles.field}>
@@ -273,7 +234,11 @@ export default function LoginScreen() {
               </View>
 
               {!!error && (
-                <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.error, { color: theme.danger }]}>
+                <Text
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="polite"
+                  style={[styles.error, { color: theme.danger }]}
+                >
                   {error}
                 </Text>
               )}
@@ -319,7 +284,7 @@ export default function LoginScreen() {
               <Pressable
                 accessibilityRole="button"
                 disabled={loading}
-                onPress={() => router.push(demoMode ? '/(auth)/activate' : '/(auth)/register')}
+                onPress={() => router.push("/(auth)/register")}
                 style={({ pressed }) => [
                   styles.accountLink,
                   pressed && styles.pressed,
@@ -334,7 +299,7 @@ export default function LoginScreen() {
                 <Text
                   style={[styles.accountLinkText, { color: theme.primary }]}
                 >
-                  {demoMode ? 'Activar cuenta de demostración' : 'Crear cuenta de paciente'}
+                  Crear cuenta de paciente
                 </Text>
               </Pressable>
 

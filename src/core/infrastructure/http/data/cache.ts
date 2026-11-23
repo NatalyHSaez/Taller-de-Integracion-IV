@@ -83,6 +83,13 @@ class MemoryDataCache {
     this.entries.delete(key);
   }
 
+  /** Elimina entradas de un paciente o ruta, incluyendo variantes de filtros. */
+  deleteMatching(predicate: (key: string) => boolean): void {
+    for (const key of this.entries.keys()) {
+      if (predicate(key)) this.entries.delete(key);
+    }
+  }
+
   clear(): void {
     this.entries.clear();
   }

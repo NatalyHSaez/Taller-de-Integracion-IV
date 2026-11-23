@@ -1,13 +1,10 @@
 import type {
-  CanonicalUnit,
   ClinicalParameterCode,
   CreateReadingRequest,
   CreateReadingResponse,
-  MeasurementResponse,
   ReadingContext,
   ReadingResponse,
 } from '@/src/core/infrastructure/http/dto';
-import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 
 import { apiClient } from '../../../core/infrastructure/http/api-client';
 import { appState } from '../../../core/application/session/app-state';
@@ -18,79 +15,9 @@ import {
   validateAgainstParameter,
 } from './clinical-parameters';
 import { dataClient } from '../../../core/infrastructure/http/data';
-import { demo } from '../../demo/infrastructure/demo-store';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
-import { validateMockReading } from '../../demo/infrastructure/mocks/readings-mock';
 
 const DETAIL_CACHE_MS = 30_000;
-
-function parameter(
-  measurementId: string,
-  parameterCode: MeasurementResponse['parameterCode'],
-  valueNumeric: number,
-  unit: MeasurementResponse['unit'],
-): MeasurementResponse {
-  return {
-    measurementId,
-    parameterCode,
-    valueNumeric,
-    valueText: null,
-    unit,
-    validationStatus: 'PLAUSIBLE',
-    confirmedByUser: false,
-  };
-}
-
-function toApiMeasurements(measurement: Measurement): MeasurementResponse[] {
-  switch (measurement.type) {
-    case 'blood_pressure':
-      return [
-        parameter(`${measurement.id}-sbp`, 'SBP', measurement.systolic, 'mmHg'),
-        parameter(`${measurement.id}-dbp`, 'DBP', measurement.diastolic, 'mmHg'),
-        parameter(`${measurement.id}-hr`, 'HEART_RATE', measurement.heartRate, 'bpm'),
-      ];
-    case 'glucose':
-      return [
-        parameter(
-          measurement.id,
-          'GLUCOSE',
-          measurement.value,
-          measurement.unit,
-        ),
-      ];
-    case 'weight':
-      return [parameter(measurement.id, 'WEIGHT', measurement.value, measurement.unit)];
-  }
-}
-
-/**
- * Construye una lectura desde el estado demo actual.
- *
- * Esto permite que la pantalla de detalle funcione mientras Integración II aún
- * no expone GET /readings/{readingId}. También cubre mediciones creadas dentro
- * de la propia aplicación durante el desarrollo.
- */
-function localReading(patientId: string, readingId: string): ReadingResponse | null {
-  const related = demo
-    .snapshot()
-    .measurements.filter(
-      (measurement) =>
-        measurement.patientId === patientId && measurement.readingId === readingId,
-    );
-
-  const first = related[0];
-  if (!first) return null;
-
-  return {
-    readingId,
-    patientId,
-    recordedByUserId: first.recordedById ?? 'mock-user',
-    context: first.context ?? null,
-    measuredAt: first.measuredAt,
-    source: 'MOCK',
-    measurements: related.flatMap(toApiMeasurements),
-  };
-}
 
 /** Etiquetas del contexto de glucosa para la interfaz. */
 export const READING_CONTEXT_LABELS: Record<ReadingContext, string> = {
@@ -183,15 +110,10 @@ export function buildCreateReadingRequest(input: {
  * - Sesión backend como paciente: su propio id de usuario (sesión).
  * - Sesión backend como cuidador: el paciente elegido en el selector real
  *   (GET /me/patients, core/application/session/app-state.ts).
- * - Sesión mock: el paciente seleccionado en el selector demo.
  */
 export function resolveActivePatientId(): string {
   if (authSession.mode() !== 'backend') {
-    const patient = demo.patient();
-    if (!patient) {
-      throw new ApiError({ code: 'PATIENT_REQUIRED', message: 'Selecciona un paciente antes de registrar.' });
-    }
-    return patient.id;
+    throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para registrar mediciones.' });
   }
 
   const user = authSession.user();
@@ -213,43 +135,6 @@ export function resolveActivePatientId(): string {
     code: 'PATIENT_SELECTION_UNAVAILABLE',
     message: 'Esta cuenta no puede registrar mediciones desde la app.',
   });
-}
-
-function measurementOf<U extends CanonicalUnit>(
-  request: CreateReadingRequest,
-  code: ClinicalParameterCode,
-  unit: U,
-): number {
-  const item = request.measurements.find((m) => m.parameterCode === code);
-  if (!item || item.unit !== unit) {
-    throw new ApiError({ code: 'INVALID_UNIT', status: 422, message: 'Unidad no soportada.', details: { parameterCode: code } });
-  }
-  return item.value;
-}
-
-/** Solo sesión mock: convierte la lectura al modelo del almacenamiento demo. */
-function toDemoMeasurement(request: CreateReadingRequest): Measurement {
-  const base = { id: '', measuredAt: new Date(request.measuredAt).toISOString() };
-  const codes = request.measurements.map((m) => m.parameterCode);
-  if (codes.includes('SBP')) {
-    return {
-      ...base,
-      type: 'blood_pressure',
-      systolic: measurementOf(request, 'SBP', 'mmHg'),
-      diastolic: measurementOf(request, 'DBP', 'mmHg'),
-      heartRate: measurementOf(request, 'HEART_RATE', 'bpm'),
-    };
-  }
-  if (codes.includes('GLUCOSE')) {
-    return {
-      ...base,
-      type: 'glucose',
-      value: measurementOf(request, 'GLUCOSE', 'mg/dL'),
-      unit: 'mg/dL',
-      context: request.context ? READING_CONTEXT_LABELS[request.context] : undefined,
-    };
-  }
-  return { ...base, type: 'weight', value: measurementOf(request, 'WEIGHT', 'kg'), unit: 'kg' };
 }
 
 /** Estados de lectura que informa el backend. */
@@ -352,24 +237,14 @@ export function confirmReadingErrorFrom(cause: unknown): ConfirmReadingError {
 }
 
 export const readingsService = {
-  /**
-   * Registra una lectura.
-   * - Sesión backend: POST /patients/{patientId}/readings. No toca demo-store.
-   * - Sesión mock: valida con las mismas reglas y guarda en el almacenamiento
-   *   demo, que es la "base de datos" de esa sesión sin servidor.
-   * Mientras haya un envío en curso, cualquier llamada adicional reutiliza esa
-   * misma promesa: un doble toque no genera un segundo POST.
-   */
+  /** Registra una lectura exclusivamente con POST /patients/{patientId}/readings. */
   create(patientId: string, request: CreateReadingRequest): Promise<CreateReadingResponse> {
     return once('create', async () => {
-      if (authSession.mode() === 'backend') {
-        const raw = await apiClient.post<unknown>(readingPath(patientId), request);
-        return toCreateResponse(raw);
+      if (authSession.mode() !== 'backend') {
+        throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para registrar mediciones.' });
       }
-
-      validateMockReading(request);
-      demo.save(toDemoMeasurement(request));
-      return { readingId: `mock-${Date.now()}`, status: 'EVALUATED' };
+      const raw = await apiClient.post<unknown>(readingPath(patientId), request);
+      return toCreateResponse(raw);
     });
   },
 
@@ -381,7 +256,6 @@ export const readingsService = {
   confirm(patientId: string, readingId: string): Promise<CreateReadingResponse> {
     return once(`confirm:${patientId}:${readingId}`, async () => {
       if (authSession.mode() !== 'backend') {
-        // En sesión mock ninguna lectura queda pendiente de confirmación.
         throw new ApiError({
           code: 'READING_NOT_PENDING_CONFIRMATION',
           status: 409,
@@ -397,7 +271,7 @@ export const readingsService = {
   /** Consulta el estado actual de una lectura (sin caché). */
   async status(patientId: string, readingId: string): Promise<CreateReadingResponse> {
     if (authSession.mode() !== 'backend') {
-      return { readingId, status: 'EVALUATED' };
+      throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para consultar la lectura.' });
     }
     const raw = await apiClient.get<unknown>(readingPath(patientId, readingId));
     return toCreateResponse(raw, readingId);
@@ -406,22 +280,12 @@ export const readingsService = {
   /**
    * Obtiene el detalle de una lectura.
    *
-   * En sesión backend intenta primero GET /readings/{readingId}. Si el endpoint
-   * todavía no está disponible pero la lectura pertenece a los datos locales de
-   * desarrollo, usa esa copia para mantener navegable la pantalla.
+   * Única fuente: GET /patients/{patientId}/readings/{readingId}.
+   * Si falla el servidor, se propaga el error sin recurrir a datos locales.
    */
   async detail(patientId: string, readingId: string): Promise<ReadingResponse> {
     if (authSession.mode() !== 'backend') {
-      // Sesión de demostración (sin servidor): los datos locales son la fuente.
-      const local = localReading(patientId, readingId);
-      if (local) return local;
-
-      throw new ApiError({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'No se encontró la lectura solicitada.',
-        details: { readingId, patientId },
-        status: 404,
-      });
+      throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para consultar la lectura.' });
     }
 
     // Ruta con patientId (la global /readings/{id} no existe) y sin respaldo

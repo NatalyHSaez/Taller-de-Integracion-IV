@@ -17,8 +17,9 @@ import type {
 } from '../../../../core/infrastructure/http/dto';
 
 /**
- * Datos simulados que respetan el contrato provisional definido en types/api.
- * No representan todavía el contrato definitivo de Integración II.
+ * Datos de demostración ajustados al contrato HTTP actual de Integra II.
+ * No representan información clínica real y solo deben utilizarse en modo mock.
+ * Los límites son técnicos, no umbrales para diagnóstico o alerta.
  */
 
 export type MockAccountRole = 'PATIENT' | 'CAREGIVER' | 'DOCTOR';
@@ -86,35 +87,24 @@ export const MOCK_AUTH_TOKENS = {
 export const MOCK_PATIENTS = [
   {
     patientId: '22222222-2222-4222-8222-222222222222',
-    firstName: 'Juan',
-    lastName: 'Pérez',
-    managementMode: 'AUTONOMOUS',
+    fullName: 'Juan Pérez', relationshipId: '12121212-1212-4212-8212-121212121212',
+    relationshipType: 'CAREGIVER',
+    permissions: ['PATIENT_PROFILE_VIEW', 'MEASUREMENT_CREATE', 'MEASUREMENT_VIEW', 'ALERT_VIEW'],
+    linkedAt: '2026-09-01T12:00:00Z',
   },
   {
     patientId: '33333333-3333-4333-8333-333333333333',
-    firstName: 'Roberto',
-    lastName: 'Pérez',
-    managementMode: 'ASSISTED',
+    fullName: 'Roberto Pérez', relationshipId: '19191919-1919-4919-8919-191919191919',
+    relationshipType: 'CAREGIVER', permissions: ['MEASUREMENT_VIEW'],
+    linkedAt: '2026-09-01T12:00:00Z',
   },
 ] satisfies PatientSummaryResponse[];
 
 export const MOCK_PATIENT_PROFILES = [
-  {
-    patientId: '22222222-2222-4222-8222-222222222222',
-    firstName: 'Juan',
-    lastName: 'Pérez',
-    birthDate: '1981-04-12',
-    biologicalSex: 'MALE',
-    managementMode: 'AUTONOMOUS',
-  },
-  {
-    patientId: '33333333-3333-4333-8333-333333333333',
-    firstName: 'Roberto',
-    lastName: 'Pérez',
-    birthDate: '1948-09-03',
-    biologicalSex: 'MALE',
-    managementMode: 'ASSISTED',
-  },
+  { id: '22222222-2222-4222-8222-222222222222', fullName: 'Juan Pérez',
+    birthDate: '1981-04-12', age: 45, biologicalSex: 'MALE', managementMode: 'AUTONOMOUS' },
+  { id: '33333333-3333-4333-8333-333333333333', fullName: 'Roberto Pérez',
+    birthDate: '1948-09-03', age: 78, biologicalSex: 'MALE', managementMode: 'ASSISTED' },
 ] satisfies PatientProfileResponse[];
 
 export const MOCK_HEALTH_CONDITIONS = [
@@ -276,6 +266,12 @@ export const MOCK_READINGS = [
   },
 ] satisfies ReadingResponse[];
 
+/** Metadatos de filtrado solo locales; EvaluationOut real está anidado en la lectura. */
+type MockEvaluation = EvaluationResponse & {
+  patientId: string; readingId: string; evaluationId: string;
+  ruleProfileId: string; ruleProfileVersion: number; resultCode: string;
+};
+
 export const MOCK_EVALUATIONS = [
   {
     evaluationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
@@ -284,6 +280,7 @@ export const MOCK_EVALUATIONS = [
     ruleProfileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
     ruleProfileVersion: 1,
     status: 'NORMAL',
+    severity: null,
     resultCode: 'HTA_WITHIN_REFERENCE',
     explanation: 'Lectura evaluada con el perfil HTA_RULES v1.',
     evaluatedAt: '2026-09-28T12:30:05Z',
@@ -295,14 +292,23 @@ export const MOCK_EVALUATIONS = [
     ruleProfileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
     ruleProfileVersion: 1,
     status: 'NORMAL',
+    severity: null,
     resultCode: 'DM2_WITHIN_REFERENCE',
     explanation: 'Lectura evaluada con el perfil DM2_RULES v1.',
     evaluatedAt: '2026-09-28T10:00:05Z',
   },
-] satisfies EvaluationResponse[];
+] satisfies MockEvaluation[];
+
+/** AlertOut real + identificadores solo usados para el filtro local de demostración. */
+type MockAlert = AlertResponse & {
+  patientId: string; alertId: string; ruleProfileVersion: number;
+  measurementId: string; evaluationId: string; ruleProfileId: string;
+  updatedAt: string; closedAt: null;
+};
 
 export const MOCK_ALERTS = [
   {
+    id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
     alertId: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
     patientId: '22222222-2222-4222-8222-222222222222',
     readingId: '88888888-8888-4888-8888-888888888883',
@@ -319,17 +325,14 @@ export const MOCK_ALERTS = [
     readAt: null,
     closedAt: null,
   },
-] satisfies AlertResponse[];
+] satisfies MockAlert[];
 
 export const MOCK_NOTIFICATIONS = [
   {
     id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
-    tipo: 'alerta_clinica',
-    titulo: 'Nueva alerta clínica',
-    cuerpo: 'Se generó una alerta para una lectura reciente.',
-    estado: 'pending',
-    leida_en: null,
-    creada_en: '2026-09-27T18:00:10Z',
+    type: 'ALERT', title: 'Nueva alerta clínica',
+    body: 'Se generó una alerta para una lectura reciente.',
+    status: 'pending', readAt: null, createdAt: '2026-09-27T18:00:10Z',
   },
 ] satisfies NotificationResponse[];
 
@@ -345,10 +348,18 @@ export const MOCK_DOCTORS = [
   },
 ] satisfies DoctorProfileResponse[];
 
+/** Conserva patientId y caregiverUserId para el almacén de datos mock. */
+type MockCaregiverRelation = CaregiverRelationshipResponse & {
+  patientId: string; caregiverUserId: string; status: 'ACTIVE'; createdAt: string; revokedAt: null;
+};
+
 export const MOCK_CAREGIVER_RELATIONSHIPS = [
   {
     relationshipId: '12121212-1212-4212-8212-121212121212',
+    userId: '13131313-1313-4313-8313-131313131313',
     caregiverUserId: '13131313-1313-4313-8313-131313131313',
+    fullName: 'Carla Soto',
+    linkedAt: '2026-09-01T12:00:00Z',
     patientId: '22222222-2222-4222-8222-222222222222',
     status: 'ACTIVE',
     permissions: [
@@ -360,11 +371,19 @@ export const MOCK_CAREGIVER_RELATIONSHIPS = [
     createdAt: '2026-09-01T12:00:00Z',
     revokedAt: null,
   },
-] satisfies CaregiverRelationshipResponse[];
+] satisfies MockCaregiverRelation[];
+
+/** La ficha mock conserva datos internos no expuestos por LinkedUserOut. */
+type MockDoctorRelation = DoctorRelationshipResponse & {
+  patientId: string; doctorId: string; doctorUserId: string; status: 'ACTIVE';
+  createdAt: string; revokedAt: null;
+};
 
 export const MOCK_DOCTOR_RELATIONSHIPS = [
   {
     relationshipId: '14141414-1414-4414-8414-141414141414',
+    userId: 'ffffffff-ffff-4fff-8fff-fffffffffff1',
+    fullName: 'Ana González', linkedAt: '2026-09-15T12:00:00Z',
     doctorId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
     doctorUserId: 'ffffffff-ffff-4fff-8fff-fffffffffff1',
     patientId: '22222222-2222-4222-8222-222222222222',
@@ -383,7 +402,7 @@ export const MOCK_DOCTOR_RELATIONSHIPS = [
     createdAt: '2026-09-15T12:00:00Z',
     revokedAt: null,
   },
-] satisfies DoctorRelationshipResponse[];
+] satisfies MockDoctorRelation[];
 
 export const MOCK_CONSULTATIONS = [
   {

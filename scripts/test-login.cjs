@@ -48,7 +48,6 @@ async function main() {
   const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
   for (const userRole of ['PATIENT', 'CAREGIVER']) {
     role = userRole;
     calls.length = 0;
@@ -59,8 +58,6 @@ async function main() {
     assert.equal(authSession.mode(), 'backend');
     assert.equal(appState.snapshot().user.id, id);
     assert.equal(appState.snapshot().selectedPatient?.id ?? null, role === 'PATIENT' ? id : null);
-    assert.equal(demo.measurements().length, 0);
-    assert.equal(demo.snapshot().relations.filter(r => r.caregiverId === id).length, 0);
     if (role === 'CAREGIVER') assert.equal(appState.snapshot().patients.length, 0);
     assert.equal(tokens.accessToken, 'access');
     await authService.logout();
@@ -79,11 +76,14 @@ async function main() {
     assert.equal(authSession.mode(), null);
     assert.equal(tokens, null);
   }
+  role = 'PATIENT';
   calls.length = 0;
-  await authService.login('paciente@ejemplo.com', 'Paciente123', 'mock');
-  assert.equal(authSession.mode(), 'mock');
-  assert.equal(calls.length, 0);
+  await authService.login('paciente@ejemplo.com', 'Paciente123');
+  assert.equal(authSession.mode(), 'backend');
+  assert.equal(calls.filter(c => c.route.endsWith('/login')).length, 1);
+  await authService.logout();
+  assert.equal(authSession.mode(), null);
   assert.equal(tokens, null);
-  console.log('Login aprobado: roles móviles, UUID real, sin copias demo, /me único, errores sin sesión residual y modo demo explícito.');
+  console.log('Login aprobado: roles móviles, UUID real, /me único, errores sin sesión residual y sin modo demo.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,1673 +1,444 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAppState } from '@/src/core/presentation/session/use-app-state';
+import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import {
+  getPatientMeasurements,
+  type MeasurementPointResponse,
+} from '@/src/modules/monitoring/infrastructure/readings-api';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
-import {
-  BrandColors,
-  Colors,
-  MeasurementColors,
-} from '@/src/shared/presentation/theme';
+import { BrandColors, Colors, MeasurementColors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
-import { useDemo } from '@/src/modules/demo/presentation/use-demo';
-import type { MeasurementType } from '@/src/modules/monitoring/domain/measurement';
 
-import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
-import { loadChartMeasurements } from '@/src/modules/monitoring/application/measurement-series';
-import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
-
-type GraphType = MeasurementType;
-
-type GraphOption = {
-  value: GraphType;
-  label: string;
-  icon: 'heart-pulse' | 'water-outline' | 'scale-bathroom';
+type ChartGroup = 'blood_pressure' | 'glucose' | 'weight';
+type SeriesCode = 'SBP' | 'DBP' | 'HEART_RATE' | 'GLUCOSE' | 'WEIGHT';
+type DateFilters = { from?: string; to?: string };
+type ViewState = {
+  key: string;
+  loading: boolean;
+  points: MeasurementPointResponse[];
+  error: string | null;
 };
 
-const GRAPH_OPTIONS: GraphOption[] = [
-  {
-    value: 'blood_pressure',
-    label: 'Presión',
-    icon: 'heart-pulse',
-  },
-  {
-    value: 'glucose',
-    label: 'Glucosa',
-    icon: 'water-outline',
-  },
-  {
-    value: 'weight',
-    label: 'Peso',
-    icon: 'scale-bathroom',
-  },
+const OPTIONS: {
+  value: ChartGroup;
+  label: string;
+  icon: 'heart-pulse' | 'water-outline' | 'scale-bathroom';
+}[] = [
+  { value: 'blood_pressure', label: 'Presión', icon: 'heart-pulse' },
+  { value: 'glucose', label: 'Glucosa', icon: 'water-outline' },
+  { value: 'weight', label: 'Peso', icon: 'scale-bathroom' },
 ];
+const CODES: Record<ChartGroup, readonly SeriesCode[]> = {
+  blood_pressure: ['SBP', 'DBP', 'HEART_RATE'],
+  glucose: ['GLUCOSE'],
+  weight: ['WEIGHT'],
+};
+const SERIES_NAMES: Record<SeriesCode, string> = {
+  SBP: 'Sistólica',
+  DBP: 'Diastólica',
+  HEART_RATE: 'Frecuencia cardíaca (pulso)',
+  GLUCOSE: 'Glucosa',
+  WEIGHT: 'Peso',
+};
+const UNITS: Record<SeriesCode, string> = {
+  SBP: 'mmHg',
+  DBP: 'mmHg',
+  HEART_RATE: 'bpm',
+  GLUCOSE: 'mg/dL',
+  WEIGHT: 'kg',
+};
 
-function formatDate(value: string) {
-  const date = new Date(value);
-
+function formatDate(value: string): string {
   return new Intl.DateTimeFormat('es-CL', {
-    day: '2-digit',
-    month: '2-digit',
-  }).format(date);
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(value));
+}
+function shortDate(value: string): string {
+  return new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit' }).format(new Date(value));
 }
 
-function formatFullDate(value: string) {
-  const date = new Date(value);
-
-  return new Intl.DateTimeFormat('es-CL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date);
+/** Las fechas que introduce el usuario corresponden a días locales completos. */
+function localDateRange(from: string, to: string): DateFilters {
+  function parse(raw: string, endOfDay: boolean): string | undefined {
+    const value = raw.trim();
+    if (!value) return undefined;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) throw new Error('Utiliza fechas con formato AAAA-MM-DD.');
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day,
+      endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      throw new Error('Una de las fechas ingresadas no existe.');
+    }
+    return date.toISOString();
+  }
+  const start = parse(from, false);
+  const end = parse(to, true);
+  if (start && end && start > end) throw new Error('La fecha desde no puede ser posterior a hasta.');
+  return { from: start, to: end };
 }
 
-function formatTime(value: string) {
-  const date = new Date(value);
+/** Validación de la respuesta real: no inventar puntos ni aceptar parámetros ajenos. */
+function checkedSeries(
+  raw: unknown,
+  code: SeriesCode,
+  dates: DateFilters,
+): MeasurementPointResponse[] {
+  if (!Array.isArray(raw)) throw new Error('El servidor devolvió una serie inválida.');
+  const seen = new Set<string>();
+  const points: MeasurementPointResponse[] = [];
+  for (const entry of raw) {
+    const point = entry as Partial<MeasurementPointResponse> | null;
+    const measuredAt = point?.measuredAt;
+    if (!point || typeof point.readingId !== 'string' || !point.readingId ||
+      typeof measuredAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(measuredAt) ||
+      !/(Z|[+-]\d{2}:\d{2})$/i.test(measuredAt) ||
+      !Number.isFinite(Date.parse(measuredAt)) ||
+      point.parameterCode !== code ||
+      typeof point.value !== 'number' || !Number.isFinite(point.value) ||
+      (point.unit !== null && point.unit !== UNITS[code]) ||
+      (dates.from && Date.parse(measuredAt) < Date.parse(dates.from)) ||
+      (dates.to && Date.parse(measuredAt) > Date.parse(dates.to))) {
+      throw new Error('El servidor devolvió mediciones incompletas o inválidas.');
+    }
+    const identity = `${point.readingId}:${code}`;
+    if (seen.has(identity)) throw new Error('El servidor devolvió mediciones duplicadas.');
+    seen.add(identity);
+    points.push({
+      readingId: point.readingId,
+      measuredAt,
+      parameterCode: code,
+      value: point.value,
+      unit: point.unit,
+    });
+  }
+  return points.sort((a, b) => Date.parse(a.measuredAt) - Date.parse(b.measuredAt));
+}
 
-  return new Intl.DateTimeFormat('es-CL', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date);
+async function loadRealSeries(
+  patientId: string,
+  group: ChartGroup,
+  dates: DateFilters,
+): Promise<MeasurementPointResponse[]> {
+  const responses = await Promise.all(CODES[group].map(async (parameterCode) => {
+    const response = await getPatientMeasurements(patientId, { parameterCode, ...dates });
+    return checkedSeries(response, parameterCode, dates);
+  }));
+  return responses.flat().sort((a, b) =>
+    Date.parse(a.measuredAt) - Date.parse(b.measuredAt) || a.parameterCode.localeCompare(b.parameterCode));
 }
 
 export default function GraficosScreen() {
-  const { measurements: demoMeasurements } = useDemo();
-  const { selectedPatient, sessionMode } = useAppState();
-  const { user: authUser } = useAuth();
-
-  const isBackend = sessionMode === 'backend';
-
-  const patientId = isBackend
-    ? authUser?.roles.includes('PATIENT')
-      ? authUser.id
-      : authUser?.roles.includes('CAREGIVER')
-        ? selectedPatient?.id ?? null
-        : null
-    : null;
-
-  const [realMeasurements, setRealMeasurements] = useState<{
-    patientId: string;
-    items: Measurement[];
-  } | null>(null);
-  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
-  const [measurementsError, setMeasurementsError] = useState<string | null>(null);
-  
-  useFocusEffect(
-    useCallback(() => {
-      if (!isBackend || !patientId) {
-        setRealMeasurements(null);
-        setLoadingMeasurements(false);
-        setMeasurementsError(null);
-        return;
-      }
-
-      let cancelled = false;
-
-      setLoadingMeasurements(true);
-      setMeasurementsError(null);
-
-      loadChartMeasurements(patientId)
-        .then((items) => {
-          if (cancelled) return;
-
-          setRealMeasurements({ patientId, items });
-        })
-        .catch((error) => {
-          if (cancelled) return;
-
-          console.error('Error cargando mediciones:', error);
-          setRealMeasurements(null);
-          setMeasurementsError('No se pudieron cargar las mediciones.');
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLoadingMeasurements(false);
-          }
-        });
-
-      return () => {
-        cancelled = true;
-      };
-    }, [isBackend, patientId])
-  );
-
-
-  const measurements: Measurement[] = isBackend
-    ? realMeasurements?.patientId === patientId
-      ? realMeasurements.items
-      : []
-    : demoMeasurements;
-
-  const [graphType, setGraphType] =
-    useState<GraphType>('blood_pressure');
-
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const themeName = isDark ? 'dark' : 'light';
+  const { selectedPatient, permissions, user, sessionMode } = useAppState();
+  const insets = useSafeAreaInsets();
+  const themeName = useColorScheme() === 'dark' ? 'dark' : 'light';
   const theme = Colors[themeName];
 
-  const insets = useSafeAreaInsets();
+  const [graphType, setGraphType] = useState<ChartGroup>('blood_pressure');
+  const [fromInput, setFromInput] = useState('');
+  const [toInput, setToInput] = useState('');
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [dates, setDates] = useState<DateFilters>({});
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [result, setResult] = useState<ViewState>({ key: '', loading: true, points: [], error: null });
 
-  const selectedColors =
-    MeasurementColors[themeName][graphType];
+  const isBackend = sessionMode === 'backend';
+  const patientId = selectedPatient?.id ?? null;
+  const canRead = Boolean(isBackend && user && patientId && permissions.read);
+  const palette = MeasurementColors[themeName][graphType];
+  const key = JSON.stringify([
+    sessionMode, user?.id, patientId, canRead, graphType, dates.from, dates.to, refreshVersion,
+  ]);
+  const visible = result.key === key ? result : { key, loading: true, points: [], error: null };
 
-  /*
-   * Ordenamos las mediciones cronológicamente.
-   */
-  const sortedMeasurements = useMemo(() => {
-    return [...measurements].sort(
-      (a, b) =>
-        new Date(a.measuredAt).getTime() -
-        new Date(b.measuredAt).getTime(),
-    );
-  }, [measurements]);
-
-  /*
-   * PRESIÓN ARTERIAL
-   */
-  const bloodPressureData = useMemo(() => {
-    return sortedMeasurements.filter(
-      (measurement) =>
-        measurement.type === 'blood_pressure',
-    );
-  }, [sortedMeasurements]);
-
-  const systolicData = useMemo(
-    () =>
-      bloodPressureData.map((measurement) => ({
-        value: measurement.systolic,
-        label: formatDate(measurement.measuredAt),
-        measuredAt: measurement.measuredAt,
-      })),
-    [bloodPressureData],
-  );
-
-  const diastolicData = useMemo(
-    () =>
-      bloodPressureData.map((measurement) => ({
-        value: measurement.diastolic,
-        label: formatDate(measurement.measuredAt),
-        measuredAt: measurement.measuredAt,
-      })),
-    [bloodPressureData],
-  );
-
-  /*
-   * GLUCOSA
-   */
-  const glucoseMeasurements = useMemo(() => {
-    return sortedMeasurements.filter(
-      (measurement) => measurement.type === 'glucose',
-    );
-  }, [sortedMeasurements]);
-
-  const glucoseData = useMemo(
-    () =>
-      glucoseMeasurements.map((measurement) => ({
-        value: measurement.value,
-        label: formatDate(measurement.measuredAt),
-        measuredAt: measurement.measuredAt,
-        context: measurement.context,
-      })),
-    [glucoseMeasurements],
-  );
-
-  /*
-   * PESO
-   */
-  const weightMeasurements = useMemo(() => {
-    return sortedMeasurements.filter(
-      (measurement) => measurement.type === 'weight',
-    );
-  }, [sortedMeasurements]);
-
-  const weightData = useMemo(
-    () =>
-      weightMeasurements.map((measurement) => ({
-        value: measurement.value,
-        label: formatDate(measurement.measuredAt),
-        measuredAt: measurement.measuredAt,
-      })),
-    [weightMeasurements],
-  );
-
-  const hasData =
-    graphType === 'blood_pressure'
-      ? bloodPressureData.length > 0
-      : graphType === 'glucose'
-        ? glucoseMeasurements.length > 0
-        : weightMeasurements.length > 0;
-
-  /*
-   * Última medición.
-   */
-  const latestMeasurement = useMemo(() => {
-    const filtered = measurements
-      .filter(
-        (measurement) =>
-          measurement.type === graphType,
-      )
-      .sort(
-        (a, b) =>
-          new Date(b.measuredAt).getTime() -
-          new Date(a.measuredAt).getTime(),
-      );
-
-    return filtered[0];
-  }, [measurements, graphType]);
-
-  function getLatestValue() {
-    if (
-      isBackend &&
-      patientId &&
-      (loadingMeasurements || realMeasurements?.patientId !== patientId) &&
-      !measurementsError
-    ) {
-      return 'Cargando...';
+  // Al entrar a la pantalla, cambiar filtros o actualizar, consulta solo el paciente actual.
+  // La clave de resultado impide mostrar datos de otra cuenta/paciente.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (isBackend && patientId && canRead) {
+      void Promise.resolve().then(async () => {
+        if (!active) return;
+        setResult({ key, loading: true, points: [], error: null });
+        try {
+          const points = await loadRealSeries(patientId, graphType, dates);
+          if (active) setResult({ key, loading: false, points, error: null });
+        } catch (cause: unknown) {
+          if (active) setResult({ key, loading: false, points: [],
+            error: getApiErrorMessage(cause, 'No se pudieron consultar las mediciones.') });
+        }
+      });
     }
+    return () => { active = false; };
+  }, [isBackend, patientId, canRead, key, graphType, dates]));
 
-    if (isBackend && measurementsError) {
-      return 'No disponible';
+  const points: MeasurementPointResponse[] = visible.loading || visible.error ? [] : visible.points;
+  const byCode = (code: SeriesCode) => points.filter((point) => point.parameterCode === code);
+  const summaryPoints = graphType === 'blood_pressure'
+    ? points.filter((point) => point.parameterCode === 'SBP' || point.parameterCode === 'DBP')
+    : points;
+  const latest = [...summaryPoints].sort((a, b) => Date.parse(b.measuredAt) - Date.parse(a.measuredAt));
+  const latestPrimary = latest[0];
+  const sameReading = latestPrimary
+    ? points.filter((point) => point.readingId === latestPrimary.readingId &&
+        point.measuredAt === latestPrimary.measuredAt)
+    : [];
+  const lastValue = graphType === 'blood_pressure' && latestPrimary
+    ? `${sameReading.find((point) => point.parameterCode === 'SBP')?.value ?? '—'}/` +
+      `${sameReading.find((point) => point.parameterCode === 'DBP')?.value ?? '—'}`
+    : latestPrimary ? String(latestPrimary.value) : 'Sin datos';
+  const lastUnit = latestPrimary?.unit ?? (latestPrimary ? 'Unidad no informada' : '');
+
+  function applyDates() {
+    try {
+      const range = localDateRange(fromInput, toInput);
+      setDateError(null);
+      setDates(range);
+    } catch (cause) {
+      setDateError(cause instanceof Error ? cause.message : 'Rango de fechas inválido.');
     }
-
-    if (isBackend && !patientId) {
-      return 'Selecciona un paciente';
-    }
-
-    if (!latestMeasurement) {
-      return 'Sin datos';
-    }
-
-    if (
-      latestMeasurement.type === 'blood_pressure'
-    ) {
-      return `${latestMeasurement.systolic}/${latestMeasurement.diastolic}`;
-    }
-
-    if (latestMeasurement.type === 'glucose') {
-      return `${latestMeasurement.value}`;
-    }
-
-    return latestMeasurement.value.toFixed(1);
   }
 
-  function getUnit() {
-    if (graphType === 'blood_pressure') {
-      return 'mmHg';
+  function renderSeries(code: SeriesCode, color: string) {
+    const series = byCode(code);
+    if (series.length === 0) {
+      return <View style={styles.emptySeries}>
+        <ThemedText style={[styles.helper, { color: theme.icon }]}>
+          No hay puntos de {SERIES_NAMES[code].toLowerCase()} para el rango seleccionado.
+        </ThemedText>
+      </View>;
     }
-
-    if (graphType === 'glucose') {
-      return 'mg/dL';
-    }
-
-    return 'kg';
-  }
-
-  function renderChart() {
-    if (isBackend && patientId && (loadingMeasurements || realMeasurements?.patientId !== patientId) && !measurementsError) {
-      return (
-        <View style={styles.emptyState}>
-          <ThemedText style={styles.emptyTitle}>
-            Cargando mediciones...
-          </ThemedText>
-        </View>
-      );
-    }
-
-    if (isBackend && measurementsError) {
-      return (
-        <View style={styles.emptyState}>
-          <ThemedText style={styles.emptyTitle}>
-            No se pudieron cargar las mediciones
-          </ThemedText>
-
-          <ThemedText
-            style={[
-              styles.emptyDescription,
-              { color: theme.icon },
-            ]}
-          >
-            Comprueba tu conexión e inténtalo nuevamente.
-          </ThemedText>
-        </View>
-      );
-    }
-    if (!hasData) {
-      return (
-        <View style={styles.emptyState}>
-          <MaterialCommunityIcons
-            name="chart-line"
-            size={46}
-            color={theme.icon}
-          />
-
-          <ThemedText style={styles.emptyTitle}>
-            Aún no hay datos
-          </ThemedText>
-
-          <ThemedText
-            style={[
-              styles.emptyDescription,
-              { color: theme.icon },
-            ]}
-          >
-            Registra mediciones para visualizar su evolución.
-          </ThemedText>
-        </View>
-      );
-    }
-
-    /*
-     * =====================================================
-     * PRESIÓN ARTERIAL
-     * =====================================================
-     */
-    if (graphType === 'blood_pressure') {
-      return (
-        <View>
-          <LineChart
-            key={`pressure-${patientId ?? 'demo'}-${systolicData.length}-${systolicData.at(-1)?.measuredAt ?? ''}`}
-            data={systolicData}
-            data2={diastolicData}
-
-            color1="#E53935"
-            color2="#1E88E5"
-
-            thickness={3}
-
-            dataPointsColor1="#E53935"
-            dataPointsColor2="#1E88E5"
-            dataPointsRadius={5}
-
-            curved
-
-            areaChart
-
-            startFillColor1="#E53935"
-            endFillColor1="#E53935"
-            startOpacity1={0.18}
-            endOpacity1={0.01}
-
-            startFillColor2="#1E88E5"
-            endFillColor2="#1E88E5"
-            startOpacity2={0.14}
-            endOpacity2={0.01}
-
-            hideRules={false}
-            rulesColor={theme.border}
-
-            xAxisColor={theme.border}
-            yAxisColor={theme.border}
-
-            yAxisTextStyle={{
-              color: theme.icon,
-            }}
-
-            xAxisLabelTextStyle={{
-              color: theme.icon,
-              fontSize: 11,
-            }}
-
-            width={Math.max(
-              Dimensions.get('window').width - 105,
-              systolicData.length * 65,
-            )}
-
-            spacing={65}
-            initialSpacing={15}
-            endSpacing={20}
-
-            noOfSections={5}
-
-            pointerConfig={{
-              pointer1Color: '#E53935',
-              pointer2Color: '#1E88E5',
-
-              radius: 6,
-
-              pointerStripWidth: 2,
-              pointerStripColor: theme.border,
-              pointerStripUptoDataPoint: false,
-
-              showPointerStrip: true,
-
-              activatePointersOnLongPress: false,
-              activatePointersInstantlyOnTouch: true,
-
-              persistPointer: true,
-
-              pointerLabelWidth: 165,
-              pointerLabelHeight: 115,
-
-              autoAdjustPointerLabelPosition: true,
-
-              pointerLabelComponent: (
-                items: any[],
-              ) => {
-                const systolicItem = items?.[0];
-                const diastolicItem = items?.[1];
-
-                if (!systolicItem) {
-                  return null;
-                }
-
-                return (
-                  <View
-                    style={[
-                      styles.pointerCard,
-                      {
-                        backgroundColor:
-                          theme.surface,
-                        borderColor:
-                          theme.border,
-                      },
-                    ]}
-                  >
-                    <ThemedText
-                      style={styles.pointerDate}
-                    >
-                      {formatFullDate(
-                        systolicItem.measuredAt,
-                      )}
-                    </ThemedText>
-
-                    <ThemedText
-                      style={[
-                        styles.pointerTime,
-                        { color: theme.icon },
-                      ]}
-                    >
-                      {formatTime(
-                        systolicItem.measuredAt,
-                      )}
-                    </ThemedText>
-
-                    <View style={styles.pointerValues}>
-                      <View
-                        style={styles.pointerValueRow}
-                      >
-                        <View
-                          style={[
-                            styles.pointerDot,
-                            {
-                              backgroundColor:
-                                '#E53935',
-                            },
-                          ]}
-                        />
-
-                        <ThemedText
-                          style={styles.pointerValue}
-                        >
-                          Sistólica:{' '}
-                          {systolicItem.value} mmHg
-                        </ThemedText>
-                      </View>
-
-                      <View
-                        style={styles.pointerValueRow}
-                      >
-                        <View
-                          style={[
-                            styles.pointerDot,
-                            {
-                              backgroundColor:
-                                '#1E88E5',
-                            },
-                          ]}
-                        />
-
-                        <ThemedText
-                          style={styles.pointerValue}
-                        >
-                          Diastólica:{' '}
-                          {diastolicItem?.value ?? '-'} mmHg
-                        </ThemedText>
-                      </View>
-                    </View>
-                  </View>
-                );
-              },
-            }}
-
-            isAnimated
-            animationDuration={700}
-          />
-
-          {/* LEYENDA SOLO PARA PRESIÓN */}
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View
-                style={[
-                  styles.legendDot,
-                  {
-                    backgroundColor: '#E53935',
-                  },
-                ]}
-              />
-
-              <ThemedText style={styles.legendText}>
-                Sistólica
-              </ThemedText>
-            </View>
-
-            <View style={styles.legendItem}>
-              <View
-                style={[
-                  styles.legendDot,
-                  {
-                    backgroundColor: '#1E88E5',
-                  },
-                ]}
-              />
-
-              <ThemedText style={styles.legendText}>
-                Diastólica
-              </ThemedText>
-            </View>
-          </View>
-        </View>
-      );
-    }
-
-    /*
-     * =====================================================
-     * GLUCOSA
-     * =====================================================
-     */
-    if (graphType === 'glucose') {
-      return (
-        <View>
-          <LineChart
-            key={`glucose-${patientId ?? 'demo'}-${glucoseData.length}-${glucoseData.at(-1)?.measuredAt ?? ''}`}
-            data={glucoseData}
-
-            color={selectedColors.accent}
-
-            thickness={3}
-
-            dataPointsColor={selectedColors.accent}
-            dataPointsRadius={5}
-
-            curved
-
-            areaChart
-
-            startFillColor={selectedColors.accent}
-            endFillColor={selectedColors.accent}
-            startOpacity={0.2}
-            endOpacity={0.01}
-
-            hideRules={false}
-            rulesColor={theme.border}
-
-            xAxisColor={theme.border}
-            yAxisColor={theme.border}
-
-            yAxisTextStyle={{
-              color: theme.icon,
-            }}
-
-            xAxisLabelTextStyle={{
-              color: theme.icon,
-              fontSize: 11,
-            }}
-
-            width={Math.max(
-              Dimensions.get('window').width - 105,
-              glucoseData.length * 65,
-            )}
-
-            spacing={65}
-            initialSpacing={15}
-            endSpacing={20}
-
-            noOfSections={5}
-
-            pointerConfig={{
-              pointerColor:
-                selectedColors.accent,
-
-              radius: 6,
-
-              pointerStripWidth: 2,
-              pointerStripColor:
-                theme.border,
-              pointerStripUptoDataPoint:
-                false,
-
-              showPointerStrip: true,
-
-              activatePointersOnLongPress:
-                false,
-
-              activatePointersInstantlyOnTouch:
-                true,
-
-              persistPointer: true,
-
-              pointerLabelWidth: 165,
-              pointerLabelHeight: 115,
-
-              autoAdjustPointerLabelPosition:
-                true,
-
-              pointerLabelComponent: (
-                items: any[],
-              ) => {
-                const item = items?.[0];
-
-                if (!item) {
-                  return null;
-                }
-
-                return (
-                  <View
-                    style={[
-                      styles.pointerCard,
-                      {
-                        backgroundColor:
-                          theme.surface,
-                        borderColor:
-                          theme.border,
-                      },
-                    ]}
-                  >
-                    <ThemedText
-                      style={styles.pointerDate}
-                    >
-                      {formatFullDate(
-                        item.measuredAt,
-                      )}
-                    </ThemedText>
-
-                    <ThemedText
-                      style={[
-                        styles.pointerTime,
-                        {
-                          color: theme.icon,
-                        },
-                      ]}
-                    >
-                      {formatTime(
-                        item.measuredAt,
-                      )}
-                    </ThemedText>
-
-                    <View
-                      style={styles.pointerValues}
-                    >
-                      <View
-                        style={
-                          styles.pointerValueRow
-                        }
-                      >
-                        <View
-                          style={[
-                            styles.pointerDot,
-                            {
-                              backgroundColor:
-                                selectedColors.accent,
-                            },
-                          ]}
-                        />
-
-                        <ThemedText
-                          style={
-                            styles.pointerValue
-                          }
-                        >
-                          {item.value} mg/dL
-                        </ThemedText>
-                      </View>
-
-                      {!!item.context && (
-                        <ThemedText
-                          style={[
-                            styles.pointerContext,
-                            {
-                              color:
-                                theme.icon,
-                            },
-                          ]}
-                        >
-                          {item.context}
-                        </ThemedText>
-                      )}
-                    </View>
-                  </View>
-                );
-              },
-            }}
-
-            isAnimated
-            animationDuration={700}
-          />
-        </View>
-      );
-    }
-
-    /*
-     * =====================================================
-     * PESO
-     * =====================================================
-     */
+    const chartData = series.map((point) => ({
+      value: point.value,
+      label: shortDate(point.measuredAt),
+      measuredAt: point.measuredAt,
+      readingId: point.readingId,
+      unit: point.unit,
+    }));
     return (
-      <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <LineChart
-          key={`weight-${patientId ?? 'demo'}-${weightData.length}-${weightData.at(-1)?.measuredAt ?? ''}`}
-          data={weightData}
-
-          color={selectedColors.accent}
-
-          thickness={3}
-
-          dataPointsColor={
-            selectedColors.accent
-          }
-
+          data={chartData}
+          width={Math.max(Dimensions.get('window').width - 115, series.length * 65)}
+          spacing={65}
+          initialSpacing={18}
+          endSpacing={25}
+          color={color}
+          thickness={2.5}
+          dataPointsColor={color}
           dataPointsRadius={5}
-
-          curved
-
-          areaChart
-
-          startFillColor={
-            selectedColors.accent
-          }
-
-          endFillColor={
-            selectedColors.accent
-          }
-
-          startOpacity={0.2}
-          endOpacity={0.01}
-
           hideRules={false}
           rulesColor={theme.border}
-
           xAxisColor={theme.border}
           yAxisColor={theme.border}
-
-          yAxisTextStyle={{
-            color: theme.icon,
-          }}
-
-          xAxisLabelTextStyle={{
-            color: theme.icon,
-            fontSize: 11,
-          }}
-
-          width={Math.max(
-            Dimensions.get('window').width - 105,
-            weightData.length * 65,
-          )}
-
-          spacing={65}
-          initialSpacing={15}
-          endSpacing={20}
-
-          noOfSections={5}
-
+          yAxisTextStyle={{ color: theme.icon, fontSize: 11 }}
+          xAxisLabelTextStyle={{ color: theme.icon, fontSize: 11 }}
+          noOfSections={4}
           pointerConfig={{
-            pointerColor:
-              selectedColors.accent,
-
+            pointerColor: color,
             radius: 6,
-
             pointerStripWidth: 2,
-            pointerStripColor:
-              theme.border,
-
-            pointerStripUptoDataPoint:
-              false,
-
-            showPointerStrip: true,
-
-            activatePointersOnLongPress:
-              false,
-
-            activatePointersInstantlyOnTouch:
-              true,
-
+            pointerStripColor: theme.border,
+            activatePointersOnLongPress: false,
+            activatePointersInstantlyOnTouch: true,
             persistPointer: true,
-
-            pointerLabelWidth: 155,
-            pointerLabelHeight: 100,
-
-            autoAdjustPointerLabelPosition:
-              true,
-
-            pointerLabelComponent: (
-              items: any[],
-            ) => {
-              const item = items?.[0];
-
-              if (!item) {
-                return null;
-              }
-
-              return (
-                <View
-                  style={[
-                    styles.pointerCard,
-                    {
-                      backgroundColor:
-                        theme.surface,
-                      borderColor:
-                        theme.border,
-                    },
-                  ]}
-                >
-                  <ThemedText
-                    style={styles.pointerDate}
-                  >
-                    {formatFullDate(
-                      item.measuredAt,
-                    )}
-                  </ThemedText>
-
-                  <ThemedText
-                    style={[
-                      styles.pointerTime,
-                      {
-                        color: theme.icon,
-                      },
-                    ]}
-                  >
-                    {formatTime(
-                      item.measuredAt,
-                    )}
-                  </ThemedText>
-
-                  <View
-                    style={styles.pointerValues}
-                  >
-                    <View
-                      style={
-                        styles.pointerValueRow
-                      }
-                    >
-                      <View
-                        style={[
-                          styles.pointerDot,
-                          {
-                            backgroundColor:
-                              selectedColors.accent,
-                          },
-                        ]}
-                      />
-
-                      <ThemedText
-                        style={
-                          styles.pointerValue
-                        }
-                      >
-                        {Number(
-                          item.value,
-                        ).toFixed(1)}{' '}
-                        kg
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-              );
+            pointerLabelWidth: 190,
+            pointerLabelHeight: 88,
+            autoAdjustPointerLabelPosition: true,
+            pointerLabelComponent: (items: { measuredAt: string; value: number; unit: string | null }[]) => {
+              const point = items?.[0];
+              if (!point) return null;
+              return <View style={[styles.pointer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <ThemedText style={styles.pointerDate}>{formatDate(point.measuredAt)}</ThemedText>
+                <ThemedText style={styles.pointerValue}>
+                  {point.value} {point.unit ?? '(unidad no informada)'}
+                </ThemedText>
+              </View>;
             },
           }}
-
           isAnimated
-          animationDuration={700}
+          animationDuration={450}
         />
-      </View>
+      </ScrollView>
     );
   }
 
   return (
     <ThemedView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingBottom: Math.max(
-              insets.bottom + 24,
-              36,
-            ),
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.topBar}>
-          <ThemedText
-            style={styles.topBarTitle}
-          >
-            Gráficos
-          </ThemedText>
-        </View>
-
-        {/* ENCABEZADO */}
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 24, 36) }]}>
+        <ThemedText accessibilityRole="header" style={styles.topBarTitle}>Gráficos</ThemedText>
         <View style={styles.hero}>
-          <View
-            style={styles.heroDecorationTop}
-          />
-
-          <View
-            style={
-              styles.heroDecorationBottom
-            }
-          />
-
-          <View style={styles.heroIcon}>
-            <MaterialCommunityIcons
-              name="chart-line"
-              size={31}
-              color={
-                BrandColors.onPrimary
-              }
-            />
-          </View>
-
-          <ThemedText
-            lightColor={
-              BrandColors.onPrimary
-            }
-            darkColor={
-              BrandColors.onPrimary
-            }
-            style={styles.heroTitle}
-          >
+          <MaterialCommunityIcons name="chart-line" size={32} color={BrandColors.onPrimary} />
+          <ThemedText style={styles.heroTitle} lightColor={BrandColors.onPrimary} darkColor={BrandColors.onPrimary}>
             Evolución de tus mediciones
           </ThemedText>
-
-          <ThemedText
-            lightColor={
-              BrandColors.onPrimaryMuted
-            }
-            darkColor={
-              BrandColors.onPrimaryMuted
-            }
-            style={
-              styles.heroDescription
-            }
-          >
-            Visualiza cómo han cambiado tus
-            registros a lo largo del tiempo.
+          <ThemedText lightColor={BrandColors.onPrimaryMuted} darkColor={BrandColors.onPrimaryMuted}>
+            Tendencias registradas del paciente seleccionado.
           </ThemedText>
         </View>
 
-        {/* SELECTOR */}
-        <ThemedText
-          accessibilityRole="header"
-          style={styles.sectionTitle}
-        >
-          Tipo de medición
-        </ThemedText>
-
-        <View
-          accessibilityRole="radiogroup"
-          style={styles.typeRow}
-        >
-          {GRAPH_OPTIONS.map(
-            (option) => {
-              const isSelected =
-                graphType ===
-                option.value;
-
-              const optionColors =
-                MeasurementColors[
-                  themeName
-                ][option.value];
-
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="radio"
-                  accessibilityState={{
-                    checked:
-                      isSelected,
-                  }}
-                  accessibilityLabel={
-                    option.label
-                  }
-                  onPress={() =>
-                    setGraphType(
-                      option.value,
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.typeCard,
-                    {
-                      backgroundColor:
-                        theme.surface,
-
-                      borderColor:
-                        isSelected
-                          ? optionColors.accent
-                          : theme.border,
-                    },
-
-                    isSelected &&
-                      styles.typeCardSelected,
-
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.typeIcon,
-                      {
-                        backgroundColor:
-                          optionColors.background,
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={
-                        option.icon
-                      }
-                      size={24}
-                      color={
-                        optionColors.accent
-                      }
-                    />
-                  </View>
-
-                  <ThemedText
-                    style={
-                      styles.typeLabel
-                    }
-                  >
-                    {option.label}
-                  </ThemedText>
-
-                  {isSelected && (
-                    <MaterialCommunityIcons
-                      name="check-circle"
-                      size={18}
-                      color={
-                        optionColors.accent
-                      }
-                      style={
-                        styles.checkIcon
-                      }
-                    />
-                  )}
-                </Pressable>
-              );
-            },
-          )}
+        <ThemedText style={styles.sectionTitle}>Tipo de medición</ThemedText>
+        <View accessibilityRole="radiogroup" style={styles.typeRow}>
+          {OPTIONS.map((option) => {
+            const selected = graphType === option.value;
+            const optionPalette = MeasurementColors[themeName][option.value];
+            return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: selected }}
+              onPress={() => setGraphType(option.value)}
+              style={[styles.typeCard, { backgroundColor: theme.surface,
+                borderColor: selected ? optionPalette.accent : theme.border }]}>
+              <MaterialCommunityIcons name={option.icon} color={optionPalette.accent} size={27} />
+              <ThemedText style={styles.typeLabel}>{option.label}</ThemedText>
+              {selected && <MaterialCommunityIcons name="check-circle" size={17} color={optionPalette.accent} />}
+            </Pressable>;
+          })}
         </View>
 
-        {/* ÚLTIMA MEDICIÓN */}
-        <View
-          style={[
-            styles.summaryCard,
-            {
-              backgroundColor:
-                theme.surface,
-
-              borderColor:
-                theme.border,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.summaryIcon,
-              {
-                backgroundColor:
-                  selectedColors.background,
-              },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={
-                graphType ===
-                'blood_pressure'
-                  ? 'heart-pulse'
-                  : graphType ===
-                      'glucose'
-                    ? 'water-outline'
-                    : 'scale-bathroom'
-              }
-              size={27}
-              color={
-                selectedColors.accent
-              }
-            />
-          </View>
-
-          <View>
-            <ThemedText
-              style={[
-                styles.summaryLabel,
-                {
-                  color: theme.icon,
-                },
-              ]}
-            >
-              Última medición
-            </ThemedText>
-
-            <View
-              style={styles.valueRow}
-            >
-              <ThemedText
-                style={
-                  styles.summaryValue
-                }
-              >
-                {getLatestValue()}
-              </ThemedText>
-
-              {latestMeasurement && (
-                <ThemedText
-                  style={[
-                    styles.summaryUnit,
-                    {
-                      color:
-                        theme.icon,
-                    },
-                  ]}
-                >
-                  {getUnit()}
-                </ThemedText>
-              )}
+        <View style={[styles.filterCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <ThemedText style={styles.filterTitle}>Rango de fechas (opcional)</ThemedText>
+          <View style={styles.dateRow}>
+            <View style={styles.dateColumn}>
+              <ThemedText style={styles.helper}>Desde</ThemedText>
+              <TextInput value={fromInput} onChangeText={setFromInput} placeholder="AAAA-MM-DD"
+                placeholderTextColor={theme.icon} autoCapitalize="none" accessibilityLabel="Fecha desde"
+                style={[styles.input, { borderColor: theme.border, color: theme.text }]} />
             </View>
+            <View style={styles.dateColumn}>
+              <ThemedText style={styles.helper}>Hasta</ThemedText>
+              <TextInput value={toInput} onChangeText={setToInput} placeholder="AAAA-MM-DD"
+                placeholderTextColor={theme.icon} autoCapitalize="none" accessibilityLabel="Fecha hasta"
+                style={[styles.input, { borderColor: theme.border, color: theme.text }]} />
+            </View>
+          </View>
+          {dateError && <ThemedText accessibilityRole="alert" style={styles.errorText}>{dateError}</ThemedText>}
+          <Pressable accessibilityRole="button" onPress={applyDates}
+            style={[styles.button, { backgroundColor: theme.primary }]}>
+            <ThemedText style={styles.buttonText}>Aplicar fechas</ThemedText>
+          </Pressable>
+        </View>
 
-            {latestMeasurement && (
-              <ThemedText
-                style={[
-                  styles.summaryDate,
-                  {
-                    color:
-                      theme.icon,
-                  },
-                ]}
-              >
-                {new Intl.DateTimeFormat(
-                  'es-CL',
-                  {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  },
-                ).format(
-                  new Date(
-                    latestMeasurement.measuredAt,
-                  ),
+        {!canRead ? (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ThemedText style={styles.sectionTitle}>
+              {!user ? 'Inicia sesión' : !patientId ? 'Selecciona un paciente' : 'Acceso restringido'}
+            </ThemedText>
+            <ThemedText style={styles.helper}>Necesitas un paciente autorizado para consultar sus gráficos.</ThemedText>
+          </View>
+        ) : (
+          <>
+            {isBackend && visible.loading ? (
+              <View style={styles.notice}><ActivityIndicator color={theme.primary} />
+                <ThemedText>Cargando mediciones reales...</ThemedText></View>
+            ) : isBackend && visible.error ? (
+              <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <ThemedText style={styles.sectionTitle}>No se pudieron cargar los gráficos</ThemedText>
+                <ThemedText accessibilityRole="alert" style={styles.errorText}>{visible.error}</ThemedText>
+                <Pressable accessibilityRole="button" onPress={() => setRefreshVersion((v) => v + 1)}
+                  style={[styles.button, { backgroundColor: theme.primary }]}>
+                  <ThemedText style={styles.buttonText}>Reintentar</ThemedText>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <MaterialCommunityIcons name="chart-line-variant" size={27} color={palette.accent} />
+                  <View style={styles.summaryBody}>
+                    <ThemedText style={[styles.helper, { color: theme.icon }]}>Último registro disponible</ThemedText>
+                    <ThemedText style={styles.summaryValue}>{lastValue} {lastUnit}</ThemedText>
+                    {latestPrimary && <ThemedText style={styles.helper}>{formatDate(latestPrimary.measuredAt)}</ThemedText>}
+                  </View>
+                  {isBackend && (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Actualizar gráficos"
+                      onPress={() => setRefreshVersion((v) => v + 1)}>
+                      <MaterialCommunityIcons name="refresh" size={25} color={theme.primary} />
+                    </Pressable>
+                  )}
+                </View>
+                {points.length === 0 ? (
+                  <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <ThemedText style={styles.sectionTitle}>Aún no hay mediciones</ThemedText>
+                    <ThemedText style={[styles.helper, { color: theme.icon }]}>
+                      No se encontraron registros para este tipo y rango de fechas.
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <>
+                    <ThemedText style={styles.sectionTitle}>Evolución</ThemedText>
+                    {CODES[graphType].filter((code) =>
+                      code !== 'HEART_RATE' || byCode('HEART_RATE').length > 0).map((code) => (
+                      <View key={code} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                        <ThemedText style={styles.seriesTitle}>{SERIES_NAMES[code]}</ThemedText>
+                        <ThemedText style={[styles.helper, { color: theme.icon }]}>
+                          {byCode(code).length} punto(s) · {byCode(code)[0]?.unit ?? 'unidad no informada'}
+                        </ThemedText>
+                        {renderSeries(code, code === 'SBP' ? '#E53935' : code === 'DBP' ? '#1E88E5' : palette.accent)}
+                      </View>
+                    ))}
+                  </>
                 )}
-              </ThemedText>
+              </>
             )}
-          </View>
-        </View>
-
-        {/* GRÁFICO */}
-        <View
-          style={styles.chartHeading}
-        >
-          <View>
-            <ThemedText
-              style={
-                styles.sectionTitle
-              }
-            >
-              Evolución
-            </ThemedText>
-
-            <ThemedText
-              style={[
-                styles.chartSubtitle,
-                {
-                  color: theme.icon,
-                },
-              ]}
-            >
-              Valores registrados en el tiempo
-            </ThemedText>
-          </View>
-        </View>
-
-        <View
-          style={[
-            styles.chartCard,
-            {
-              backgroundColor:
-                theme.surface,
-
-              borderColor:
-                theme.border,
-            },
-          ]}
-        >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
-            }
-          >
-            {renderChart()}
-          </ScrollView>
-        </View>
-
-        <View
-          style={styles.infoNote}
-        >
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={19}
-            color={theme.icon}
-          />
-
-          <ThemedText
-            style={[
-              styles.infoText,
-              {
-                color: theme.icon,
-              },
-            ]}
-          >
-            Los gráficos se actualizan con las
-            mediciones registradas en la
-            aplicación.
-          </ThemedText>
-        </View>
+            <View style={styles.infoNote}>
+              <MaterialCommunityIcons name="information-outline" size={19} color={theme.icon} />
+              <ThemedText style={[styles.infoText, { color: theme.icon }]}>
+                Datos devueltos por Integra II. El servicio excluye las lecturas pendientes de confirmación; esta serie no está paginada.
+                {' '}Cada serie de presión muestra solo los valores registrados, sin completar datos faltantes.
+              </ThemedText>
+            </View>
+          </>
+        )}
       </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-
-  content: {
-    gap: 17,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-
-  topBar: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    minHeight: 48,
-  },
-
-  topBarTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-
-  hero: {
-    backgroundColor:
-      BrandColors.primary,
-    borderRadius: 22,
-    minHeight: 188,
-    overflow: 'hidden',
-    padding: 20,
-    position: 'relative',
-  },
-
-  heroDecorationTop: {
-    backgroundColor:
-      BrandColors.heroHighlight,
-    borderRadius: 80,
-    height: 160,
-    opacity: 0.5,
-    position: 'absolute',
-    right: -52,
-    top: -72,
-    width: 160,
-  },
-
-  heroDecorationBottom: {
-    backgroundColor:
-      BrandColors.heroAccent,
-    borderRadius: 65,
-    bottom: -70,
-    height: 130,
-    left: -42,
-    opacity: 0.3,
-    position: 'absolute',
-    width: 130,
-  },
-
-  heroIcon: {
-    alignItems: 'center',
-    backgroundColor:
-      BrandColors.overlayStrong,
-    borderColor:
-      BrandColors.overlayBorderStrong,
-    borderRadius: 13,
-    borderWidth:
-      StyleSheet.hairlineWidth,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
-  },
-
-  heroTitle: {
-    fontSize: 25,
-    fontWeight: '800',
-    lineHeight: 31,
-    marginTop: 13,
-  },
-
-  heroDescription: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 5,
-    maxWidth: 310,
-  },
-
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: '700',
-    lineHeight: 25,
-  },
-
-  typeRow: {
-    flexDirection: 'row',
-    gap: 9,
-  },
-
-  typeCard: {
-    alignItems: 'center',
-    borderRadius: 15,
-    borderWidth: 1,
-    flex: 1,
-    gap: 7,
-    minHeight: 105,
-    padding: 11,
-    position: 'relative',
-  },
-
-  typeCardSelected: {
-    shadowColor:
-      BrandColors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
-  typeIcon: {
-    alignItems: 'center',
-    borderRadius: 11,
-    height: 43,
-    justifyContent: 'center',
-    width: 43,
-  },
-
-  typeLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 18,
-  },
-
-  checkIcon: {
-    position: 'absolute',
-    right: 6,
-    top: 6,
-  },
-
-  summaryCard: {
-    alignItems: 'center',
-    borderRadius: 17,
-    borderWidth:
-      StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    gap: 14,
-    padding: 17,
-
-    shadowColor:
-      BrandColors.shadow,
-
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-
-  summaryIcon: {
-    alignItems: 'center',
-    borderRadius: 13,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
-  },
-
-  summaryLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-
-  valueRow: {
-    alignItems: 'baseline',
-    flexDirection: 'row',
-    gap: 6,
-  },
-
-  summaryValue: {
-    fontSize: 27,
-    fontWeight: '800',
-    lineHeight: 34,
-  },
-
-  summaryUnit: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  summaryDate: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 1,
-  },
-
-  chartHeading: {
-    flexDirection: 'row',
-    justifyContent:
-      'space-between',
-  },
-
-  chartSubtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 2,
-  },
-
-  chartCard: {
-    borderRadius: 17,
-
-    borderWidth:
-      StyleSheet.hairlineWidth,
-
-    minHeight: 300,
-
-    /*
-     * Visible para evitar cortar
-     * las tarjetas flotantes.
-     */
-    overflow: 'visible',
-
-    paddingBottom: 14,
-    paddingLeft: 5,
-    paddingTop: 20,
-
-    shadowColor:
-      BrandColors.shadow,
-
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-
-  /*
-   * LEYENDA DE PRESIÓN
-   */
-  legend: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 24,
-    justifyContent: 'center',
-    marginTop: 16,
-    paddingBottom: 4,
-  },
-
-  legendItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 6,
-  },
-
-  legendDot: {
-    borderRadius: 5,
-    height: 10,
-    width: 10,
-  },
-
-  legendText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  /*
-   * TARJETA AL TOCAR UN PUNTO
-   */
-  pointerCard: {
-    borderRadius: 12,
-
-    borderWidth:
-      StyleSheet.hairlineWidth,
-
-    minWidth: 145,
-
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-
-    shadowColor:
-      BrandColors.shadow,
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-
-    shadowOpacity: 0.15,
-    shadowRadius: 7,
-
-    elevation: 4,
-  },
-
-  pointerDate: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  pointerTime: {
-    fontSize: 11,
-    marginTop: 1,
-  },
-
-  pointerContext: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-
-  pointerValues: {
-    gap: 5,
-    marginTop: 7,
-  },
-
-  pointerValueRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 7,
-  },
-
-  pointerDot: {
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-
-  pointerValue: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 245,
-    paddingHorizontal: 35,
-    width:
-      Dimensions.get('window').width -
-      45,
-  },
-
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-
-  emptyDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 5,
-    textAlign: 'center',
-  },
-
-  infoNote: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-  },
-
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
-  pressed: {
-    opacity: 0.76,
-  },
+  screen: { flex: 1 },
+  content: { gap: 17, paddingHorizontal: 16, paddingTop: 16 },
+  topBarTitle: { fontSize: 18, fontWeight: '700', lineHeight: 26 },
+  hero: { backgroundColor: BrandColors.primary, borderRadius: 22, padding: 22, gap: 10, minHeight: 165 },
+  heroTitle: { fontSize: 25, fontWeight: '800', lineHeight: 32 },
+  sectionTitle: { fontSize: 18, fontWeight: '700' },
+  typeRow: { flexDirection: 'row', gap: 8 },
+  typeCard: { flex: 1, minHeight: 104, borderWidth: 1, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center', gap: 8, padding: 8 },
+  typeLabel: { fontSize: 13, fontWeight: '700' },
+  filterCard: { borderWidth: 1, borderRadius: 15, padding: 14, gap: 10 },
+  filterTitle: { fontSize: 14, fontWeight: '700' },
+  dateRow: { flexDirection: 'row', gap: 10 },
+  dateColumn: { flex: 1, gap: 5 },
+  input: { borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, minHeight: 43, fontSize: 13 },
+  button: { alignItems: 'center', justifyContent: 'center', borderRadius: 10, minHeight: 43,
+    paddingHorizontal: 15 },
+  buttonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  summary: { alignItems: 'center', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 13, padding: 17 },
+  summaryBody: { flex: 1, gap: 4 },
+  summaryValue: { fontSize: 24, fontWeight: '800' },
+  card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 11 },
+  seriesTitle: { fontWeight: '800', fontSize: 16 },
+  helper: { fontSize: 13, lineHeight: 19 },
+  notice: { flexDirection: 'row', gap: 10, justifyContent: 'center', alignItems: 'center', minHeight: 130 },
+  errorText: { fontSize: 13, color: '#C1443A', lineHeight: 19 },
+  emptySeries: { justifyContent: 'center', minHeight: 85 },
+  pointer: { padding: 10, borderRadius: 10, borderWidth: 1, gap: 5 },
+  pointerDate: { fontWeight: '700', fontSize: 12 },
+  pointerValue: { fontSize: 15, fontWeight: '700' },
+  infoNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 8 },
+  infoText: { flex: 1, fontSize: 12, lineHeight: 19 },
 });

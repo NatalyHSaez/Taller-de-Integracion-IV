@@ -114,7 +114,7 @@ export const mockApi = {
     profile: async (patientId: string): Promise<PatientProfileResponse> => {
       const patient = findOrThrow(
         MOCK_PATIENT_PROFILES,
-        (item) => item.patientId === patientId,
+        (item) => item.id === patientId,
         'Paciente',
       );
       return mockResponse(patient);

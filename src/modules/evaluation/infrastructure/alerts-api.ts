@@ -4,13 +4,13 @@
  *   POST /patients/{patientId}/alerts/{alertId}/read  → 204
  */
 import { apiClient } from '../../../core/infrastructure/http/api-client';
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError } from '../../../core/infrastructure/http/errors';
 import type { AlertsService, PatientAlert } from '../domain/alert';
 
 const alertsPath = (patientId: string) => `/patients/${encodeURIComponent(patientId)}/alerts`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** Normaliza un elemento de la respuesta (acepta `id` del backend o `alertId` del mock). */
@@ -33,16 +33,46 @@ export function toPatientAlert(raw: unknown): PatientAlert | null {
   };
 }
 
+/**
+ * Las alertas son registros persistidos del backend. No descartar filas inválidas
+ * silenciosamente: eso ocultaría alertas clínicas al paciente.
+ */
+export function checkAlertList(raw: unknown, status?: 'OPEN' | 'READ'): PatientAlert[] {
+  const invalid = () => new ApiError({
+    code: 'INVALID_API_RESPONSE',
+    status: 502,
+    message: 'El servidor devolvió una lista de alertas inválida.',
+  });
+  if (!Array.isArray(raw)) throw invalid();
+  const seen = new Set<string>();
+  const result: PatientAlert[] = [];
+  for (const row of raw) {
+    const item = toPatientAlert(row);
+    if (!item || !item.id.trim() || !item.ruleCode.trim() || !item.severity.trim() ||
+        typeof row.explanation !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T/.test(item.createdAt) ||
+        !Number.isFinite(Date.parse(item.createdAt)) ||
+        (item.readAt !== null && !Number.isFinite(Date.parse(item.readAt))) ||
+        (status !== undefined && item.status !== status) || seen.has(item.id)) {
+      throw invalid();
+    }
+    seen.add(item.id);
+    result.push(item);
+  }
+  return result.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+}
+
 export const backendAlertsService: AlertsService = {
   async list(patientId, status) {
     const raw = await apiClient.get<unknown>(alertsPath(patientId), { query: { status } });
-    if (!Array.isArray(raw)) {
-      throw normalizeApiError(new Error('Las alertas tienen un formato inesperado.'));
-    }
-    return raw.map(toPatientAlert).filter((alert): alert is PatientAlert => alert !== null);
+    return checkAlertList(raw, status);
   },
   async markRead(patientId, alertId) {
-    // Responde 204 sin cuerpo; también si la alerta ya estaba leída.
-    await apiClient.post<void>(`${alertsPath(patientId)}/${encodeURIComponent(alertId)}/read`);
+    // Responde 204 sin cuerpo; una operación real nunca es reemplazada por mocks.
+    const result = await apiClient.post<unknown>(`${alertsPath(patientId)}/${encodeURIComponent(alertId)}/read`);
+    if (result !== undefined) {
+      throw new ApiError({ code: 'INVALID_API_RESPONSE', status: 502,
+        message: 'El servidor devolvió una respuesta inesperada al marcar la alerta.' });
+    }
   },
 };

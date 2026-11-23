@@ -9,21 +9,19 @@ import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import { BrandColors, Colors, MeasurementColors, StatusColors } from '@/src/shared/presentation/theme';
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
-import { useDemo } from '@/src/modules/demo/presentation/use-demo';
-import { getDemoAlerts } from '@/src/modules/evaluation/infrastructure/demo-alerts';
 import type { Measurement, MeasurementType } from '@/src/modules/monitoring/domain/measurement';
 
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
-import {
-  getEmergencyContact
-} from '@/src/modules/identity/infrastructure/emergency-contact-storage';
 import { appState } from '@/src/core/application/session/app-state';
 import { createHomeSummary } from '@/src/modules/dashboard/application/home-summary';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
+/** Solo estas tres categorías tienen tarjeta de resumen y colores propios. */
+type SummaryMeasurementType = Extract<MeasurementType, 'blood_pressure' | 'glucose' | 'weight'>;
+
 type MeasurementSummary = {
-  type: MeasurementType;
+  type: SummaryMeasurementType;
   label: string;
   icon: IconName;
   value: string;
@@ -31,13 +29,13 @@ type MeasurementSummary = {
   recordedAt: string;
 };
 
-function getLatestMeasurement(type: MeasurementType, measurements: Measurement[]): Measurement | undefined {
+function getLatestMeasurement(type: SummaryMeasurementType, measurements: Measurement[]): Measurement | undefined {
   return measurements.filter((measurement) => measurement.type === type).sort(
     (a, b) => new Date(b.measuredAt).getTime() - new Date(a.measuredAt).getTime()
   )[0];
 }
 
-function getMeasurementSummary(type: MeasurementType, measurements: Measurement[]): MeasurementSummary | undefined {
+function getMeasurementSummary(type: SummaryMeasurementType, measurements: Measurement[]): MeasurementSummary | undefined {
   const measurement = getLatestMeasurement(type, measurements);
   if (!measurement) return undefined;
 
@@ -68,29 +66,41 @@ function formatMeasurementDate(date: string) {
   );
 }
 
+/**
+ * Reinicia el resumen y sus solicitudes cuando cambia la cuenta o el modo
+ * de sesión. Así no se comparten resultados anteriores entre usuarios.
+ */
 export default function ResumenScreen() {
-  const { user, selectedPatient, sessionMode } = useAppState();
+  const { user, sessionMode } = useAppState();
+  const sessionKey = `${sessionMode ?? 'none'}:${user?.id ?? 'none'}`;
+  return <ResumenContent key={sessionKey} />;
+}
+
+function ResumenContent() {
+  const { user, selectedPatient, permissions, sessionMode } = useAppState();
   const { user: authUser } = useAuth();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const themeName = colorScheme === 'dark' ? 'dark' : 'light';
+  const theme = Colors[themeName];
+  const measurementColors = MeasurementColors[themeName];
 
-  const emergencyPatientId =
-    sessionMode === 'backend'
-      ? authUser?.roles.includes('PATIENT')
-        ? authUser.id
-        : selectedPatient?.id ?? null
-      : selectedPatient?.id ?? null;
-  const isRealSession = sessionMode === "backend";
-  const { measurements, permissions, relations } = useDemo();
+  const isRealSession = sessionMode === 'backend';
+  // El paciente se identifica por su usuario; el cuidador elige un paciente vinculado.
+  const emergencyPatientId = authUser?.roles.includes('PATIENT')
+    ? authUser.id : selectedPatient?.id ?? null;
+  const homePatientId = isRealSession && permissions.read ? emergencyPatientId : null;
+  const homeRole = user?.role === 'patient' ? 'patient' : 'caregiver';
 
-  // Sesión backend: mediciones, alerta y permiso de registro reales del paciente activo
-  // (el propio paciente o el seleccionado por el cuidador).
-  const homePatientId = isRealSession ? emergencyPatientId : null;
-  const homeRole = authUser?.roles.includes('PATIENT') ? 'patient' : 'caregiver';
+  // Mantener un único estado de resumen para la sesión actual.
   const [homeStore] = useState(() => createHomeSummary());
   const home = useSyncExternalStore(homeStore.subscribe, homeStore.getState, homeStore.getState);
+
   useEffect(() => {
     void homeStore.setPatient(homePatientId, homeRole);
   }, [homeStore, homePatientId, homeRole]);
-  // Al volver a Inicio (por ejemplo, después de registrar) se actualiza.
+
+  // Al regresar a Inicio se vuelven a solicitar las últimas mediciones y alertas.
   const isFocused = useIsFocused();
   const firstFocus = useRef(true);
   useEffect(() => {
@@ -100,37 +110,29 @@ export default function ResumenScreen() {
       return;
     }
     void homeStore.refresh();
-    // El cuidador también actualiza sus permisos (el paciente pudo cambiarlos).
-    if (homeRole === 'caregiver') void appState.loadRealPatients().catch(() => {});
-  }, [homeStore, isFocused, homeRole]);
+    if (isRealSession && homeRole === 'caregiver') {
+      void appState.loadRealPatients().catch(() => {});
+    }
+  }, [homeStore, isFocused, homeRole, isRealSession]);
+
   const homeReady = isRealSession && Boolean(homePatientId) && home.patientId === homePatientId;
-  const homeLoading = isRealSession && Boolean(homePatientId) && (!homeReady || (home.loading && !home.loaded));
-  const homeError = homeReady && !home.loaded ? home.error : null;
+  const homeLoading = isRealSession && Boolean(homePatientId) &&
+    (!homeReady || (home.loading && !home.loaded));
+  const homeError = homeReady ? home.error : null;
 
-  const canRegisterMeasurement = isRealSession
-    ? homeReady && home.canRegister
-    : permissions.write;
-  const pendingCount = relations.filter(
-    (relation) => relation.patientId === selectedPatient?.id && relation.status === 'pending',
-  ).length;
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const themeName = colorScheme === 'dark' ? 'dark' : 'light';
-  const theme = Colors[themeName];
-  const measurementColors = MeasurementColors[themeName];
-  const summaryMeasurements = isRealSession ? (homeReady ? home.measurements : []) : measurements;
+  // En modo real prevalecen los permisos del vínculo vigente; la API
+  // debe volver a comprobarlos en cada registro.
+  const canRegisterMeasurement = Boolean(emergencyPatientId && permissions.write &&
+    homeReady && home.canRegister && !homeError);
+  const summaryMeasurements = homeReady && !homeError && permissions.read
+    ? home.measurements : [];
   const summaries = (['blood_pressure', 'glucose', 'weight'] as const)
-    .map((type) => getMeasurementSummary(type, summaryMeasurements))
+    .map(type => getMeasurementSummary(type, summaryMeasurements))
     .filter((summary): summary is MeasurementSummary => Boolean(summary));
-  const priorityAlert = isRealSession
-    ? homeReady && home.alert
-      ? { parametro: home.alert.explanation || `Alerta de severidad ${home.alert.severity.toLowerCase()}` }
-      : undefined
-    : permissions.alerts
-      ? getDemoAlerts()[0]
-      : undefined;
+  const priorityAlert = permissions.alerts && homeReady && !homeError && home.alert
+    ? { parametro: home.alert.explanation || `Alerta de severidad ${home.alert.severity.toLowerCase()}` }
+    : undefined;
 
-  
   const handleEmergencyPress = () => {
     Alert.alert(
       '¿Necesitas ayuda?',
@@ -160,65 +162,8 @@ export default function ResumenScreen() {
           },
         },
         
-        {
-          text: 'Contacto de emergencia',
-          onPress: async () => {
-            if (!emergencyPatientId) {
-              Alert.alert(
-                'Sin paciente',
-                'No hay un paciente seleccionado.'
-              );
-              return;
-            }
-
-            try {
-              const contact = await getEmergencyContact(emergencyPatientId);
-
-              if (!contact) {
-                Alert.alert(
-                  'Contacto no configurado',
-                  'Todavía no tienes un contacto de emergencia registrado.',
-                  [
-                    { text: 'Cancelar', style: 'cancel' },
-                    {
-                      text: 'Configurar contacto',
-                      onPress: () => router.push('../contacto-emergencia'),
-                    },
-                  ]
-                );
-                return;
-              }
-
-              Alert.alert(
-                'Confirmar llamada',
-                `¿Deseas abrir el teléfono para llamar a ${contact.name} (${contact.phone})?`,
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Editar contacto',
-                    onPress: () => router.push('/contacto-emergencia'),
-                  },
-                  {
-                    text: 'Abrir teléfono',
-                    onPress: () => {
-                      Linking.openURL(`tel:${contact.phone}`).catch(() => {
-                        Alert.alert(
-                          'No se pudo abrir el teléfono',
-                          'Tu dispositivo no pudo abrir el marcador telefónico.'
-                        );
-                      });
-                    },
-                  },
-                ]
-              );
-            } catch {
-              Alert.alert(
-                'Error',
-                'No se pudo consultar el contacto de emergencia.'
-              );
-            }
-          },
-        },
+        // El contacto personal requiere un endpoint real del backend.
+        // Hasta disponer de él, no se consulta ni guarda información local.
 
         { text: 'Cancelar', style: 'cancel' },
       ]
@@ -273,7 +218,6 @@ export default function ResumenScreen() {
           </View>
         </View>
 
-        {pendingCount > 0 && <Action label={`${pendingCount} solicitud(es) de cuidador · Revisar`} onPress={() => router.push('/vinculos')} />}
         {user?.role === 'caregiver' && <Action secondary label="Mis pacientes y vínculos" onPress={() => router.push('/(auth)/select-patient')} />}
 
         <View style={styles.sectionHeader}>
@@ -297,8 +241,9 @@ export default function ResumenScreen() {
             </View>
             <View style={styles.emptyCopy}>
               <ThemedText style={styles.emptyTitle}>
-                {isRealSession
-                  ? !homePatientId
+                {!emergencyPatientId
+                  ? 'Mediciones no disponibles'
+                  : !permissions.read
                     ? 'Mediciones no disponibles'
                     : homeLoading
                       ? 'Cargando mediciones…'
@@ -306,25 +251,20 @@ export default function ResumenScreen() {
                         ? homeError.kind === 'network'
                           ? 'No se pudieron cargar las mediciones'
                           : 'Mediciones no disponibles'
-                        : 'Aún no hay mediciones'
-                  : permissions.read
-                    ? 'Aún no hay mediciones'
-                    : 'Mediciones no disponibles'}
+                        : 'Aún no hay mediciones'}
               </ThemedText>
               <ThemedText style={[styles.emptyDescription, { color: theme.mutedText }]}>
-                {isRealSession
-                  ? !homePatientId
-                    ? 'Selecciona un paciente vinculado para consultar sus mediciones.'
+                {!emergencyPatientId
+                  ? 'Selecciona un paciente vinculado para consultar sus mediciones.'
+                  : !permissions.read
+                    ? 'No tienes permiso para consultar las mediciones de este paciente.'
                     : homeLoading
                       ? 'Un momento, por favor.'
                       : homeError
                         ? homeError.message
                         : canRegisterMeasurement
                           ? 'Registra la primera para verla aquí.'
-                          : 'Todavía no hay mediciones registradas.'
-                  : permissions.read
-                    ? 'Registra la primera para verla aquí.'
-                    : 'El paciente aún no te ha dado acceso.'}
+                          : 'Todavía no hay mediciones registradas.'}
               </ThemedText>
             </View>
           </Pressable>

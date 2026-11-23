@@ -138,10 +138,13 @@ test('las pantallas usan estas funciones y agregan "Dejar de acompañar"', () =>
   const path = require('node:path');
   const read = (...p) => fs.readFileSync(path.resolve(__dirname, '..', ...p), 'utf8').replace(/\r/g, '');
   const links = read('app', '(tabs)', 'vinculos.tsx');
-  assert.match(links, /from '@\/src\/modules\/relationships\/application\/relationship-actions'/);
-  assert.doesNotMatch(links, /import \{[^}]*\bAlert\b[^}]*\} from 'react-native'/);
+  assert.match(links, /from\s+['"]@\/src\/modules\/relationships\/application\/relationship-actions['"]/);
+  assert.doesNotMatch(links, /import\s*\{[^}]*\bAlert\b[^}]*\}\s*from\s*['"]react-native['"]/);
   assert.match(links, /onStaleRelationship/);
   const select = read('app', '(auth)', 'select-patient.tsx');
   assert.match(select, /<LeavePatientAction/);
-  assert.match(select, /onLeft=\{\(\) => appState\.loadRealPatients\(\)\}/);
+  assert.match(select, /onLeft=\{reloadPatients\}/,
+    'al retirar el vínculo se vuelve a cargar la lista de pacientes');
+  assert.match(select, /await appState\.loadRealPatients\(\)/,
+    'la recarga de pacientes consulta la fuente real');
 });

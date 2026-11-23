@@ -1,112 +1,90 @@
 import { getMePatients, type MyPatientResponse } from '../../../modules/relationships/infrastructure/relationships-api';
 import { authSession, type AuthSessionMode } from './auth-session';
-import { demo, type Permissions } from '../../../modules/demo/infrastructure/demo-store';
 import { ApiError } from '../../infrastructure/http/errors';
+import { dataClient } from '../../infrastructure/http/data';
 
-export type GlobalUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: 'patient' | 'caregiver';
-  source: 'backend' | 'mock';
-};
-
-export type GlobalPatient = {
-  id: string;
-  name: string;
-  email: string;
-};
-
+export type Permissions = { alerts: boolean; read: boolean; write: boolean };
+export type GlobalUser = { id: string; name: string; email: string; role: 'patient' | 'caregiver'; source: 'backend' };
+export type GlobalPatient = { id: string; name: string; email: string };
 export type GlobalAppState = {
   user: GlobalUser | null;
   selectedPatient: GlobalPatient | null;
   patients: GlobalPatient[];
-  permissions: Permissions;
+  permissions: Permissions & { profile: boolean };
   sessionMode: AuthSessionMode | null;
   isAuthenticated: boolean;
   hasSelectedPatient: boolean;
 };
 
-type DemoSnapshot = ReturnType<typeof demo.snapshot>;
 type AuthSnapshot = ReturnType<typeof authSession.snapshot>;
-
-let previousDemoSnapshot: DemoSnapshot | null = null;
 let previousAuthSnapshot: AuthSnapshot | null = null;
 let previousDerivedState: GlobalAppState | null = null;
-
-// Pacientes obtenidos desde el backend real.
 let realPatients: MyPatientResponse[] = [];
-
-// Identificador del paciente real seleccionado.
 let realSelectedPatientId: string | null = null;
-
-// Identifica a qué usuario pertenecen los datos cargados.
 let realPatientsUserId: string | null = null;
-
-// Notifica a los componentes cuando cambia el estado real.
+let realPatientsGeneration = -1;
 const realPatientsListeners = new Set<() => void>();
-
 function notifyRealPatientsChange() {
   previousDerivedState = null;
+  realPatientsListeners.forEach(listener => listener());
+}
 
-  realPatientsListeners.forEach((listener) => listener());
+/** Nunca aceptar vínculos duplicados, incompletos ni de un rol distinto al cuidador. */
+export function checkLinkedPatients(raw: unknown): MyPatientResponse[] {
+  const invalid = () => new ApiError({
+    code: 'INVALID_API_RESPONSE', message: 'El servidor devolvió vinculaciones inválidas.',
+  });
+  if (!Array.isArray(raw)) throw invalid();
+  const ids = new Set<string>();
+  const result: MyPatientResponse[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw invalid();
+    const link = item as Record<string, unknown>;
+    if (link.relationshipType === 'DOCTOR') continue;
+    if (link.relationshipType !== 'CAREGIVER' ||
+        typeof link.patientId !== 'string' || !link.patientId ||
+        typeof link.fullName !== 'string' || !link.fullName.trim() ||
+        typeof link.relationshipId !== 'string' || !link.relationshipId ||
+        !Array.isArray(link.permissions) ||
+        !link.permissions.every((code: unknown) => typeof code === 'string') ||
+        ids.has(link.patientId)) throw invalid();
+    ids.add(link.patientId);
+    result.push(item as MyPatientResponse);
+  }
+  return result;
 }
 
 async function loadRealPatients(): Promise<void> {
-  if (authSession.mode() !== 'backend') {
-    return;
-  }
-
+  if (authSession.mode() !== 'backend') return;
   const user = authSession.user();
-
-  if (!user || !user.roles.includes('CAREGIVER')) {
-    return;
-  }
-
+  if (!user?.roles.includes('CAREGIVER')) return;
   const userId = user.id;
-
+  const generation = authSession.generation();
   try {
-    const patients = await getMePatients();
-    if (!Array.isArray(patients)) {
-      throw new ApiError({
-        code: 'INVALID_API_RESPONSE',
-        message: 'La lista de pacientes vinculados tiene un formato inesperado.',
-      });
-    }
-
-    // Evita guardar resultados de una sesión que ya terminó.
-    if (
-      authSession.mode() !== 'backend' ||
-      authSession.user()?.id !== userId
-    ) {
-      return;
-    }
-
+    const patients = checkLinkedPatients(await getMePatients());
+    if (authSession.mode() !== 'backend' ||
+        authSession.generation() !== generation || authSession.user()?.id !== userId) return;
     realPatients = patients;
     realPatientsUserId = userId;
-
-    // Conserva la selección si el vínculo sigue existiendo.
-    const selectedStillExists = patients.some(
-      (patient) => patient.patientId === realSelectedPatientId
-    );
-
-    if (!selectedStillExists) {
-      realSelectedPatientId =
-        patients.length === 1 ? patients[0].patientId : null;
+    realPatientsGeneration = generation;
+    if (!patients.some(p => p.patientId === realSelectedPatientId)) {
+      realSelectedPatientId = patients.length === 1 ? patients[0].patientId : null;
     }
-
     notifyRealPatientsChange();
   } catch (error) {
-    console.error('Error cargando pacientes reales:', error);
+    if (authSession.mode() === 'backend' && authSession.generation() === generation &&
+        authSession.user()?.id === userId) {
+      realPatients = [];
+      realPatientsUserId = userId;
+      realPatientsGeneration = generation;
+      realSelectedPatientId = null;
+      dataClient.clearCache();
+      notifyRealPatientsChange();
+    }
     throw error;
   }
 }
 
-/**
- * Permisos reales con sesión backend: el paciente tiene todos; el cuidador,
- * los de su vínculo con el paciente seleccionado (GET /me/patients):
- * MEASUREMENT_VIEW → read, MEASUREMENT_CREATE → write, ALERT_VIEW → alerts.
- */
 export function permissionsFromCodes(codes: readonly string[] | null | undefined): Permissions {
   const list = codes ?? [];
   return {
@@ -116,95 +94,40 @@ export function permissionsFromCodes(codes: readonly string[] | null | undefined
   };
 }
 
-function toPatient(patient: ReturnType<typeof demo.patient>): GlobalPatient | null {
-  if (!patient) return null;
-
-  return {
-    id: patient.id,
-    name: patient.name,
-    email: patient.email,
-  };
-}
-
 function deriveState(): GlobalAppState {
-  const account = demo.user();
-  const sessionMode = account ? authSession.mode() ?? 'mock' : null;
-
-  const isBackendSession = sessionMode === 'backend';
-
-  // Solo utilizar pacientes reales cuando pertenecen
-  // al cuidador que tiene la sesión abierta.
-  const belongsToCurrentUser =
-    isBackendSession &&
-    account?.role === 'caregiver' &&
-    realPatientsUserId === account.id;
-
-  const patients: GlobalPatient[] = isBackendSession
-    ? (belongsToCurrentUser ? realPatients : []).map((patient) => ({
-        id: patient.patientId,
-        name: patient.fullName,
-        email: '',
-      }))
-    : demo.patients().map((patient) => ({
-        id: patient.id,
-        name: patient.name,
-        email: patient.email,
-      }));
-
-  // En sesión real, un paciente se acompaña a sí mismo: su patientId es su
-  // propio id de usuario (así lo valida el gateway).
-  const backendUser = isBackendSession ? authSession.user() : null;
-  const selfPatient: GlobalPatient | null =
-    backendUser && account?.role === 'patient'
-      ? { id: backendUser.id, name: backendUser.fullName, email: backendUser.email }
-      : null;
-
-  const selectedPatient = isBackendSession
-    ? selfPatient ??
-      patients.find((patient) => patient.id === realSelectedPatientId) ??
-      null
-    : toPatient(demo.patient());
-
+  const user = authSession.mode() === 'backend' ? authSession.user() : null;
+  const role = user?.roles.includes('PATIENT') ? 'patient'
+    : user?.roles.includes('CAREGIVER') ? 'caregiver' : null;
+  const belongsToCurrentUser = Boolean(user && role === 'caregiver' &&
+    realPatientsUserId === user.id && realPatientsGeneration === authSession.generation());
+  const patients: GlobalPatient[] = belongsToCurrentUser
+    ? realPatients.map(patient => ({ id: patient.patientId, name: patient.fullName, email: '' }))
+    : [];
+  const selfPatient: GlobalPatient | null = user && role === 'patient'
+    ? { id: user.id, name: user.fullName, email: user.email } : null;
+  const selectedPatient = selfPatient ?? patients.find(p => p.id === realSelectedPatientId) ?? null;
+  const linked = belongsToCurrentUser
+    ? realPatients.find(p => p.patientId === selectedPatient?.id) : undefined;
+  const permissions = role === 'patient'
+    ? { alerts: true, read: true, write: true, profile: true }
+    : {
+        ...permissionsFromCodes(linked?.permissions),
+        profile: Boolean(linked?.permissions.includes('PATIENT_PROFILE_VIEW')),
+      };
   return {
-    user: account
-      ? {
-          id: account.id,
-          name: account.name,
-          email: account.email,
-          role: account.role,
-          source: sessionMode === 'backend' ? 'backend' : 'mock',
-        }
-      : null,
+    user: user && role ? { id: user.id, name: user.fullName, email: user.email, role, source: 'backend' } : null,
     selectedPatient,
     patients,
-    permissions: !isBackendSession
-      ? demo.permissions()
-      : account?.role === 'patient'
-        ? { alerts: true, read: true, write: true }
-        : permissionsFromCodes(
-            belongsToCurrentUser
-              ? realPatients.find((patient) => patient.patientId === selectedPatient?.id)?.permissions
-              : [],
-          ),
-    sessionMode,
-    isAuthenticated: Boolean(account),
+    permissions,
+    sessionMode: user && role ? 'backend' : null,
+    isAuthenticated: Boolean(user && role),
     hasSelectedPatient: Boolean(selectedPatient),
   };
 }
 
 function snapshot(): GlobalAppState {
-  const demoSnapshot = demo.snapshot();
   const authSnapshot = authSession.snapshot();
-
-  if (
-    previousDerivedState &&
-    previousDemoSnapshot === demoSnapshot &&
-    previousAuthSnapshot === authSnapshot
-  ) {
-    return previousDerivedState;
-  }
-
-  previousDemoSnapshot = demoSnapshot;
+  if (previousDerivedState && previousAuthSnapshot === authSnapshot) return previousDerivedState;
   previousAuthSnapshot = authSnapshot;
   previousDerivedState = deriveState();
   return previousDerivedState;
@@ -213,48 +136,18 @@ function snapshot(): GlobalAppState {
 export const appState = {
   snapshot,
   loadRealPatients,
-
   subscribe(listener: () => void) {
-    const unsubscribeDemo = demo.subscribe(listener);
-    const unsubscribeAuth = authSession.subscribe(listener);
-
-    // Escucha también los cambios de pacientes reales.
+    const unsubscribe = authSession.subscribe(listener);
     realPatientsListeners.add(listener);
-
-    return () => {
-      unsubscribeDemo();
-      unsubscribeAuth();
-
-      // Elimina el listener al desmontar el componente.
-      realPatientsListeners.delete(listener);
-    };
+    return () => { unsubscribe(); realPatientsListeners.delete(listener); };
   },
-
   selectPatient(patientId: string) {
-  if (authSession.mode() === 'backend') {
-    const userId = authSession.user()?.id;
-
-    // Solo permite seleccionar pacientes vinculados
-    // al usuario autenticado.
-    if (!userId || realPatientsUserId !== userId) {
-      return;
-    }
-
-    const patientExists = realPatients.some(
-      (patient) => patient.patientId === patientId
-    );
-
-    if (!patientExists) {
-      console.warn('El paciente no está vinculado al cuidador.');
-      return;
-    }
-
+    if (authSession.mode() !== 'backend') return;
+    const user = authSession.user();
+    if (!user?.roles.includes('CAREGIVER') ||
+        realPatientsUserId !== user.id || realPatientsGeneration !== authSession.generation()) return;
+    if (!realPatients.some(p => p.patientId === patientId)) return;
     realSelectedPatientId = patientId;
     notifyRealPatientsChange();
-    return;
-  }
-
-  // Conserva el funcionamiento del modo demostración.
-  demo.select(patientId);
-},
+  },
 };

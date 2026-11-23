@@ -42,10 +42,10 @@ export function useClinicalParameters() {
 
   useEffect(() => {
     mounted.current = true;
-    load();
-    return () => {
-      mounted.current = false;
-    };
+    void Promise.resolve().then(() => {
+      if (mounted.current) void load();
+    });
+    return () => { mounted.current = false; };
   }, [load]);
 
   const retry = useCallback(() => load(true), [load]);

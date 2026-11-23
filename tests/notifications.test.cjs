@@ -93,7 +93,9 @@ test('marcar como leída: una sola llamada, 204, actualiza lista y detalle, y pe
 
   await Promise.all([store.markRead('n2'), store.markRead('n2')]);
   assert.deepEqual(backend.calls.markRead, ['n2']);
-  assert.equal(store.getState().items.find((n) => n.id === 'n2').status, 'read');
+  assert.equal(store.getState().filter, 'unread');
+  assert.ok(!store.getState().items.some((n) => n.id === 'n2'),
+    'al marcarla desaparece del filtro No leídas');
   assert.equal(store.get('n2').status, 'read', 'el detalle (caché) también se actualiza');
   assert.equal(backend.calls.list.length, listCalls, 'no se recarga');
 
@@ -101,7 +103,16 @@ test('marcar como leída: una sola llamada, 204, actualiza lista y detalle, y pe
   assert.equal(backend.calls.markRead.length, 1, 'ya leída: no se vuelve a enviar');
 
   await store.refresh();
-  assert.equal(store.getState().items.find((n) => n.id === 'n2').status, 'read', 'persiste al volver a consultar');
+  assert.ok(!store.getState().items.some((n) => n.id === 'n2'),
+    'la notificación sigue fuera de No leídas tras consultar al servidor');
+  assert.ok(store.getState().items.some((n) => n.id === 'n1'),
+    'las demás notificaciones no leídas siguen visibles');
+
+  await store.setFilter('read');
+  const persisted = store.getState().items.find((n) => n.id === 'n2');
+  assert.equal(persisted?.status, 'read', 'se ve en Leídas tras consultar al servidor');
+  assert.equal(persisted?.readAt, NOW.toISOString(), 'la fecha de lectura proviene del backend');
+  assert.equal(backend.calls.markRead.length, 1, 'cambiar de filtro no vuelve a marcarla');
 });
 
 test('el detalle usa la caché de la lista y desaparece al cambiar de usuario', async () => {

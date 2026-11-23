@@ -1,5 +1,5 @@
 import { getPatientMeasurements, type MeasurementPointResponse, type MeasurementsQuery } from '../infrastructure/readings-api';
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 import { readingsToMeasurements } from '../infrastructure/reading-to-measurements';
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 
@@ -86,6 +86,33 @@ export function toSeries(parameterCode: string, points: MeasurementPointResponse
 }
 
 /**
+ * Valida puntos clínicos procedentes del Gateway antes de incorporarlos a una
+ * gráfica. No exige UUID aquí para mantener compatibles las pruebas y fuentes
+ * inyectadas que usan identificadores locales; el backend valida su propia ruta.
+ */
+export function checkMeasurementSeries(raw: unknown, code: string): MeasurementPointResponse[] {
+  const invalid = () => new ApiError({
+    code: 'INVALID_API_RESPONSE',
+    message: 'El servidor devolvió una serie de mediciones inválida.',
+  });
+  if (!Array.isArray(raw)) throw invalid();
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw invalid();
+    const point = item as Record<string, unknown>;
+    if (typeof point.readingId !== 'string' || !point.readingId ||
+        typeof point.measuredAt !== 'string' || !Number.isFinite(Date.parse(point.measuredAt)) ||
+        point.parameterCode !== code ||
+        typeof point.value !== 'number' || !Number.isFinite(point.value) ||
+        (point.unit !== null && typeof point.unit !== 'string')) throw invalid();
+    const key = `${point.readingId}:${code}`;
+    if (seen.has(key)) throw invalid();
+    seen.add(key);
+  }
+  return raw as MeasurementPointResponse[];
+}
+
+/**
  * Presión: solo las lecturas que tienen sistólica y diastólica, en el mismo
  * orden, para que ambas líneas compartan el eje del tiempo.
  */
@@ -140,7 +167,7 @@ export function createMeasurementSeries(
         codes.map((parameterCode) => fetchPoints(patientId, { parameterCode, from: from ?? undefined, to })),
       );
       if (current !== generation) return;
-      let series = codes.map((code, index) => toSeries(code, responses[index]));
+      let series = codes.map((code, index) => toSeries(code, checkMeasurementSeries(responses[index], code)));
       if (chart === 'blood_pressure') series = pairBloodPressure(series);
       const result: SeriesResult = { key, chart, from, to, series };
       cache.set(key, result);
@@ -216,7 +243,7 @@ export async function loadChartMeasurements(
   const readings = new Map<string, { readingId: string; measuredAt: string; measurements: { parameterCode: string; value: number }[] }>();
   responses.forEach((points, index) => {
     const code = CHART_PARAMETER_CODES[index];
-    for (const point of points ?? []) {
+    for (const point of checkMeasurementSeries(points, code)) {
       if (point.parameterCode !== code || !Number.isFinite(point.value) || !point.readingId) continue;
       const reading = readings.get(point.readingId) ?? { readingId: point.readingId, measuredAt: point.measuredAt, measurements: [] };
       reading.measurements.push({ parameterCode: code, value: point.value });

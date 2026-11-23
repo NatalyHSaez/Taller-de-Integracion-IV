@@ -128,7 +128,7 @@ test('error sin datos y reintento que recupera la ficha', async () => {
   assert.equal(store.getState().profile.id, 'pia');
 });
 
-test('la pantalla usa la ficha real y oculta el aviso demo con sesión backend', () => {
+test('la pantalla utiliza solo la ficha real del backend, sin alternativa demo', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const source = fs.readFileSync(path.resolve(__dirname, '..', 'app', 'paciente-vinculado.tsx'), 'utf8');
@@ -137,5 +137,10 @@ test('la pantalla usa la ficha real y oculta el aviso demo con sesión backend',
     assert.match(source, new RegExp(field));
   }
   assert.match(source, /profileStore\.retry\(\)/);
-  assert.match(source, /!isRealSession && \(\s*<View/);
+  assert.match(source, /const patient = realPatient \? \{ name: realPatient\.fullName/);
+  assert.match(source, /if \(\!patient\)/, 'si no llega la ficha no inventa otro paciente');
+  assert.doesNotMatch(source, /\!isRealSession\s*&&\s*\(/,
+    'ya no puede existir una rama visual alternativa para modo demo');
+  assert.doesNotMatch(source, /\b(?:demoStore|mockApi|useDemo|fakePatient)\b/,
+    'la ficha no debe importar ni consultar datos simulados');
 });

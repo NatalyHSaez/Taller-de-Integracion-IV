@@ -63,10 +63,11 @@ export function mergeNotifications(current: AppNotification[], incoming: AppNoti
 
 export function createNotificationsStore(options: { pageSize?: number; now?: () => Date } = {}) {
   const size = options.pageSize ?? NOTIFICATIONS_PAGE_SIZE;
-  const now = options.now ?? (() => new Date());
+  // Se conserva la opción `now` por compatibilidad con consumidores existentes.
+  void options.now;
   const initial: NotificationsState = {
     ownerId: null,
-    filter: 'all',
+    filter: 'unread',
     items: [],
     total: 0,
     hasMore: false,
@@ -82,6 +83,8 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
   let state = initial;
   let api: NotificationsApi | null = null;
   let generation = 0;
+  // Distingue cierres y nuevos inicios de sesión del mismo usuario.
+  let ownerRevision = -1;
   /**
    * Posición alcanzada en el orden del backend para el filtro actual. Si una
    * notificación sale del filtro (por ejemplo, se marca leída estando en
@@ -97,8 +100,34 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
     state = { ...state, ...patch };
     listeners.forEach((listener) => listener());
   };
-  const statusParam = () => (state.filter === 'all' ? undefined : state.filter);
+  const statusParam = () => (state.filter === 'all' || state.filter === 'unread' ? undefined : state.filter);
+  const visibleItems = (items: AppNotification[]) => state.filter === 'unread'
+    ? items.filter(n => n.status !== 'read') : items;
   const remember = (items: AppNotification[]) => items.forEach((n) => cache.set(n.id, n));
+
+  /** El Gateway no expone status=unread: recorrer páginas reales hasta obtener
+   * notificaciones no leídas (pending/sent) o llegar al final. */
+  async function loadPageGroup(startPosition: number): Promise<{
+    items: AppNotification[]; total: number; position: number;
+  }> {
+    if (!api) throw new Error('No existe una sesión de notificaciones.');
+    let cursor = startPosition;
+    let allVisible: AppNotification[] = [];
+    let total = 0;
+    do {
+      const pageNumber = Math.floor(cursor / size) + 1;
+      const page = await api.list({ page: pageNumber, size, status: statusParam() });
+      total = page.total;
+      // La posición es del conjunto devuelto por el servidor, no la lista
+      // filtrada en memoria. Por eso no omitimos avisos entre páginas.
+      const next = Math.min(page.total, (pageNumber - 1) * size + page.items.length);
+      if (next <= cursor) break;
+      cursor = next;
+      allVisible = mergeNotifications(allVisible, visibleItems(page.items));
+      if (state.filter !== 'unread' || allVisible.length >= size) break;
+    } while (cursor < total);
+    return { items: allVisible, total, position: cursor };
+  }
 
   async function loadFirst(mode: 'initial' | 'refresh'): Promise<void> {
     if (!api || !state.ownerId) return;
@@ -109,12 +138,12 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
         : { loading: true, error: null, loadMoreError: null, items: [], loaded: false, hasMore: false },
     );
     try {
-      const page = await api.list({ page: 1, size, status: statusParam() });
+      const page = await loadPageGroup(0);
       if (current !== generation) return;
       remember(page.items);
-      position = Math.min(page.total, page.items.length);
+      position = page.position;
       set({
-        items: mergeNotifications([], page.items),
+        items: page.items,
         total: page.total,
         hasMore: position < page.total,
         loaded: true,
@@ -137,9 +166,12 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
     },
 
     /** Usuario dueño de las notificaciones. Al cambiar, se descarta todo. */
-    setOwner(ownerId: string | null, source: NotificationsApi): Promise<void> {
-      if (ownerId === state.ownerId && source === api) return Promise.resolve();
+    setOwner(ownerId: string | null, source: NotificationsApi, sessionRevision = 0): Promise<void> {
+      if (ownerId === state.ownerId && source === api && sessionRevision === ownerRevision) {
+        return Promise.resolve();
+      }
       generation++;
+      ownerRevision = sessionRevision;
       api = source;
       cache.clear();
       inFlight.clear();
@@ -164,17 +196,16 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
     async loadMore(): Promise<void> {
       if (!api || !state.ownerId || !state.hasMore || state.loadingMore || state.loading || state.refreshing) return;
       const current = generation;
-      const page = Math.floor(position / size) + 1;
       set({ loadingMore: true, loadMoreError: null });
       try {
-        const result = await api.list({ page, size, status: statusParam() });
+        const result = await loadPageGroup(position);
         if (current !== generation) return;
         remember(result.items);
-        position = Math.max(position, Math.min(result.total, (page - 1) * size + result.items.length));
+        position = result.position;
         set({
           items: mergeNotifications(state.items, result.items),
           total: result.total,
-          hasMore: position < result.total && result.items.length > 0,
+          hasMore: position < result.total,
           loadingMore: false,
         });
       } catch (cause) {
@@ -196,12 +227,18 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
         try {
           await source.markRead(id);
           if (current !== generation) return;
-          const updated: AppNotification = { ...target, status: 'read', readAt: now().toISOString() };
+          // POST 204 confirma el estado, pero la fecha readAt la informa el backend
+          // al volver a consultar; no inventamos una fecha clínica del servidor.
+          const updated: AppNotification = { ...target, status: 'read' };
           cache.set(id, updated);
           const leavesFilter = state.filter !== 'all' && state.filter !== 'read';
           if (leavesFilter) {
-            position = Math.max(0, position - 1);
-            set({ items: state.items.filter((n) => n.id !== id), total: Math.max(0, state.total - 1) });
+            // Los filtros técnicos cambian la paginación del backend al marcar;
+            // el filtro unread consulta todas las notificaciones, así que su
+            // posición en ese conjunto NO cambia.
+            if (state.filter !== 'unread') position = Math.max(0, position - 1);
+            set({ items: state.items.filter((n) => n.id !== id),
+              total: state.filter === 'unread' ? state.total : Math.max(0, state.total - 1) });
           } else {
             set({ items: state.items.map((n) => (n.id === id ? updated : n)) });
           }

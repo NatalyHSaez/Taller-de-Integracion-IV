@@ -1,13 +1,14 @@
 import type {
   ISODateTime,
   MeasurementValidationStatus,
+  ReadingStatus,
   UUID,
 } from './common';
 
-/** Unidades canónicas definidas para los parámetros iniciales del prototipo. */
+/** Unidades canónicas de los parámetros contemplados por la aplicación. */
 export type CanonicalUnit = 'mmHg' | 'mg/dL' | 'bpm' | 'kg';
 
-/** Parámetros clínicos iniciales definidos en la propuesta. */
+/** Parámetros clínicos iniciales (HTA, DM2 y peso). */
 export type ClinicalParameterCode =
   | 'SBP'
   | 'DBP'
@@ -16,9 +17,11 @@ export type ClinicalParameterCode =
   | 'WEIGHT';
 
 /**
- * Medición perteneciente a una lectura.
- * valueText se conserva porque el modelo de seguimiento admite valores
- * numéricos o de texto, aunque los cinco parámetros iniciales son numéricos.
+ * Modelo LEGADO usado por los mocks y por partes del flujo local de main.
+ * No debe utilizarse para interpretar directamente MeasurementOut del backend:
+ * allí el campo se llama `value` y no `valueNumeric`.
+ *
+ * Mantener esta estructura mientras los adaptadores y mocks antiguos la utilicen.
  */
 export type MeasurementResponse = {
   measurementId: UUID;
@@ -31,8 +34,9 @@ export type MeasurementResponse = {
 };
 
 /**
- * Lectura recibida desde Tracking a través del API Gateway.
- * context y source quedan como string porque la propuesta no enumera todos sus valores.
+ * Lectura LEGADA para los mocks y adaptadores locales de main.
+ * El endpoint real utiliza `recordedBy`, `status`, `value` y `evaluation`;
+ * véase BackendReadingResponse y `modules/monitoring/infrastructure/readings-api.ts`.
  */
 export type ReadingResponse = {
   readingId: UUID;
@@ -44,14 +48,15 @@ export type ReadingResponse = {
   measurements: MeasurementResponse[];
 };
 
-/** Contexto de una lectura de glucosa exigido por el backend. */
+/** Contexto de una lectura de glucosa para el API Gateway. */
 export type ReadingContext = 'PREPRANDIAL' | 'POSTPRANDIAL';
 
 /**
- * Body de POST /api/v1/patients/{patientId}/readings.
- * - measuredAt: ISO 8601 con zona horaria (por ejemplo 2026-11-05T08:30:00-03:00).
- * - context: obligatorio para glucosa; se omite en las demás mediciones.
- * - Sistólica y diastólica viajan siempre juntas en la misma lectura.
+ * Solicitud POST /patients/{patientId}/readings construida por reading-flow.
+ * - `measuredAt` incluye zona horaria explícita.
+ * - `context` se envía para GLUCOSE.
+ * - SBP y DBP se registran juntas.
+ * - Unidad y fuente son canónicas; el backend valida nuevamente.
  */
 export type CreateReadingRequest = {
   measuredAt: ISODateTime;
@@ -64,12 +69,61 @@ export type CreateReadingRequest = {
   }[];
 };
 
-/**
- * Respuesta de creación. Solo se exigen los campos que la app usa; el resto
- * del ReadingOut del backend se ignora aquí.
- */
+/** Respuesta mínima que necesita el flujo de creación/confirmación. */
 export type CreateReadingResponse = {
   readingId: UUID;
   status?: string;
   confirmationReasons?: string[];
+};
+
+/** MeasurementOut real de Seguimiento: utiliza `value`, no `valueNumeric`. */
+export type BackendMeasurementResponse = {
+  measurementId: UUID;
+  parameterCode: string;
+  value: number;
+  unit: string | null;
+  confirmedByUser: boolean;
+};
+
+/** Evaluación anidada en la respuesta de una lectura; no es el DTO legado de Evaluación. */
+export type BackendReadingEvaluationResponse = {
+  status: string;
+  severity: string | null;
+  explanation: string | null;
+  evaluatedAt: ISODateTime | null;
+};
+
+/**
+ * ReadingOut real de GET /patients/{patientId}/readings y GET de detalle.
+ * Los campos opcionales son compatibles con la respuesta que ya acepta
+ * `src/modules/monitoring/infrastructure/readings-api.ts`.
+ */
+export type BackendReadingResponse = {
+  readingId: UUID;
+  patientId: UUID;
+  measuredAt: ISODateTime;
+  status: ReadingStatus;
+  confirmationReasons: string[];
+  measurements: BackendMeasurementResponse[];
+  context?: ReadingContext | string | null;
+  source?: string;
+  recordedBy?: UUID;
+  evaluation?: BackendReadingEvaluationResponse | null;
+};
+
+/** Página real del historial; no contiene lecturas legacy del modo demo. */
+export type ReadingPageResponse = {
+  total: number;
+  page: number;
+  size: number;
+  items: BackendReadingResponse[];
+};
+
+/** Punto de GET /patients/{patientId}/measurements para series cronológicas. */
+export type MeasurementPointResponse = {
+  readingId: UUID;
+  measuredAt: ISODateTime;
+  parameterCode: string;
+  value: number;
+  unit: string | null;
 };

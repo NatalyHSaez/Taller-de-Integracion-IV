@@ -57,6 +57,9 @@ export function classifyDetailError(cause: unknown): DetailError {
       message: 'Esta lectura no existe o no pertenece al paciente seleccionado.',
     };
   }
+  if (error.code === 'INVALID_API_RESPONSE') {
+    return { kind: 'temporary', message: 'El servidor devolvió datos de lectura incorrectos. Intenta actualizar más tarde.' };
+  }
   return {
     kind: 'temporary',
     message: 'No se pudo conectar con el servicio. Revisa tu conexión e inténtalo nuevamente.',
@@ -88,6 +91,50 @@ export function describeConfirmationReason(reason: string): string {
     return 'La presión sistólica no es mayor que la diastólica. Revisa si los valores quedaron invertidos.';
   }
   return reason;
+}
+
+/** Valida campos imprescindibles antes de mostrar una lectura del backend. */
+export function checkReadingDetail(raw: unknown, patientId: string, readingId: string): ReadingDetail {
+  const invalid = () => new ApiError({
+    code: 'INVALID_API_RESPONSE',
+    message: 'El servidor devolvió un detalle de lectura inválido.',
+  });
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw invalid();
+  const row = raw as Record<string, unknown>;
+  if (row.patientId !== patientId || row.readingId !== readingId) {
+    throw new ApiError({ code: 'READING_NOT_FOUND', status: 404,
+      message: 'La lectura no pertenece al paciente solicitado.' });
+  }
+  if (typeof row.measuredAt !== 'string' || !Number.isFinite(Date.parse(row.measuredAt)) ||
+      !['PENDING', 'REQUIRES_CONFIRMATION', 'EVALUATED'].includes(String(row.status)) ||
+      !Array.isArray(row.confirmationReasons) ||
+      !row.confirmationReasons.every((r: unknown) => typeof r === 'string') ||
+      !Array.isArray(row.measurements) || row.measurements.length === 0 ||
+      (row.context != null && !['PREPRANDIAL', 'POSTPRANDIAL'].includes(String(row.context))) ||
+      (row.recordedBy != null && typeof row.recordedBy !== 'string') ||
+      (row.source != null && typeof row.source !== 'string')) throw invalid();
+  const ids = new Set<string>();
+  for (const item of row.measurements) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw invalid();
+    const m = item as Record<string, unknown>;
+    if (typeof m.measurementId !== 'string' || !m.measurementId || ids.has(m.measurementId) ||
+        typeof m.parameterCode !== 'string' || !m.parameterCode ||
+        typeof m.value !== 'number' || !Number.isFinite(m.value) ||
+        (m.unit !== null && typeof m.unit !== 'string') ||
+        typeof m.confirmedByUser !== 'boolean') throw invalid();
+    ids.add(m.measurementId);
+  }
+  if (row.evaluation !== undefined && row.evaluation !== null) {
+    if (typeof row.evaluation !== 'object' || Array.isArray(row.evaluation)) throw invalid();
+    const ev = row.evaluation as Record<string, unknown>;
+    if (typeof ev.status !== 'string' || !ev.status ||
+        (ev.severity != null && typeof ev.severity !== 'string') ||
+        (ev.explanation != null && typeof ev.explanation !== 'string') ||
+        (ev.evaluatedAt != null && (typeof ev.evaluatedAt !== 'string' || !Number.isFinite(Date.parse(ev.evaluatedAt))))) {
+      throw invalid();
+    }
+  }
+  return raw as ReadingDetail;
 }
 
 type Fetch = (patientId: string, readingId: string) => Promise<ReadingDetail>;
@@ -158,7 +205,7 @@ export function createReadingDetail(
     const current = ++generation;
     set(mode === 'initial' ? { loading: true, error: null } : { refreshing: true, error: null });
     try {
-      const reading = await fetchReading(patientId, readingId);
+      const reading = checkReadingDetail(await fetchReading(patientId, readingId), patientId, readingId);
       if (current !== generation) return;
       if (reading.readingId !== readingId || reading.patientId !== patientId) {
         throw new ApiError({ code: 'READING_NOT_FOUND', status: 404, message: 'Lectura no encontrada.' });

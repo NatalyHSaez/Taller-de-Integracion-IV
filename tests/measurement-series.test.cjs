@@ -171,6 +171,7 @@ test('la pantalla de gráficos conserva su diseño original (LineChart) y usa /m
   const path = require('node:path');
   const source = fs.readFileSync(path.resolve(__dirname, '..', 'app', '(tabs)', 'graficos.tsx'), 'utf8');
   assert.match(source, /react-native-gifted-charts/);
-  assert.match(source, /loadChartMeasurements\(patientId\)/);
+  assert.match(source, /getPatientMeasurements\(patientId,/);
+  assert.match(source, /CODES\[group\]\.map/, 'consulta los parámetros de cada gráfico');
   assert.doesNotMatch(source, /getPatientReadings|measurement-series-panel/);
 });

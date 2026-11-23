@@ -22,7 +22,7 @@ const CONTEXT_LABELS: Record<string, string> = {
 const SOURCE_LABELS: Record<string, string> = {
   mobile: 'App móvil',
   web: 'Portal web',
-  MOCK: 'Datos de demostración',
+  MOCK: 'Origen no reconocido',
 };
 
 /** Resultado que informa el servicio de evaluación (no lo calcula la app). */

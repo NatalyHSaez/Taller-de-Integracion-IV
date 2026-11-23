@@ -69,8 +69,12 @@ type BackendUserLike = {
   id?: string;
   fullName?: string;
   email?: string;
+  /** Compatibilidad con respuestas antiguas; /me utiliza fullName y email. */
+  nombre_completo?: string;
+  correo?: string;
   roles?: string[];
   role?: string;
+  rol?: string;
 };
 
 const emptyPermissions = (): Permissions => ({
@@ -124,7 +128,7 @@ const structuredProfiles: Profile[] = MOCK_PATIENTS.map((patient) => {
 
   return {
     id: patient.patientId,
-    name: `${patient.firstName} ${patient.lastName}`,
+    name: patient.fullName,
     email: account?.email.toLowerCase() ?? `${patient.patientId}@mock.local`,
     code: "DEMO-ACTIVATED",
     expires: 0,
@@ -227,28 +231,28 @@ function backendRole(user: CurrentUserResponse): Account["role"] | null {
 
 function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
   const userId = requireValue(
-    user.id ?? user.email,
+    user.id ?? user.email ?? user.correo,
     "El usuario del backend no contiene un identificador válido.",
   );
 
-  const rawRoles = user.roles ?? (user.role ? [user.role] : []);
+  const rawRoles = user.roles ?? (user.role ? [user.role] : user.rol ? [user.rol] : []);
 
   const roles = rawRoles
     .map((role) => role.trim().toUpperCase())
     .map((role): UserRole | null => {
-      if (role === "PATIENT") {
+      if (role === "PATIENT" || role === "PACIENTE") {
         return "PATIENT";
       }
 
-      if (role === "CAREGIVER") {
+      if (role === "CAREGIVER" || role === "CUIDADOR") {
         return "CAREGIVER";
       }
 
-      if (role === "DOCTOR") {
+      if (role === "DOCTOR" || role === "MEDICO" || role === "MÉDICO") {
         return "DOCTOR";
       }
 
-      if (role === "ADMIN") {
+      if (role === "ADMIN" || role === "ADMINISTRADOR") {
         return "ADMIN";
       }
 
@@ -258,8 +262,8 @@ function normalizeBackendUser(user: BackendUserLike): CurrentUserResponse {
 
   return {
     id: userId,
-    fullName: user.fullName ?? "Usuario",
-    email: (user.email ?? "").toLowerCase(),
+    fullName: user.fullName ?? user.nombre_completo ?? "Usuario",
+    email: (user.email ?? user.correo ?? "").trim().toLowerCase(),
     roles,
   };
 }
@@ -276,15 +280,17 @@ function openBackendDemoSession(user: CurrentUserResponse) {
   };
   const profile: Profile = {
     id: user.id, name: user.fullName, email: user.email,
-    code: "BACKEND-SESSION", expires: 0, activated: true,
+    code: "", expires: 0, activated: true,
   };
   update({
     accounts: [...state.accounts.filter((item) => item.id !== user.id), account],
     profiles: role === "patient"
       ? [...state.profiles.filter((item) => item.id !== user.id), profile]
-      : state.profiles,
-    // Nunca inventar vínculos ni copiar mediciones de demostración.
-    relations: state.relations.filter((item) => item.caregiverId !== user.id),
+      : state.profiles.filter((item) => item.id !== user.id),
+    // No atribuir vínculos de demostración a la identidad real.
+    relations: state.relations.filter((item) =>
+      item.caregiverId !== user.id && item.patientId !== user.id
+    ),
     userId: user.id,
     selectedId: role === "patient" ? user.id : undefined,
     pendingToken: undefined,
@@ -540,10 +546,15 @@ export const demo = {
 
   
   logout() {
+    // El código que la persona guardó expresamente para completar una invitación
+    // debe sobrevivir al paso por el registro/login mock. No concede permisos.
+    const pendingToken = state.invitations.some((invitation) =>
+      invitation.token === state.pendingToken && invitation.expires > Date.now())
+      ? state.pendingToken : undefined;
     update({
       userId: undefined,
       selectedId: undefined,
-      pendingToken: undefined,
+      pendingToken,
     });
   },
 

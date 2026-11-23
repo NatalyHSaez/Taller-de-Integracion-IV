@@ -1,5 +1,5 @@
 import { getPatientReadings, type PaginatedReadingsResponse, type ReadingResponse, type ReadingsQuery } from '../infrastructure/readings-api';
-import { getApiErrorMessage } from '../../../core/infrastructure/http/errors';
+import { ApiError, getApiErrorMessage } from '../../../core/infrastructure/http/errors';
 
 /**
  * Historial de lecturas del paciente (GET /api/v1/patients/{patientId}/readings).
@@ -62,6 +62,38 @@ function filtersKey(filters: HistoryFilters): string {
 function measuredTime(reading: ReadingResponse): number {
   const time = new Date(reading.measuredAt).getTime();
   return Number.isFinite(time) ? time : 0;
+}
+
+/** Valida paginación y pertenencia al paciente antes de presentar datos clínicos. */
+export function checkHistoryPage(raw: unknown, patientId: string, page: number): PaginatedReadingsResponse {
+  const invalid = () => new ApiError({
+    code: 'INVALID_API_RESPONSE',
+    message: 'El servidor devolvió una página de historial inválida.',
+  });
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw invalid();
+  const value = raw as Record<string, unknown>;
+  if (typeof value.total !== 'number' || !Number.isInteger(value.total) || value.total < 0 ||
+      value.page !== page || typeof value.size !== 'number' || !Number.isInteger(value.size) ||
+      (value.size as number) < 1 || (value.size as number) > 100 ||
+      !Array.isArray(value.items) || value.items.length > (value.size as number)) throw invalid();
+  const seen = new Set<string>();
+  for (const item of value.items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw invalid();
+    const reading = item as Record<string, unknown>;
+    if (reading.patientId !== patientId ||
+        typeof reading.readingId !== 'string' || !reading.readingId ||
+        seen.has(reading.readingId) ||
+        typeof reading.measuredAt !== 'string' || !Number.isFinite(Date.parse(reading.measuredAt)) ||
+        !['PENDING', 'REQUIRES_CONFIRMATION', 'EVALUATED'].includes(String(reading.status)) ||
+        !Array.isArray(reading.measurements) ||
+        !reading.measurements.every((measurement: unknown) => {
+          if (!measurement || typeof measurement !== 'object' || Array.isArray(measurement)) return false;
+          const m = measurement as Record<string, unknown>;
+          return typeof m.parameterCode === 'string' && typeof m.value === 'number' && Number.isFinite(m.value);
+        })) throw invalid();
+    seen.add(reading.readingId);
+  }
+  return raw as PaginatedReadingsResponse;
 }
 
 /** Une páginas sin repetir lecturas y mantiene el orden más reciente primero. */
@@ -150,7 +182,7 @@ export function createReadingsHistory(
     );
 
     try {
-      const response = await fetchPage(patientId, queryFor(1, bound));
+      const response = checkHistoryPage(await fetchPage(patientId, queryFor(1, bound)), patientId, 1);
       if (current !== generation) return;
       upperBound = bound;
       const items = mergeReadings([], response.items ?? []);
@@ -255,7 +287,7 @@ export function createReadingsHistory(
       const nextPage = state.page + 1;
       set({ loadingMore: true, loadMoreError: null });
       try {
-        const response = await fetchPage(patientId, queryFor(nextPage, upperBound));
+        const response = checkHistoryPage(await fetchPage(patientId, queryFor(nextPage, upperBound)), patientId, nextPage);
         if (current !== generation) return;
         set({
           items: mergeReadings(state.items, response.items ?? []),

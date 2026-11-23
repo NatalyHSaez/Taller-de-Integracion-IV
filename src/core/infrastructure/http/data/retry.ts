@@ -27,8 +27,11 @@ export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
  * no se reintentan.
  */
 export function isRetryableApiError(error: ApiError): boolean {
-  if (error.status === 429 || (error.status !== undefined && error.status >= 500)) {
-    return true;
+  if (error.code === 'REQUEST_CANCELLED') return false;
+
+  // El HTTP status es autoritativo: un code contradictorio no permite reintentar un 403.
+  if (error.status !== undefined) {
+    return [408, 429, 500, 502, 503, 504].includes(error.status);
   }
 
   return [
@@ -37,6 +40,7 @@ export function isRetryableApiError(error: ApiError): boolean {
     'SERVICE_UNAVAILABLE',
     'SERVER_ERROR',
     'TOO_MANY_REQUESTS',
+    'AUTHORIZATION_UNAVAILABLE',
   ].includes(error.code);
 }
 

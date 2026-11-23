@@ -1,13 +1,8 @@
-import type { EvaluationStatus, ISODateTime, UUID } from './common';
-
+import type { EvaluationStatus, ISODateTime } from './common';
+/** EvaluationOut anidado en ReadingOut; no existe GET público /evaluations. */
 export type EvaluationResponse = {
-  evaluationId: UUID;
-  patientId: UUID;
-  readingId: UUID;
-  ruleProfileId: UUID;
-  ruleProfileVersion: number;
   status: EvaluationStatus;
-  resultCode: string;
-  explanation: string;
-  evaluatedAt: ISODateTime;
+  severity: string | null;
+  explanation: string | null;
+  evaluatedAt: ISODateTime | null;
 };

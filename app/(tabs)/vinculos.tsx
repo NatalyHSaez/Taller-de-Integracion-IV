@@ -1,14 +1,9 @@
-import { authService } from '@/src/modules/identity/application/authservice';
 import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 import { createPatientLinkCode, getPatientCaregivers, getPatientDoctors, type LinkCodeResponse, type LinkedUserResponse } from '@/src/modules/relationships/infrastructure/relationships-api';
-import { demo, type Permissions, type Relation } from '@/src/modules/demo/infrastructure/demo-store';
 import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/src/modules/relationships/presentation/link-format';
 import { DoctorLinkCodeCard } from '@/src/modules/relationships/presentation/components/doctor-link-code-card';
 import { LinkCodeCountdown } from '@/src/modules/relationships/presentation/components/link-code-countdown';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import * as Linking from 'expo-linking';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Share, Switch, View } from 'react-native';
@@ -16,17 +11,6 @@ import { Share, Switch, View } from 'react-native';
 import { Alert } from '@/src/modules/relationships/presentation/confirm-dialog';
 import { onStaleRelationship, revokeCaregiverRelationship, revokeDoctorRelationship, updateCaregiverPermissions } from '@/src/modules/relationships/application/relationship-actions';
 import QRCode from 'react-native-qrcode-svg';
-function RequestCard({ relation }: { relation: Relation }) {
-  const { accounts } = useDemo(); const [permissions, setPermissions] = useState<Permissions>({ alerts: true, read: true, write: false });
-  const [error, setError] = useState('');
-  const account = accounts.find((a) => a.id === relation.caregiverId);
-  const decide = (status: Relation['status']) => { try { demo.decide(relation.id, status, permissions); } catch (e) { setError((e as Error).message); } };
-  return <Card><Copy>{account?.name}</Copy><Copy>{account?.email}</Copy><Copy>{relation.status === 'pending' ? 'Solicita acompañarte. Revisa su identidad y los permisos antes de aceptar.' : 'Vínculo aprobado'}</Copy>
-    {relation.status === 'pending' ? <>{(['alerts', 'read', 'write'] as const).map((key) => <View key={key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Switch accessibilityLabel={{ alerts: 'Recibir alertas', read: 'Consultar mediciones', write: 'Registrar mediciones' }[key]} value={permissions[key]} onValueChange={(value) => setPermissions({ ...permissions, [key]: value })} /><View style={{ flex: 1 }}><Copy>{{ alerts: 'Recibir alertas', read: 'Consultar mediciones', write: 'Ayudar a registrar mediciones' }[key]}</Copy></View></View>)}<Action label="Aceptar vínculo con estos permisos" onPress={() => decide('approved')} /><Action secondary label="Rechazar solicitud" onPress={() => decide('rejected')} /></> : <><Copy>Permisos: {[relation.permissions.alerts && 'alertas', relation.permissions.read && 'consultar mediciones', relation.permissions.write && 'registrar mediciones'].filter(Boolean).join(', ') || 'ninguno'}.</Copy><Action secondary label="Retirar acceso" onPress={() => decide('revoked')} /></>}
-    {!!error && <Copy>{error}</Copy>}
-  </Card>;
-}
-
 const CAREGIVER_PERMISSIONS = [
   { code: 'PATIENT_PROFILE_VIEW', label: 'Ver perfil del paciente' },
   { code: 'MEASUREMENT_CREATE', label: 'Registrar mediciones' },
@@ -51,7 +35,6 @@ function RealCaregiverCard({ caregiver, onChanged }: {
   const [selected, setSelected] = useState<string[]>(caregiver.permissions);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  useEffect(() => { setSelected(caregiver.permissions); }, [caregiver.permissions.join('|')]);
   const changed = selected.length !== caregiver.permissions.length ||
     selected.some(permission => !caregiver.permissions.includes(permission));
 
@@ -92,8 +75,8 @@ function RealCaregiverCard({ caregiver, onChanged }: {
         <View style={{ flex: 1 }}><Copy>{label}</Copy></View>
       </View>
     ))}
-    {changed && <Action label={busy ? 'Guardando...' : 'Guardar permisos'} onPress={() => { if (!busy) void save(); }} />}
-    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del cuidador'} onPress={() => { if (!busy) confirmRevoke(); }} />
+    {changed && <Action label={busy ? 'Guardando...' : 'Guardar permisos'} disabled={busy} onPress={() => { if (!busy) void save(); }} />}
+    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del cuidador'} disabled={busy} onPress={() => { if (!busy) confirmRevoke(); }} />
     {!!message && <Copy>{message}</Copy>}
   </View>;
 }
@@ -118,13 +101,13 @@ function RealDoctorCard({ doctor, onChanged }: {
   return <View style={{ gap: 8, marginTop: 12 }}>
     <Copy>{doctor.fullName}</Copy>
     <LinkDetails link={doctor} />
-    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del médico'} onPress={() => { if (!busy) confirmRevoke(); }} />
+    <Action secondary label={busy ? 'Procesando...' : 'Retirar acceso del médico'} disabled={busy} onPress={() => { if (!busy) confirmRevoke(); }} />
     {!!message && <Copy>{message}</Copy>}
   </View>;
 }
 
-export default function Links() {
-  const router = useRouter(); const { user, selectedPatient, sessionMode } = useAppState(); const { relations, invitations } = useDemo(); const [showQr, setShowQr] = useState(false); const [error, setError] = useState('');
+function LinksContent() {
+  const router = useRouter(); const { user, sessionMode } = useAppState(); const [error, setError] = useState('');
   const [realLinkCode, setRealLinkCode] =
     useState<LinkCodeResponse | null>(null);
 
@@ -135,42 +118,51 @@ export default function Links() {
   const [doctors, setDoctors] = useState<LinkedUserResponse[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [linksError, setLinksError] = useState('');
+  const linksRequest = useRef(0);
+
   async function refreshRealLinks() {
     if (!patientId) return;
+    const requestId = ++linksRequest.current;
     const [nextCaregivers, nextDoctors] = await Promise.all([
       getPatientCaregivers(patientId), getPatientDoctors(patientId),
     ]);
+    if (requestId !== linksRequest.current) return;
     setCaregivers(nextCaregivers);
     setDoctors(nextDoctors);
+    setLoadingLinks(false);
   }
 
 
   useEffect(() => {
     let cancelled = false;
-    setCaregivers([]);
-    setDoctors([]);
-    setLinksError('');
-    if (!patientId) {
-      setLoadingLinks(false);
-      return;
-    }
-    setLoadingLinks(true);
-    Promise.all([getPatientCaregivers(patientId), getPatientDoctors(patientId)])
-      .then(([nextCaregivers, nextDoctors]) => {
-        if (!cancelled) {
+    const requestId = ++linksRequest.current;
+    void Promise.resolve().then(async () => {
+      if (cancelled || requestId !== linksRequest.current) return;
+      setCaregivers([]);
+      setDoctors([]);
+      setLinksError('');
+      if (!patientId) {
+        setLoadingLinks(false);
+        return;
+      }
+      setLoadingLinks(true);
+      try {
+        const [nextCaregivers, nextDoctors] = await Promise.all([
+          getPatientCaregivers(patientId), getPatientDoctors(patientId),
+        ]);
+        if (!cancelled && linksRequest.current === requestId) {
           setCaregivers(nextCaregivers);
           setDoctors(nextDoctors);
         }
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) {
+      } catch (cause) {
+        if (!cancelled && linksRequest.current === requestId) {
           setLinksError(cause instanceof Error ? cause.message : 'No fue posible consultar las vinculaciones.');
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingLinks(false);
-      });
-    return () => { cancelled = true; };
+      } finally {
+        if (!cancelled && linksRequest.current === requestId) setLoadingLinks(false);
+      }
+    });
+    return () => { cancelled = true; linksRequest.current += 1; };
   }, [patientId]);
 
   // Agregado: actualización manual (botón "Actualizar vínculos" y "Reintentar").
@@ -202,7 +194,6 @@ export default function Links() {
   }, [isFocused]);
   // Agregado: si al guardar permisos el vínculo ya no existe, se recarga la lista.
   useEffect(() => onStaleRelationship(() => refreshOnFocus()), []);
-  const invitation = invitations.find((i) => i.patientId === selectedPatient?.id);
   async function generateRealLinkCode() {
     if (
       sessionMode !== 'backend' ||
@@ -235,8 +226,6 @@ export default function Links() {
       setGeneratingCode(false);
     }
   }
-  const links = relations.filter((r) => r.patientId === selectedPatient?.id && ['pending', 'approved'].includes(r.status));
-  const url = invitation ? Linking.createURL('/invitacion', { queryParams: { token: invitation.token } }) : '';
   
   return (
     <FlowPage
@@ -249,8 +238,7 @@ export default function Links() {
         onPress={() => router.replace('/(tabs)')}
       />
 
-      {sessionMode === 'backend' ? (
-        user?.role === 'patient' ? (
+      {user?.role === 'patient' ? (
           <>
             <Action
               secondary
@@ -273,7 +261,7 @@ export default function Links() {
                 <Copy>No tienes cuidadores vinculados.</Copy>
               ) : (
                 caregivers.map((caregiver) => (
-                  <RealCaregiverCard key={caregiver.relationshipId} caregiver={caregiver}
+                  <RealCaregiverCard key={`${caregiver.relationshipId}:${caregiver.permissions.join('|')}`} caregiver={caregiver}
                     onChanged={refreshRealLinks} />
                 ))
               )}
@@ -304,6 +292,7 @@ export default function Links() {
             </Copy>
 
             <Action
+              disabled={generatingCode}
               label={
                 generatingCode
                   ? 'Generando código...'
@@ -344,7 +333,7 @@ export default function Links() {
                     <View style={{ padding: 14, backgroundColor: '#FFFFFF' }}>
                       <QRCode value={realLinkCode.code} size={220} />
                     </View>
-                    <Copy>Escanea este QR desde la cuenta del cuidador o médico.</Copy>
+                    <Copy>Escanea este QR desde la cuenta del cuidador.</Copy>
                     <Copy>El QR contiene el mismo código temporal de un solo uso.</Copy>
                   </View>
                 )}
@@ -378,108 +367,20 @@ export default function Links() {
               onPress={() => router.push('/invitacion')}
             />
           </Card>
-        )
-      ) : (
-        user?.role === 'patient' ? (
-          <>
-            <Card>
-              <Copy>Invitar cuidador (demostración)</Copy>
-              <Copy>
-                Comparte una invitación temporal.
-                Tendrás que aprobar cada solicitud antes de dar acceso.
-              </Copy>
-
-              <Action
-                label={invitation ? 'Generar nueva invitación' : 'Invitar cuidador'}
-                onPress={() => {
-                  demo.invite();
-                  setShowQr(false);
-                }}
-              />
-
-              {invitation && (
-                <>
-                  <Copy>Código: {invitation.token}</Copy>
-                  <Copy>
-                    Vence: {new Date(invitation.expires).toLocaleString('es-CL')}
-                  </Copy>
-                  <Copy>{url}</Copy>
-
-                  <Action
-                    label="Compartir enlace"
-                    onPress={() => {
-                      void Share.share({
-                        message: `Te invito a acompañarme en Domicilia: ${url}`,
-                      }).catch(() =>
-                        setError('No se pudo compartir el enlace.')
-                      );
-                    }}
-                  />
-
-                  <Action
-                    secondary
-                    label="Mostrar código QR (simulación)"
-                    onPress={() => setShowQr(!showQr)}
-                  />
-
-                  {showQr && (
-                    <>
-                      <MaterialCommunityIcons
-                        name="qrcode"
-                        size={130}
-                        color="#0F4C81"
-                      />
-                      <Copy>
-                        QR ilustrativo de {invitation.token}.
-                        No es escaneable con una cámara.
-                      </Copy>
-                    </>
-                  )}
-
-                  <Action
-                    secondary
-                    label="Continuar como familiar (demostración)"
-                    onPress={() => {
-                      const token = invitation.token;
-                      demo.remember(token);
-                      // Cierra la sesión completa (tokens, caché y estado), como en la versión de Sebastian.
-                      void authService
-                        .logout()
-                        .then(() =>
-                          router.replace({ pathname: '/invitacion', params: { token } }),
-                        )
-                        .catch(() => setError('No se pudo cerrar la sesion. Intenta nuevamente.'));
-                    }}
-                  />
-                </>
-              )}
-            </Card>
-
-            <Copy>Solicitudes y cuidadores ({links.length})</Copy>
-
-            {links.length === 0 && (
-              <Copy>Aún no hay solicitudes ni cuidadores autorizados.</Copy>
-            )}
-
-            {links.map((relation) => (
-              <RequestCard key={relation.id} relation={relation} />
-            ))}
-          </>
-        ) : (
-          <>
-            <Copy>
-              Consulta tus pacientes aprobados o solicita otro vínculo.
-            </Copy>
-            <Action
-              label="Mis pacientes y solicitudes"
-              onPress={() => router.push('/(auth)/select-patient')}
-            />
-          </>
-        )
-      )}
+        )}
 
       {!!error && <Copy>{error}</Copy>}
     </FlowPage>
   );
 
+}
+
+/**
+ * Evita que listas, permisos y códigos temporales de una cuenta anterior
+ * sobrevivan a un cambio de sesión durante la navegación.
+ */
+export default function Links() {
+  const { user, sessionMode } = useAppState();
+  const scope = `${sessionMode ?? 'none'}:${user?.id ?? 'anon'}:${user?.role ?? 'none'}`;
+  return <LinksContent key={scope} />;
 }

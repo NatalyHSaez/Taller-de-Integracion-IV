@@ -100,15 +100,15 @@ test('pantallas: QR solo con code, cuenta regresiva, código para médico y conf
   assert.match(doctor, /<QRCode value=\{linkCode\.code\}/);
 
   const invitacion = read('app', 'invitacion.tsx');
-  assert.match(invitacion, /import \{ consumeLinkCode \} from '@\/src\/modules\/relationships\/application\/link-codes';/);
+  assert.match(invitacion, /consumeLinkCode/);
   assert.match(invitacion, /<CameraView/, 'lectura por cámara');
-  const realStart = invitacion.indexOf("sessionMode === 'backend' && user?.role === 'caregiver' ? (");
-  const realEnd = invitacion.indexOf('    ) : (\n      <>', realStart);
-  assert.ok(realStart > 0 && realEnd > realStart);
-  assert.doesNotMatch(invitacion.slice(realStart, realEnd), /demo\.|invitations|inspect\(/, 'el flujo real no usa invitaciones simuladas');
-  const linkFn = invitacion.slice(invitacion.indexOf('async function linkRealPatient'), invitacion.indexOf('function inspect('));
-  assert.match(linkFn, /await consumeLinkCode\(/);
-  assert.doesNotMatch(linkFn, /demo\./);
+  const realStart = invitacion.indexOf('function RealInvitationScreen()');
+  assert.ok(realStart > 0, 'existe el flujo de vinculación real');
+  assert.doesNotMatch(invitacion, /function MockInvitationScreen/, 'no existe vinculación simulada');
+  const realFlow = invitacion.slice(realStart);
+  assert.match(realFlow, /await consumeLinkCode\(/, 'el flujo real consume el código del Gateway');
+  assert.doesNotMatch(realFlow, /demo\.|demo\.request\(|demo\.invitation\(/,
+    'el flujo real nunca sustituye vínculos con datos simulados');
 
   const select = read('app', '(auth)', 'select-patient.tsx');
   assert.match(select, /takeLinkConfirmation\(\)/);

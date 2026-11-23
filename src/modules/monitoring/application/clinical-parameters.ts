@@ -3,7 +3,6 @@ import type { ClinicalParameterCode, ClinicalParameterResponse } from '@/src/cor
 import { authSession } from '../../../core/application/session/auth-session';
 import { dataClient } from '../../../core/infrastructure/http/data';
 import { ApiError } from '../../../core/infrastructure/http/errors';
-import { mockApi } from '../../demo/infrastructure/mocks';
 
 /**
  * Catálogo de parámetros clínicos con sus límites técnicos efectivos.
@@ -25,7 +24,6 @@ import { mockApi } from '../../demo/infrastructure/mocks';
  * autoridad final de validación.
  *
  * - En sesión backend la única fuente es el Gateway: nunca se completa con mocks.
- * - En sesión mock se usa exclusivamente el catálogo mock.
  * - La caché es solo en memoria (ver services/data/README.md).
  */
 
@@ -179,11 +177,7 @@ const cacheOptions = (forceRefresh?: boolean) => ({
 export const clinicalParametersService = {
   async list(options: { forceRefresh?: boolean } = {}): Promise<ClinicalParameterCatalog> {
     if (authSession.mode() !== 'backend') {
-      const [items, limits] = await Promise.all([
-        mockApi.catalog.clinicalParameters(),
-        mockApi.catalog.parameterLimits(),
-      ]);
-      return buildCatalog(items, toLimits(limits));
+      throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para consultar el servidor.' });
     }
 
     // El catálogo es obligatorio; los límites son opcionales: si el endpoint
