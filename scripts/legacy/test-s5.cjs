@@ -256,7 +256,7 @@ async function main(){
     assert.match(detail,/Marcar como leída/);assert.doesNotMatch(detail,/GET \/notifications\/\$\{/);
   });
   await check('Módulo consultas comunica ausencia de API sin endpoints ficticios',async()=>{
-    const screen=fs.readFileSync(path.join(root,'app/(tabs)/atencion.tsx'),'utf8');
+    const screen=fs.readFileSync(path.join(root,'src/modules/medical-care/presentation/screens/medical-care-screen.tsx'),'utf8');
     assert.match(screen,/en desarrollo/);assert.match(screen,/Integra II/);
     assert.doesNotMatch(screen,/fetch\(|apiClient\.|consultations\//);
   });

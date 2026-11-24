@@ -169,7 +169,7 @@ test('pantalla: sin mediciones devuelve vacío y los errores se propagan', async
 test('la pantalla de gráficos conserva su diseño original (LineChart) y usa /measurements', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const source = fs.readFileSync(path.resolve(__dirname, '..', 'app', '(tabs)', 'graficos.tsx'), 'utf8');
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'monitoring', 'presentation', 'screens', 'charts-screen.tsx'), 'utf8');
   assert.match(source, /react-native-gifted-charts/);
   assert.match(source, /getPatientMeasurements\(patientId,/);
   assert.match(source, /CODES\[group\]\.map/, 'consulta los parámetros de cada gráfico');

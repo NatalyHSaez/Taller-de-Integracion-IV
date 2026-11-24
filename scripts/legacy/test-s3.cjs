@@ -212,7 +212,7 @@ async function run() {
     assert.deepEqual(result.map(p=>p.value),[105]);assert.equal(fetchCalls,0);
   });
   await test('Pantalla integra carga, vacío, errores y fechas sin importar datos demo en backend', async () => {
-    const src=fs.readFileSync(path.join(root,'app/(tabs)/graficos.tsx'),'utf8');
+    const src=fs.readFileSync(path.join(root,'src/modules/monitoring/presentation/screens/charts-screen.tsx'),'utf8');
     assert.ok(src.includes('measurementSeriesService.list('));
     assert.ok(src.includes('demoMeasurementSeries('));
     assert.ok(src.includes('if (active) void load()'));

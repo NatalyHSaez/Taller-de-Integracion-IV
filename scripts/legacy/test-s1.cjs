@@ -149,7 +149,7 @@ async function run(){
     assert.equal(historyCards([r],'SBP')[0].type,'blood_pressure');
   });
   await test('El historial no ofrece Pulso como filtro independiente',async()=>{
-    const source=fs.readFileSync(path.join(root,'app/historial.tsx'),'utf8');
+    const source=fs.readFileSync(path.join(root,'src/modules/monitoring/presentation/screens/history-screen.tsx'),'utf8');
     assert.ok(!source.includes("label: 'Pulso'"));
     assert.ok(!source.includes("code: 'HEART_RATE'"));
     assert.ok(source.includes('withoutStandalonePulse(mockMeasurements)'));

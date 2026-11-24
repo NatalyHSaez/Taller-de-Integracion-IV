@@ -160,7 +160,7 @@ async function run() {
     await assert.rejects(readingsService.detail(patient,rid),e=>e.status===403);
   });
   await test('Pantalla muestra estado, evaluación, usuario registrador y botón manual',async()=>{
-    const code=fs.readFileSync(path.join(root,'app/lectura/[readingId].tsx'),'utf8');
+    const code=fs.readFileSync(path.join(root,'src/modules/monitoring/presentation/screens/reading-detail-screen.tsx'),'utf8');
     for (const fragment of ['reading.recordedBy','reading.confirmationReasons','evaluation.explanation','evaluation.evaluatedAt',
       'Actualizar lectura','loadReading(true)','requestSerial.current','reading.status']) assert.ok(code.includes(fragment),fragment);
     assert.ok(!code.includes('setInterval('));

@@ -1,6 +1,8 @@
+import type { PatientProfileResponse } from '../domain/patient-profile';
 import type { AuthTokensResponse, CurrentUserResponse, RegisterRequest, UpdateMeRequest } from '@/src/core/infrastructure/http/dto';
 
 export type IdentityDependencies = {
+  getPatient: (patientId: string) => Promise<PatientProfileResponse>;
   isConfigured: () => boolean;
   revision: () => number;
   login: (email: string, password: string) => Promise<AuthTokensResponse>;
@@ -22,4 +24,8 @@ export function configureIdentity(deps: IdentityDependencies): void {
 export function identityDependencies(): IdentityDependencies {
   if (!dependencies) throw new Error('El módulo de identidad no está configurado.');
   return dependencies;
+}
+
+export async function getPatient(patientId: string): Promise<PatientProfileResponse> {
+  return identityDependencies().getPatient(patientId);
 }

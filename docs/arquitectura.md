@@ -144,3 +144,6 @@ El contrato `NotificationsApi` permanece en dominio. `notifications-port.ts` reg
 ### Dashboard (grupo 8)
 
 `HomeSummaryDeps` y `home-summary-port.ts` permiten configurar las consultas de mediciones, alertas y permisos desde `composition/configure-dashboard.ts`. La pantalla se mueve a `dashboard/presentation/screens/home-screen.tsx`; la ruta reexporta el componente. Se conserva la lógica de presentación y se limpian los datos del resumen si la actualización devuelve 401 o 403. Los modelos de lectura y alerta se comparten mediante tipos de dominio; la reorganización de errores Core y la limpieza demo siguen pendientes.
+
+### Grupo 9: pantallas y rutas
+Las rutas de Expo Router delegan en pantallas de presentación de los módulos; los layouts mantienen la navegación. Perfil y ficha usan el puerto de identidad. Configuración recibe el diagnóstico P7 por composición en su ruta. Documentos no muestra archivos ficticios ni incorpora endpoints sin contrato. La separación de errores y DTO de Core y la extracción adicional de lógica de presentación quedan pendientes.

@@ -131,7 +131,7 @@ test('error sin datos y reintento que recupera la ficha', async () => {
 test('la pantalla utiliza solo la ficha real del backend, sin alternativa demo', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const source = fs.readFileSync(path.resolve(__dirname, '..', 'app', 'paciente-vinculado.tsx'), 'utf8');
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'identity', 'presentation', 'screens', 'linked-patient-screen.tsx'), 'utf8');
   assert.match(source, /createPatientProfile\(getPatient\)/);
   for (const field of ['formatAge', 'formatBiologicalSex', 'formatManagementMode', 'formatBirthDate']) {
     assert.match(source, new RegExp(field));

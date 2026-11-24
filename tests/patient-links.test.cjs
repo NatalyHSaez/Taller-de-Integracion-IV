@@ -8,7 +8,7 @@ const { installFakes } = require('./support/fakes.cjs');
 
 installFakes();
 const { describePermissions, formatLinkedAt, shortRelationshipId } = projectRequire('src/modules/relationships/presentation/link-format.ts');
-const source = fs.readFileSync(path.resolve(__dirname, '..', 'app', '(tabs)', 'vinculos.tsx'), 'utf8').replace(/\r/g, '');
+const source = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'relationships', 'presentation', 'screens', 'links-screen.tsx'), 'utf8').replace(/\r/g, '');
 
 test('formatos: permisos, fecha de vinculación e identificador', () => {
   assert.equal(describePermissions(['MEASUREMENT_VIEW', 'ALERT_VIEW']), 'consultar mediciones, consultar alertas');

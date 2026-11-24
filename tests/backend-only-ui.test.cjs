@@ -14,7 +14,7 @@ function tsFiles(dir) {
 
 test('solo existe autenticación real; no hay pantalla de demostración', () => {
   const auth = read('src', 'modules', 'identity', 'application', 'authservice.ts');
-  const login = read('app', '(auth)', 'login.tsx');
+  const login = read('src', 'modules', 'identity', 'presentation', 'screens', 'login-screen.tsx');
   assert.match(auth, /loginWithBackend\(email, password\)/);
   assert.doesNotMatch(auth, /loginWithMock|startMock|demo\.login|mockApi/);
   assert.doesNotMatch(login, /modo demo|modo demostraci[oó]n|iniciar demostraci[oó]n|startMock/i);
@@ -22,7 +22,7 @@ test('solo existe autenticación real; no hay pantalla de demostración', () => 
 });
 
 test('ninguna pantalla consulta el almacén de datos simulados', () => {
-  for (const file of tsFiles(path.join(root, 'app'))) {
+  for (const file of [...tsFiles(path.join(root, 'app')), ...tsFiles(path.join(root, 'src', 'modules')).filter(file => file.includes(`${path.sep}presentation${path.sep}screens${path.sep}`))]) {
     const code = fs.readFileSync(file, 'utf8');
     assert.doesNotMatch(code, /modules\/demo|notifications-demo|demo-alerts|useDemo\(|mockApi\./,
       `El archivo ${path.relative(root, file)} aún consulta mocks`);
@@ -32,7 +32,7 @@ test('ninguna pantalla consulta el almacén de datos simulados', () => {
 });
 
 test('historial muestra presión, glucosa y peso; no presenta pulso', () => {
-  const history = read('app', 'historial.tsx');
+  const history = read('src', 'modules', 'monitoring', 'presentation', 'screens', 'history-screen.tsx');
   const card = read('src', 'modules', 'monitoring', 'presentation', 'components', 'reading-history-item.tsx');
   assert.match(history, /label: "Presión"/);
   assert.match(history, /label: "Glucosa"/);

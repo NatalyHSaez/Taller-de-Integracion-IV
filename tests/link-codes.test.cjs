@@ -94,7 +94,7 @@ test('mensajes para vencido, usado, anulado, rol, ya vinculado, propio código e
 });
 
 test('pantallas: QR solo con code, cuenta regresiva, código para médico y confirmación', () => {
-  const vinculos = read('app', '(tabs)', 'vinculos.tsx');
+  const vinculos = read('src', 'modules', 'relationships', 'presentation', 'screens', 'links-screen.tsx');
   assert.match(vinculos, /<QRCode value=\{realLinkCode\.code\}/, 'el QR del cuidador contiene solo code');
   assert.match(vinculos, /<LinkCodeCountdown\s+expiresAt=\{realLinkCode\.expiresAt\}/);
   assert.match(vinculos, /<DoctorLinkCodeCard patientId=\{user\.id\} \/>/);
@@ -103,7 +103,7 @@ test('pantallas: QR solo con code, cuenta regresiva, código para médico y conf
   assert.match(doctor, /createPatientLinkCode\(patientId, 'DOCTOR'\)/);
   assert.match(doctor, /<QRCode value=\{linkCode\.code\}/);
 
-  const invitacion = read('app', 'invitacion.tsx');
+  const invitacion = read('src', 'modules', 'relationships', 'presentation', 'screens', 'invitation-screen.tsx');
   assert.match(invitacion, /consumeLinkCode/);
   assert.match(invitacion, /<CameraView/, 'lectura por cámara');
   const realStart = invitacion.indexOf('function RealInvitationScreen()');
@@ -114,7 +114,7 @@ test('pantallas: QR solo con code, cuenta regresiva, código para médico y conf
   assert.doesNotMatch(realFlow, /demo\.|demo\.request\(|demo\.invitation\(/,
     'el flujo real nunca sustituye vínculos con datos simulados');
 
-  const select = read('app', '(auth)', 'select-patient.tsx');
+  const select = read('src', 'modules', 'relationships', 'presentation', 'screens', 'select-patient-screen.tsx');
   assert.match(select, /takeLinkConfirmation\(\)/);
   assert.match(select, /Te vinculaste con/);
 });
