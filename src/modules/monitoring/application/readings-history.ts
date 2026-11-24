@@ -1,4 +1,5 @@
-import { getPatientReadings, type PaginatedReadingsResponse, type ReadingResponse, type ReadingsQuery } from '../infrastructure/readings-api';
+import { getPatientReadings } from './reading-query-port';
+import type { PaginatedReadingsResponse, ReadingResponse, ReadingsQuery } from '../domain/reading-query';
 import { ApiError, getApiErrorMessage } from '../../../core/infrastructure/http/errors';
 
 /**

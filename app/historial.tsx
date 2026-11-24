@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "@/src/core/presentation/session/use-app-state";
 import { createReadingsHistory } from "@/src/modules/monitoring/application/readings-history";
-import type { ReadingResponse } from "@/src/modules/monitoring/infrastructure/readings-api";
+import type { ReadingResponse } from "@/src/modules/monitoring/domain/reading-query";
 import { ReadingHistoryItem } from "@/src/modules/monitoring/presentation/components/reading-history-item";
 import { ThemedText } from "@/src/shared/presentation/components/themed-text";
 import { ThemedView } from "@/src/shared/presentation/components/themed-view";

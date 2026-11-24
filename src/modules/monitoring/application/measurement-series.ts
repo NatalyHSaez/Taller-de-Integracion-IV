@@ -1,6 +1,7 @@
-import { getPatientMeasurements, type MeasurementPointResponse, type MeasurementsQuery } from '../infrastructure/readings-api';
+import { getPatientMeasurements } from './reading-query-port';
+import type { MeasurementPointResponse, MeasurementsQuery } from '../domain/reading-query';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
-import { readingsToMeasurements } from '../infrastructure/reading-to-measurements';
+import { readingsToMeasurements } from '../domain/reading-to-measurements';
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 
 /**
@@ -250,5 +251,5 @@ export async function loadChartMeasurements(
       readings.set(point.readingId, reading);
     }
   });
-  return readingsToMeasurements([...readings.values()] as unknown as Parameters<typeof readingsToMeasurements>[0]);
+  return readingsToMeasurements([...readings.values()] );
 }

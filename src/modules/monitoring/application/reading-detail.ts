@@ -1,4 +1,5 @@
-import { getPatientReading, type ReadingResponse } from '../infrastructure/readings-api';
+import { getPatientReading } from './reading-query-port';
+import type { ReadingResponse } from '../domain/reading-query';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 
 /**

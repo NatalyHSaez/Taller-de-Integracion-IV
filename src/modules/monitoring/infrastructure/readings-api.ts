@@ -1,3 +1,5 @@
+import type { ReadingResponse, PaginatedReadingsResponse, ReadingsQuery, MeasurementPointResponse, MeasurementsQuery } from '../domain/reading-query';
+export type { ReadingResponse, PaginatedReadingsResponse, ReadingsQuery, MeasurementPointResponse, MeasurementsQuery } from '../domain/reading-query';
 /**
  * Endpoints del microservicio de seguimiento (a través del API Gateway):
  *   GET /patients/{id}/readings, GET /patients/{id}/readings/{readingId},
@@ -7,50 +9,9 @@
 import { apiClient } from "@/src/core/infrastructure/http/api-client";
 
 /* Lecturas del paciente (historial). GET /api/v1/patients/{patientId}/readings */
-export type ReadingResponse = {
-  readingId: string;
-  patientId: string;
-  measuredAt: string;
-  status: "PENDING" | "REQUIRES_CONFIRMATION" | "EVALUATED";
-  confirmationReasons: string[];
-  measurements: {
-    measurementId: string;
-    parameterCode: string;
-    value: number;
-    unit: string | null;
-    confirmedByUser: boolean;
-  }[];
-  context?: string | null;
-  source?: string;
-  recordedBy?: string;
-  evaluation?: {
-    status: string;
-    severity: string | null;
-    explanation: string | null;
-    evaluatedAt: string | null;
-  } | null;
-};
 
-export type PaginatedReadingsResponse = {
-  total: number;
-  page: number;
-  size: number;
-  items: ReadingResponse[];
-};
 
 /** Filtros y paginación de GET /patients/{patientId}/readings. */
-export type ReadingsQuery = {
-  /** Página desde 1. */
-  page?: number;
-  /** Tamaño de página (el backend acepta de 1 a 100; por defecto 20). */
-  size?: number;
-  /** Solo lecturas que incluyen este parámetro (SBP, GLUCOSE, WEIGHT...). */
-  parameterCode?: string;
-  /** measuredAt >= from (ISO 8601). */
-  from?: string;
-  /** measuredAt <= to (ISO 8601). */
-  to?: string;
-};
 
 export async function getPatientReadings(
   patientId: string,
@@ -71,22 +32,8 @@ export async function getPatientReadings(
 }
 
 /** Punto de GET /patients/{patientId}/measurements (orden cronológico). */
-export type MeasurementPointResponse = {
-  readingId: string;
-  measuredAt: string;
-  parameterCode: string;
-  value: number;
-  unit: string | null;
-};
 
 /** Filtros de GET /patients/{patientId}/measurements. */
-export type MeasurementsQuery = {
-  parameterCode?: string;
-  /** measuredAt >= from (ISO 8601). */
-  from?: string;
-  /** measuredAt <= to (ISO 8601). */
-  to?: string;
-};
 
 /**
  * Serie de mediciones para gráficos. No incluye lecturas pendientes de

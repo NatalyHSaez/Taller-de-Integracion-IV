@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { type AppTheme, StatusColors } from '@/src/shared/presentation/theme';
-import type { ReadingResponse } from '@/src/modules/monitoring/infrastructure/readings-api';
+import type { ReadingResponse } from '@/src/modules/monitoring/domain/reading-query';
 
 /** Texto y color de cada estado de lectura. No interpreta valores clínicos. */
 export const READING_STATUS_BADGES: Record<

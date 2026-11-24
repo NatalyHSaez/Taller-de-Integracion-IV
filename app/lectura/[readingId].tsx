@@ -31,7 +31,7 @@ import {
   linkedPeopleLoader,
   type LinkedPeople,
 } from '@/src/modules/monitoring/application/recorded-by';
-import { getPatientReading } from '@/src/modules/monitoring/infrastructure/readings-api';
+import { getPatientReading } from '@/src/modules/monitoring/application/reading-query-port';
 import { ReadingConfirmationModal } from '@/src/modules/monitoring/presentation/components/reading-confirmation';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';

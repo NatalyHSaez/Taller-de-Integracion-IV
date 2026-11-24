@@ -132,3 +132,7 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
 ### Composición de seguimiento (grupo 5)
 
 `MonitoringRepository` separa los casos de uso de registro, confirmación, catálogos y nombres de personas vinculadas del transporte HTTP. `composition/configure-monitoring.ts` conecta `monitoringApi` y los casos de uso de relaciones. Los filtros, límites técnicos y rutas existentes se conservan. Los DTO y errores compartidos de Core, historial, gráficos y pantallas extensas quedan para etapas posteriores.
+
+### Consultas de lecturas (grupo 6)
+
+`ReadingQueryRepository` separa las consultas frescas de historial, detalle y gráficos del transporte. La composición de seguimiento registra el adaptador; los modelos y el mapper se ubican en dominio. Los adaptadores anteriores conservan reexportaciones por compatibilidad. Las pantallas usan el puerto sin importar el adaptador; la lógica visual y filtros existentes se conservan. La extracción adicional de controladores de rutas y los errores compartidos siguen pendientes.
