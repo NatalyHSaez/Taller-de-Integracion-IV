@@ -52,6 +52,10 @@ mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
   },
 });
 
+projectRequire('src/modules/relationships/application/relationships-port.ts').configureRelationships(
+  projectRequire('src/modules/relationships/infrastructure/relationships-api.ts'),
+);
+
 const actions = {
   ...projectRequire('src/modules/relationships/application/relationship-actions.ts'),
   ...projectRequire('src/modules/relationships/presentation/confirm-dialog.ts'),

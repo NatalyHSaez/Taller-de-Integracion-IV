@@ -124,3 +124,7 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
 ### Composición de identidad
 
 `composition/configure-identity.ts` configura el puerto `IdentityDependencies`, conecta el almacenamiento y transporte reales, y registra los callbacks de renovación e invalidación de sesión. `authservice.ts` y `profile.ts` consumen el puerto; el formulario registra mediante `authService`. La ficha recibe su adaptador por parámetro. Los DTO y errores compartidos aún viven en infraestructura core: su reorganización transversal queda pendiente.
+
+### Composición de relaciones
+
+`composition/configure-relationships.ts` conecta `RelationshipsRepository` con el adaptador HTTP real. Los casos de uso de códigos, listados y gestión de vínculos usan ese puerto. Los modelos se encuentran en `domain/relationships.ts`; el adaptador conserva reexportaciones de tipos para compatibilidad. Las rutas de vínculos e invitación y la tarjeta de médico ya no importan el adaptador directamente. Las dependencias de dashboard y monitoring hacia relaciones se resolverán en sus respectivos grupos. Los errores HTTP compartidos siguen pendientes de reorganización.

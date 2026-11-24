@@ -1,6 +1,8 @@
 import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { createPatientLinkCode, getPatientCaregivers, getPatientDoctors, type LinkCodeResponse, type LinkedUserResponse } from '@/src/modules/relationships/infrastructure/relationships-api';
+import { createPatientLinkCode } from '@/src/modules/relationships/application/link-codes';
+import { getPatientCaregivers, getPatientDoctors } from '@/src/modules/relationships/application/relationship-actions';
+import type { LinkCodeResponse, LinkedUserResponse } from '@/src/modules/relationships/domain/relationships';
 import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/src/modules/relationships/presentation/link-format';
 import { DoctorLinkCodeCard } from '@/src/modules/relationships/presentation/components/doctor-link-code-card';
 import { LinkCodeCountdown } from '@/src/modules/relationships/presentation/components/link-code-countdown';

@@ -10,7 +10,7 @@ import {
   describeLinkCodeError,
   normalizeLinkCode,
 } from "@/src/modules/relationships/application/link-codes";
-import type { ConsumeLinkCodeResponse } from "@/src/modules/relationships/infrastructure/relationships-api";
+import type { ConsumeLinkCodeResponse } from "@/src/modules/relationships/domain/relationships";
 import {
   Action,
   Card,

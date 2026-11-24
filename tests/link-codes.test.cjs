@@ -26,6 +26,10 @@ mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
   },
 });
 
+projectRequire('src/modules/relationships/application/relationships-port.ts').configureRelationships(
+  projectRequire('src/modules/relationships/infrastructure/relationships-api.ts'),
+);
+
 const links = projectRequire('src/modules/relationships/application/link-codes.ts');
 const read = (...p) => fs.readFileSync(path.resolve(__dirname, '..', ...p), 'utf8').replace(/\r/g, '');
 

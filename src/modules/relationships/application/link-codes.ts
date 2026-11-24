@@ -1,4 +1,5 @@
-import { consumeLinkCode as apiConsumeLinkCode, type ConsumeLinkCodeResponse } from '../infrastructure/relationships-api';
+import { relationshipsRepository } from './relationships-port';
+import type { ConsumeLinkCodeResponse, LinkCodeResponse } from '../domain/relationships';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 
 /**
@@ -95,7 +96,7 @@ export async function consumeLinkCode(code: string): Promise<ConsumeLinkCodeResp
     throw new ApiError({ code: 'INVALID_CODE_FORMAT', message: 'Escribe o escanea el código del paciente.' });
   }
   try {
-    const result = await apiConsumeLinkCode(normalized);
+    const result = await relationshipsRepository().consumeLinkCode(normalized);
     lastConfirmation = result;
     return result;
   } catch (error) {
@@ -103,4 +104,9 @@ export async function consumeLinkCode(code: string): Promise<ConsumeLinkCodeResp
     const status = normalizeApiError(error).status;
     throw new ApiError({ code: info.code, status, message: info.message });
   }
+}
+
+/** Genera un código real mediante el repositorio configurado. */
+export async function createPatientLinkCode(patientId: string, type: 'CAREGIVER' | 'DOCTOR' = 'CAREGIVER'): Promise<LinkCodeResponse> {
+  return relationshipsRepository().createPatientLinkCode(patientId, type);
 }

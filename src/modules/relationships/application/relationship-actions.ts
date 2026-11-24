@@ -1,4 +1,5 @@
-import { getMePatients, revokeCaregiverRelationship as apiRevokeCaregiverRelationship, revokeDoctorRelationship as apiRevokeDoctorRelationship, updateCaregiverPermissions as apiUpdateCaregiverPermissions, type LinkedUserResponse } from '../infrastructure/relationships-api';
+import { relationshipsRepository } from './relationships-port';
+import type { LinkedUserResponse } from '../domain/relationships';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 
 /**
@@ -80,7 +81,7 @@ export async function updateCaregiverPermissions(
 ): Promise<LinkedUserResponse> {
   const complete = Array.from(new Set(permissions));
   try {
-    return await apiUpdateCaregiverPermissions(relationshipId, complete);
+    return await relationshipsRepository().updateCaregiverPermissions(relationshipId, complete);
   } catch (error) {
     const info = describeRelationshipError(error);
     if (info.stale) staleListeners.forEach((listener) => listener());
@@ -99,11 +100,11 @@ async function revoke(call: () => Promise<void>): Promise<void> {
 }
 
 export function revokeCaregiverRelationship(relationshipId: string): Promise<void> {
-  return revoke(() => apiRevokeCaregiverRelationship(relationshipId));
+  return revoke(() => relationshipsRepository().revokeCaregiverRelationship(relationshipId));
 }
 
 export function revokeDoctorRelationship(relationshipId: string): Promise<void> {
-  return revoke(() => apiRevokeDoctorRelationship(relationshipId));
+  return revoke(() => relationshipsRepository().revokeDoctorRelationship(relationshipId));
 }
 
 /**
@@ -113,7 +114,7 @@ export function revokeDoctorRelationship(relationshipId: string): Promise<void> 
 export async function leaveCaregiverRelationship(patientId: string): Promise<void> {
   let mine;
   try {
-    mine = await getMePatients();
+    mine = await relationshipsRepository().getMePatients();
   } catch (error) {
     throw friendlyError(describeRelationshipError(error));
   }
@@ -122,4 +123,11 @@ export async function leaveCaregiverRelationship(patientId: string): Promise<voi
   );
   if (!relation) return;
   await revokeCaregiverRelationship(relation.relationshipId);
+}
+
+export async function getPatientCaregivers(patientId: string): Promise<LinkedUserResponse[]> {
+  return relationshipsRepository().getPatientCaregivers(patientId);
+}
+export async function getPatientDoctors(patientId: string): Promise<LinkedUserResponse[]> {
+  return relationshipsRepository().getPatientDoctors(patientId);
 }

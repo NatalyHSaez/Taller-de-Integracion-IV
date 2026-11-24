@@ -1,3 +1,4 @@
+import '@/composition/configure-relationships';
 import '@/composition/configure-identity';
 import '@/composition/configure-app-state';
 import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
