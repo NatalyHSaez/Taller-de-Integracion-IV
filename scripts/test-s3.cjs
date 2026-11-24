@@ -2,7 +2,7 @@
 'use strict';
 /**
  * S3 sobre src/: series clínicas y gráficas, validación, caché y cambio de paciente.
- * El S3 original (29 casos) se conserva en scripts/legacy/test-s3.cjs.
+ * El S3 original (29 casos) se conserva en el historial de Git.
  * Estas comprobaciones NO sustituyen cada caso legado de forma individual.
  */
 const { run } = require('./legacy-suite-runner.cjs');

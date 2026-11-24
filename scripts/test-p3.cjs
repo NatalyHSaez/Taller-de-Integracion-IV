@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Pruebas P3 adaptadas para la estructura modular de main.
-// Los 35+ casos originales se conservan en scripts/legacy/test-p3.cjs;
+// Los 35+ casos originales se conservan en el historial de Git;
 // aquí se prueban los contratos actuales, no los imports services/ eliminados.
 const { run, runNpm } = require('./legacy-suite-runner.cjs');
 runNpm('P3: contrato ApiError y manejo HTTP', 'test:api-errors');

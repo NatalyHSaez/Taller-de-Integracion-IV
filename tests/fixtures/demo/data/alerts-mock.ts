@@ -1,4 +1,12 @@
-import type { Severidad } from '../../../../src/modules/evaluation/domain/severity';
+/** Clasificación histórica utilizada exclusivamente por esta fixture. */
+type Severidad =
+  | 'NORMAL'
+  | 'INFORMATIVA'
+  | 'ADVERTENCIA'
+  | 'ALERTA'
+  | 'DATOS_INSUFICIENTES'
+  | 'NO_APLICABLE'
+  | 'ENTRADA_INVALIDA';
 import alertasJson from './alerts-mock.json';
 
 export type AlertaItem = {

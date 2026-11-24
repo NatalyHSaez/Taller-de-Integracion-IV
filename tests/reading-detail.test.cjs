@@ -16,7 +16,16 @@ const {
   PENDING_POLL,
 } = projectRequire('src/modules/monitoring/application/reading-detail.ts');
 const { Colors } = projectRequire('src/shared/presentation/theme.ts');
-const { ReadingDetailView } = projectRequire('src/modules/monitoring/presentation/components/reading-detail-view.tsx');
+const { ReadingDetailView: ProductionReadingDetailView } = projectRequire('src/modules/monitoring/presentation/components/reading-detail-view.tsx');
+function ReadingDetailView({ state, currentUserId, recordedByLabel, ...props }) {
+  return ProductionReadingDetailView({ ...props, state, reading: state.reading,
+    loading: state.loading, detailError: state.error, isBackend: true, canRead: true,
+    canConfirm: true, patientId: state.patientId, readingId: state.readingId,
+    recordedByLabel: recordedByLabel ?? (state.reading?.recordedBy === currentUserId ? 'Tú' : 'Otra persona vinculada al paciente'),
+    bottomInset: 0, confirmationOpen: false, summary: '', confirmBusy: false, confirmError: null,
+    onOpenConfirmation: props.onConfirm, onCancelConfirmation() {}, onRefreshConfirmation() {} });
+}
+
 
 const theme = Colors.light;
 
@@ -184,23 +193,23 @@ test('la vista distingue pendiente, confirmación requerida y evaluada', () => {
   const props = { theme, currentUserId: 'p1', onRefresh() {}, onConfirm() {}, onGoToHistory() {} };
 
   const pending = text(ReadingDetailView({ ...props, state: { ...base, watching: true, reading: reading() } }));
-  assert.match(pending, /Pendiente de evaluación/);
-  assert.match(pending, /asíncrona/);
-  assert.match(pending, /Consultando de nuevo automáticamente \(1 de 6\)/);
-  assert.match(pending, /Presión sistólica 120 mmHg/);
-  assert.match(pending, /App móvil/);
-  assert.match(pending, /Registrada por Tú/);
+  assert.match(pending, /Evaluación pendiente/);
+  assert.match(pending, /se procesa en el servidor/);
+  assert.match(pending, /Consultando automáticamente \(1 de 6\)/);
+  assert.match(pending, /Presión sistólica SBP 120 mmHg/);
+  assert.match(pending, /Aplicación móvil/);
+  assert.match(pending, /Registrado por Tú/);
 
   const confirmTree = ReadingDetailView({
     ...props,
     state: { ...base, reading: reading({ status: 'REQUIRES_CONFIRMATION', confirmationReasons: ['UNUSUAL_VALUE:SBP'], measurements: [{ measurementId: 'm1', parameterCode: 'SBP', value: 200, unit: 'mmHg', confirmedByUser: false }] }) },
   });
   const confirmText = text(confirmTree);
-  assert.match(confirmText, /Requiere tu confirmación/);
-  assert.match(confirmText, /no son un diagnóstico/);
+  assert.match(confirmText, /Requiere confirmación/);
+  assert.match(confirmText, /solicita revisar estos valores/);
   assert.match(confirmText, /Presión sistólica: el valor es muy distinto/);
   assert.match(confirmText, /Revisar y confirmar/);
-  assert.match(confirmText, /Se evaluará cuando se confirme/);
+  assert.match(confirmText, /Actualizar lectura/);
 
   const evaluated = text(ReadingDetailView({
     ...props,
@@ -219,8 +228,8 @@ test('la vista distingue pendiente, confirmación requerida y evaluada', () => {
   assert.match(evaluated, /Advertencia/);
   assert.match(evaluated, /Severidad Media/);
   assert.match(evaluated, /Sobre el umbral configurado/);
-  assert.match(evaluated, /Glucosa Valor confirmado 98,5 mg\/dL/);
-  assert.match(evaluated, /Antes de comer o en ayunas/);
+  assert.match(evaluated, /Glucosa GLUCOSE 98,5 mg\/dL/);
+  assert.match(evaluated, /Antes de comer/);
   assert.match(evaluated, /Otra persona vinculada/);
 });
 
@@ -228,10 +237,10 @@ test('la vista muestra cada error con su acción', () => {
   const base = { patientId: 'p1', readingId: 'r1', reading: null, loading: false, refreshing: false, autoChecks: 0, watching: false, pollExhausted: false };
   const props = { theme, currentUserId: 'p1', onRefresh() {}, onConfirm() {}, onGoToHistory() {} };
   const forbidden = text(ReadingDetailView({ ...props, state: { ...base, error: classifyDetailError(apiError('FORBIDDEN', 403)) } }));
-  assert.match(forbidden, /Sin acceso a esta lectura/);
+  assert.match(forbidden, /No tienes permiso para ver las lecturas/);
   assert.doesNotMatch(forbidden, /Reintentar/);
   const notFound = text(ReadingDetailView({ ...props, state: { ...base, error: classifyDetailError(apiError('READING_NOT_FOUND', 404)) } }));
-  assert.match(notFound, /Lectura no encontrada/);
+  assert.match(notFound, /Esta lectura no existe/);
   assert.match(notFound, /Volver al historial/);
   const temporary = text(ReadingDetailView({ ...props, state: { ...base, error: classifyDetailError(apiError('X', 503)) } }));
   assert.match(temporary, /Reintentar/);

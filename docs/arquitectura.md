@@ -153,3 +153,8 @@ El módulo demo y los adaptadores ficticios salen de `src/`. El código históri
 El verificador ampliado analiza 168 archivos productivos de la copia acumulada de los grupos 1–10: cero infracciones y cero ciclos locales detectados. Las cuatro nuevas pruebas comprueban el código real, el rechazo de dependencias indebidas, la extracción de imports y la detección de ciclos y destinos inexistentes. Las referencias entre módulos a modelos y casos de uso permitidos se conservan: no es necesario eliminar toda colaboración entre módulos.
 
 Antes de cerrar la tarea ejecutar `npm run check:arch`, `npm test`, `npx tsc --noEmit` y las pruebas específicas de identidad y seguridad. Comprobar también la aplicación con Expo y el backend real. La revisión estática no certifica por sí sola toda la arquitectura ni los flujos de ejecución.
+
+
+## Depuración complementaria
+
+Las rutas de alertas, login y configuración delegan en componentes de `composition/`; ninguna ruta importa infraestructura directamente. El verificador devuelve error también ante ciclos locales. El detalle de lectura utiliza un único componente visual de producción, probado directamente. Se retiraron los modelos históricos de severidad y el tipo antiguo queda solo en una fixture. Los scripts históricos se conservan en el historial de Git; los guiones activos se mantienen. No se modifican los endpoints ni se añaden cálculos clínicos.

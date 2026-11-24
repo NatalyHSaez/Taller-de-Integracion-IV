@@ -2,7 +2,7 @@
 'use strict';
 /**
  * S5 adaptado a src/: notificaciones internas, paginación, lectura y sesión.
- * El script S5 original se conserva en scripts/legacy/test-s5.cjs.
+ * El script S5 original se conserva en el historial de Git.
  * Estas pruebas son una cobertura modular actualizada, no una migración uno a uno.
  */
 const {run}=require('./legacy-suite-runner.cjs');

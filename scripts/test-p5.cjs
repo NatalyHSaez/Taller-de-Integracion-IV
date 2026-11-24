@@ -2,7 +2,7 @@
 'use strict';
 /**
  * P5 adaptado a la estructura src/ de main.
- * El guion anterior permanece en scripts/legacy/test-p5.cjs para preservar
+ * El guion anterior permanece en el historial de Git para preservar
  * la cobertura pendiente de migración caso a caso.
  */
 const { run } = require('./legacy-suite-runner.cjs');

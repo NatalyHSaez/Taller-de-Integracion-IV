@@ -2,7 +2,7 @@
 'use strict';
 /**
  * Ejecuta comprobaciones sobre los módulos actuales de src/.
- * El script anterior a la reorganización se conserva en scripts/legacy/.
+ * El script anterior a la reorganización se conserva en el historial de Git.
  * Atención: esta suite es una sustitución explícita, no acredita que cada
  * caso del script heredado haya sido migrado individualmente.
  */

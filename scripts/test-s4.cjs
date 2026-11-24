@@ -2,7 +2,7 @@
 'use strict';
 /**
  * S4 sobre src/: alertas clínicas, filtros, contratos, marcado y sesión.
- * El S4 original (28 casos) se conserva en scripts/legacy/test-s4.cjs.
+ * El S4 original (28 casos) se conserva en el historial de Git.
  * Estas comprobaciones NO sustituyen cada caso legado de forma individual.
  */
 const { run } = require('./legacy-suite-runner.cjs');

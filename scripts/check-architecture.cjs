@@ -45,7 +45,7 @@ function violations(from, to, spec) {
     if (['core','shared'].includes(a.area) && !['core','shared'].includes(b.area)) errors.push('core/shared no puede depender de módulos');
   }
   if (a && ['domain','application'].includes(a.layer) && !to && /^(react(?:-native)?(?:\/|$)|react-native-|expo(?:\/|$|-)|@expo\/|@react-native)/.test(spec)) errors.push('capa interna no puede depender de React/Expo');
-  if (from.startsWith('app/') && to && (b?.layer === 'infrastructure' || to.startsWith('composition/')) && !compositionRoutes.has(from)) errors.push('adaptadores solo en rutas de composición autorizadas');
+  if (from.startsWith('app/') && to && (b?.layer === 'infrastructure' || (to.startsWith('composition/') && !compositionRoutes.has(from)))) errors.push('adaptadores solo en rutas de composición autorizadas');
   if (from.startsWith('composition/') && to?.startsWith('app/')) errors.push('composición no puede importar rutas');
   return errors;
 }
@@ -95,7 +95,7 @@ if (require.main === module) {
   console.log('Archivos analizados:',r.files);
   console.log('Prohibidas:',r.forbidden.length); r.forbidden.forEach(x=>console.log('  '+x));
   console.log('Dependencias entre módulos:',r.crossModule);
-  console.log('Ciclos detectados (informativo):',r.cycles.length); r.cycles.forEach(x=>console.log('  '+x));
-  process.exitCode = r.forbidden.length ? 1 : 0;
+  console.log('Ciclos detectados:',r.cycles.length); r.cycles.forEach(x=>console.log('  '+x));
+  process.exitCode = (r.forbidden.length || r.cycles.length) ? 1 : 0;
 }
 module.exports={scan,importsOf,localTarget,violations};

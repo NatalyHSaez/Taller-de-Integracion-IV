@@ -2,7 +2,7 @@
 'use strict';
 /**
  * S1 adaptado al proyecto modular src/.
- * La versión original queda en scripts/legacy/test-s1.cjs.
+ * La versión original queda en el historial de Git.
  * Adaptación por cobertura funcional: NO equivale a migración 1:1 de cada caso legado.
  */
 const { run } = require('./legacy-suite-runner.cjs');

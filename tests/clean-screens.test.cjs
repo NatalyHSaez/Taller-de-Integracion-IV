@@ -8,10 +8,8 @@ const routes = {"app/perfil.tsx": "src/modules/identity/presentation/screens/pro
 test('las rutas delegan en pantallas de presentación existentes', () => {
   for (const [route, screen] of Object.entries(routes)) {
     if (route === 'app/(auth)/login.tsx') {
-      // Login composes the public Gateway check, but still delegates its UI.
-      const code = read(route);
-      assert.ok(code.includes(`from "@/${screen.slice(0,-4)}"`));
-      assert.match(code, /<LoginScreen\s+gateway=\{\{\s*apiBaseUrl:\s*API_BASE_URL,\s*check:\s*gatewayService\.health/);
+      assert.equal(read(route).trim(), 'export { default } from "@/composition/login-route";');
+      assert.ok(read('composition/login-route.tsx').includes(`from "@/${screen.slice(0,-4)}"`));
     } else {
       assert.equal(read(route).trim(), `export { default } from "@/${screen.slice(0,-4)}";`);
     }

@@ -17,7 +17,8 @@ test('arquitectura final: rechaza dependencias hacia infraestructura Core, UI y 
   assert.ok(violations(from,null,'react-native').length);
   assert.ok(violations('src/core/domain/model.ts','src/modules/identity/domain/model','').length);
   assert.deepEqual(violations(from,'src/core/domain/errors/api-error',''),[]);
-  assert.deepEqual(violations('app/(tabs)/alertas.tsx','src/modules/evaluation/infrastructure/alerts-api',''),[]);
+  assert.ok(violations('app/(tabs)/alertas.tsx','src/modules/evaluation/infrastructure/alerts-api','').length);
+  assert.deepEqual(violations('app/(tabs)/alertas.tsx','composition/alerts-route',''),[]);
   assert.ok(violations('app/historial.tsx','src/modules/monitoring/infrastructure/readings-api','').length);
 });
 test('arquitectura final: analiza reexportaciones, tipos y cargas dinámicas literales sin confundir comentarios', () => {

@@ -2,7 +2,7 @@
 'use strict';
 /**
  * P6 adaptado a la estructura src/ de main: mocks, aislamiento y caché.
- * El script antiguo permanece en scripts/legacy/test-p6.cjs.
+ * El script antiguo permanece en el historial de Git.
  */
 const { run } = require('./legacy-suite-runner.cjs');
 const checks = [

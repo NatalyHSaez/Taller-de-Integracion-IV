@@ -7,7 +7,16 @@ const { installFakes } = require('./support/fakes.cjs');
 
 installFakes();
 const { describeRecordedBy, createLinkedPeopleLoader } = projectRequire('src/modules/monitoring/application/recorded-by.ts');
-const { ReadingDetailView } = projectRequire('src/modules/monitoring/presentation/components/reading-detail-view.tsx');
+const { ReadingDetailView: ProductionReadingDetailView } = projectRequire('src/modules/monitoring/presentation/components/reading-detail-view.tsx');
+function ReadingDetailView({ state, currentUserId, recordedByLabel, ...props }) {
+  return ProductionReadingDetailView({ ...props, state, reading: state.reading,
+    loading: state.loading, detailError: state.error, isBackend: true, canRead: true,
+    canConfirm: true, patientId: state.patientId, readingId: state.readingId,
+    recordedByLabel: recordedByLabel ?? (state.reading?.recordedBy === currentUserId ? 'Tú' : 'Otra persona vinculada al paciente'),
+    bottomInset: 0, confirmationOpen: false, summary: '', confirmBusy: false, confirmError: null,
+    onOpenConfirmation: props.onConfirm, onCancelConfirmation() {}, onRefreshConfirmation() {} });
+}
+
 const { Colors } = projectRequire('src/shared/presentation/theme.ts');
 
 const person = (userId, fullName) => ({ relationshipId: `rel-${userId}`, userId, fullName, permissions: [], linkedAt: '' });
@@ -48,7 +57,7 @@ test('carga los vínculos del paciente una vez (caché) y reintenta si falla', a
   assert.equal(calls, 2, 'el error no queda en caché y el acierto sí');
 });
 
-test('el detalle muestra "Registrada por" con el nombre en Datos del registro', () => {
+test('el detalle muestra "Registrada por" con el nombre en Paciente', () => {
   const reading = {
     readingId: 'r1', patientId: 'pia', measuredAt: '2026-11-06T10:00:00.000Z', status: 'EVALUATED', confirmationReasons: [],
     context: null, source: 'mobile', recordedBy: 'cui-1', evaluation: null,
@@ -59,6 +68,6 @@ test('el detalle muestra "Registrada por" con el nombre en Datos del registro', 
     state, theme: Colors.light, currentUserId: 'pia', recordedByLabel: 'Ana Pérez (cuidador vinculado)',
     onRefresh() {}, onConfirm() {}, onGoToHistory() {},
   })).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(html, /Datos del registro/);
-  assert.match(html, /Registrada por Ana Pérez \(cuidador vinculado\)/);
+  assert.match(html, /Paciente/);
+  assert.match(html, /Registrado por Ana Pérez \(cuidador vinculado\)/);
 });

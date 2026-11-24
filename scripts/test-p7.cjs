@@ -2,7 +2,7 @@
 'use strict';
 /**
  * P7 adaptado a src/: diagnóstico HTTP de solo lectura con respuestas simuladas.
- * El script de Cristian se conserva en scripts/legacy/test-p7.cjs, pero sus
+ * El script de Cristian se conserva en el historial de Git, pero sus
  * nueve casos antiguos no se ejecutan ni se consideran migrados 1:1.
  * La prueba real de Docker/Gateway es scripts/verify-p7-live.cjs (opcional).
  */

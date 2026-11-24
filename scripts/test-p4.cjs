@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Pruebas P4 adaptadas: invocan comprobaciones reales de identidad y sesiones
-// de la rama main. El original está en scripts/legacy/test-p4.cjs.
+// de la rama main. El original está en el historial de Git.
 const { run } = require('./legacy-suite-runner.cjs');
 const steps = [
   ['P4: registro de paciente y cuidador', ['scripts/test-registration.cjs']],
