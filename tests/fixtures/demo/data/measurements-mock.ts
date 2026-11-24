@@ -1,4 +1,4 @@
-import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
+import type { Measurement } from '../../../../src/modules/monitoring/domain/measurement';
 
 export const MEASUREMENTS_MOCK: Measurement[] = [
   {

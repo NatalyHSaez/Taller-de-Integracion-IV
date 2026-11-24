@@ -1,6 +1,6 @@
 import { authSession } from '../../../core/application/session/auth-session';
 import { monitoringRepository } from './monitoring-port';
-import { ApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError } from '../../../core/domain/errors';
 
 /**
  * Catálogo global de programas de seguimiento (GET /api/v1/health-conditions).

@@ -1,7 +1,7 @@
-import type { CurrentUserResponse, UpdateMeRequest } from '@/src/core/infrastructure/http/dto';
+import type { CurrentUserResponse, UpdateMeRequest } from '@/src/core/domain/contracts';
 import { identityDependencies } from './identity-port';
 import { authSession } from '../../../core/application/session/auth-session';
-import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError, normalizeApiError } from '../../../core/domain/errors';
 import { validateLoginUser } from './login-validation';
 
 export function buildProfileUpdate(name: string): UpdateMeRequest {

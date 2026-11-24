@@ -2,8 +2,8 @@ import type {
   AuthTokensResponse,
   CurrentUserResponse,
   UserRole,
-} from '../../../../core/infrastructure/http/dto';
-import { ApiError } from '../../../../core/infrastructure/http/errors';
+} from '../../../../src/core/infrastructure/http/dto';
+import { ApiError } from '../../../../src/core/infrastructure/http/errors';
 import {
   MOCK_ACCOUNTS,
   MOCK_AUTH_TOKENS,

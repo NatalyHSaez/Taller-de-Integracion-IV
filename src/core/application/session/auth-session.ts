@@ -1,7 +1,7 @@
 import type {
   AuthTokensResponse,
   CurrentUserResponse,
-} from "@/src/core/infrastructure/http/dto";
+} from "@/src/core/domain/contracts";
 
 export type AuthSessionMode = "backend";
 

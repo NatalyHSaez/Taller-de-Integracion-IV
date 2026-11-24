@@ -19,7 +19,7 @@ mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
   getMePatients: () => request(),
 });
 const { authSession } = projectRequire('src/core/application/session/auth-session.ts');
-const { demo } = projectRequire('src/modules/demo/infrastructure/demo-store.ts');
+const { demo } = projectRequire('tests/fixtures/demo/demo-store.ts');
 const { appState, checkLinkedPatients, permissionsFromCodes } = projectRequire('src/core/application/session/app-state.ts');
 projectRequire('composition/configure-app-state.ts');
 const { ApiError } = projectRequire('src/core/infrastructure/http/errors/api-error.ts');

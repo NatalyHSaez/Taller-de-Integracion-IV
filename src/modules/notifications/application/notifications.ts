@@ -1,4 +1,4 @@
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { normalizeApiError } from '../../../core/domain/errors';
 import { notificationsRepository } from './notifications-port';
 import type { AppNotification, NotificationFilter, NotificationsApi } from '../domain/notification';
 
@@ -17,6 +17,7 @@ import type { AppNotification, NotificationFilter, NotificationsApi } from '../d
  */
 
 export const NOTIFICATIONS_PAGE_SIZE = 20;
+const MAX_PAGES_PER_LOAD = 3;
 
 export type NotificationErrorKind = 'session' | 'forbidden' | 'not_found' | 'network';
 
@@ -108,16 +109,22 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
 
   /** El Gateway no expone status=unread: recorrer páginas reales hasta obtener
    * notificaciones no leídas (pending/sent) o llegar al final. */
-  async function loadPageGroup(startPosition: number): Promise<{
+  async function loadPageGroup(startPosition: number, current: number): Promise<{
     items: AppNotification[]; total: number; position: number;
   }> {
     if (!api) throw new Error('No existe una sesión de notificaciones.');
+    const source = api;
+    const filter = state.filter;
+    const status = statusParam();
+    let pages = 0;
     let cursor = startPosition;
     let allVisible: AppNotification[] = [];
     let total = 0;
     do {
       const pageNumber = Math.floor(cursor / size) + 1;
-      const page = await api.list({ page: pageNumber, size, status: statusParam() });
+      const page = await source.list({ page: pageNumber, size, status });
+      if (current !== generation) break;
+      pages++;
       total = page.total;
       // La posición es del conjunto devuelto por el servidor, no la lista
       // filtrada en memoria. Por eso no omitimos avisos entre páginas.
@@ -125,7 +132,7 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
       if (next <= cursor) break;
       cursor = next;
       allVisible = mergeNotifications(allVisible, visibleItems(page.items));
-      if (state.filter !== 'unread' || allVisible.length >= size) break;
+      if (filter !== 'unread' || allVisible.length >= size || pages >= MAX_PAGES_PER_LOAD) break;
     } while (cursor < total);
     return { items: allVisible, total, position: cursor };
   }
@@ -135,11 +142,11 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
     const current = ++generation;
     set(
       mode === 'refresh'
-        ? { refreshing: true, error: null, loadMoreError: null }
-        : { loading: true, error: null, loadMoreError: null, items: [], loaded: false, hasMore: false },
+        ? { refreshing: true, loadingMore: false, error: null, loadMoreError: null }
+        : { loading: true, refreshing: false, loadingMore: false, error: null, loadMoreError: null, items: [], loaded: false, hasMore: false },
     );
     try {
-      const page = await loadPageGroup(0);
+      const page = await loadPageGroup(0, current);
       if (current !== generation) return;
       remember(page.items);
       position = page.position;
@@ -201,7 +208,7 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
       const current = generation;
       set({ loadingMore: true, loadMoreError: null });
       try {
-        const result = await loadPageGroup(position);
+        const result = await loadPageGroup(position, current);
         if (current !== generation) return;
         remember(result.items);
         position = result.position;

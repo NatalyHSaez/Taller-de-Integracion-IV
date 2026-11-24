@@ -1,5 +1,5 @@
-import type { RegisterRequest } from '../../../core/infrastructure/http/dto';
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import type { RegisterRequest } from '../../../core/domain/contracts';
+import { normalizeApiError } from '../../../core/domain/errors';
 
 export type RegistrationForm = {
   fullName: string;

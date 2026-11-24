@@ -42,7 +42,7 @@ async function main() {
   const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
-  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
+  const { demo } = load(path.join(root, 'tests/fixtures/demo/demo-store'));
   for (const role of ['PATIENT', 'CAREGIVER']) {
     const email = `ti462.${randomUUID()}@example.com`, password = `Test-${randomUUID()}`;
     const user = await authService.register({ fullName: 'Prueba Sesion', email, password, role,

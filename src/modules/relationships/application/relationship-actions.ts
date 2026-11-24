@@ -1,6 +1,6 @@
 import { relationshipsRepository } from './relationships-port';
 import type { LinkedUserResponse } from '../domain/relationships';
-import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError, normalizeApiError } from '../../../core/domain/errors';
 
 /**
  * Operaciones sobre vínculos con manejo de errores del backend:

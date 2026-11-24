@@ -1,6 +1,6 @@
 import { homeSummaryDependencies, type HomeSummaryDeps } from './home-summary-port';
 export type { HomeSummaryDeps } from './home-summary-port';
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { normalizeApiError } from '../../../core/domain/errors';
 import { type PatientAlert } from '../../evaluation/domain/alert';
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 

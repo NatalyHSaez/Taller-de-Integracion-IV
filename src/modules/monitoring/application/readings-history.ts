@@ -1,6 +1,6 @@
 import { getPatientReadings } from './reading-query-port';
 import type { PaginatedReadingsResponse, ReadingResponse, ReadingsQuery } from '../domain/reading-query';
-import { ApiError, getApiErrorMessage } from '../../../core/infrastructure/http/errors';
+import { ApiError, getApiErrorMessage } from '../../../core/domain/errors';
 
 /**
  * Historial de lecturas del paciente (GET /api/v1/patients/{patientId}/readings).

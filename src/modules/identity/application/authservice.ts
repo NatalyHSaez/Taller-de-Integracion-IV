@@ -4,11 +4,11 @@ import type {
   AuthTokensResponse,
   CurrentUserResponse,
   RegisterRequest,
-} from "@/src/core/infrastructure/http/dto";
+} from "@/src/core/domain/contracts";
 import {
   ApiError,
   normalizeApiError,
-} from "@/src/core/infrastructure/http/errors";
+} from "@/src/core/domain/errors";
 import { identityDependencies } from "./identity-port";
 import { validateLoginUser } from "./login-validation";
 import { updateMyProfile } from "./profile";

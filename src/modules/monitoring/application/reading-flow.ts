@@ -1,4 +1,4 @@
-import type { CreateReadingRequest, CreateReadingResponse } from '@/src/core/infrastructure/http/dto';
+import type { CreateReadingRequest, CreateReadingResponse } from '@/src/core/domain/contracts';
 
 import { readingErrorsFromApi, type ReadingFormErrors } from './reading-errors';
 import { type ConfirmReadingError, confirmReadingErrorFrom } from './readings';

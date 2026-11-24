@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { appState } from '@/src/core/application/session/app-state';
 import { authSession } from '@/src/core/application/session/auth-session';
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import { getApiErrorMessage } from '@/src/core/domain/errors';
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { authService } from '@/src/modules/identity/application/authservice';
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';

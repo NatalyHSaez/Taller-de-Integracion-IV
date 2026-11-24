@@ -4,7 +4,7 @@ import type {
   CreateReadingResponse,
   ReadingContext,
   ReadingResponse,
-} from '@/src/core/infrastructure/http/dto';
+} from '@/src/core/domain/contracts';
 
 import { appState } from '../../../core/application/session/app-state';
 import { authSession } from '../../../core/application/session/auth-session';
@@ -14,7 +14,7 @@ import {
   validateAgainstParameter,
 } from './clinical-parameters';
 import { monitoringRepository } from './monitoring-port';
-import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError, normalizeApiError } from '../../../core/domain/errors';
 
 
 /** Etiquetas del contexto de glucosa para la interfaz. */

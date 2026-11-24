@@ -16,14 +16,14 @@ mockModule('src/core/infrastructure/http/api-client.ts', {
   },
 });
 const demoState = { user: null, notifications: [] };
-mockModule('src/modules/demo/infrastructure/demo-store.ts', {
+mockModule('tests/fixtures/demo/demo-store.ts', {
   demo: {
     user: () => demoState.user,
     snapshot: () => ({notificationPrefs: {mediciones: false, vinculos: false}, relations: [], accounts: []}),
     measurements: () => [],
   },
 });
-mockModule('src/modules/demo/infrastructure/mocks/api-mock.ts', {
+mockModule('tests/fixtures/demo/mocks/api-mock.ts', {
   mockApi: {notifications: {list: async () => demoState.notifications}},
 });
 const {toAppNotification, checkNotificationPage, backendNotificationsApi} =
@@ -31,7 +31,7 @@ const {toAppNotification, checkNotificationPage, backendNotificationsApi} =
 const {createNotificationsStore, classifyNotificationError} =
   projectRequire('src/modules/notifications/application/notifications.ts');
 const {demoNotificationsApi, setDemoNotificationSession} =
-  projectRequire('src/modules/notifications/infrastructure/notifications-demo.ts');
+  projectRequire('tests/fixtures/demo/notifications-demo.ts');
 const {ApiError} = projectRequire('src/core/infrastructure/http/errors/index.ts');
 const NOW = '2026-11-23T18:00:00.000Z';
 const issued = (status,code) => new ApiError({status,code,message:'Prueba controlada'});

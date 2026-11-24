@@ -14,7 +14,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import { getApiErrorMessage } from '@/src/core/domain/errors';
 import { getPatientMeasurements } from '@/src/modules/monitoring/application/reading-query-port';
 import type { MeasurementPointResponse } from '@/src/modules/monitoring/domain/reading-query';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';

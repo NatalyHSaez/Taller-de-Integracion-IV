@@ -248,7 +248,9 @@ export default function NotificacionesScreen() {
               <ThemedText style={styles.message}>
                 {error
                   ? "No se pudieron consultar las notificaciones."
-                  : "No hay notificaciones para este filtro."}
+                  : state.hasMore
+                    ? "No hay notificaciones sin leer en las páginas consultadas. Puedes cargar más."
+                    : "No hay notificaciones para este filtro."}
               </ThemedText>
               {canRetry && (
                 <Pressable
@@ -265,8 +267,7 @@ export default function NotificacionesScreen() {
           }
           ListFooterComponent={
             !ownerReady ||
-            !state.loaded ||
-            items.length === 0 ? null : state.loadingMore ? (
+            !state.loaded ? null : state.loadingMore ? (
               <ActivityIndicator style={styles.footer} color={theme.primary} />
             ) : state.loadMoreError ? (
               <View style={styles.footer}>

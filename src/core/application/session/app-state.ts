@@ -1,6 +1,6 @@
 import type { AppStateDependencies, LinkedPatient } from './linked-patients-port';
 import { authSession, type AuthSessionMode } from './auth-session';
-import { ApiError } from '../../infrastructure/http/errors';
+import { ApiError } from '../../domain/errors';
 
 
 export type Permissions = { alerts: boolean; read: boolean; write: boolean };

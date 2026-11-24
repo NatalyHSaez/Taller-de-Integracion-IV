@@ -64,7 +64,7 @@ async function main() {
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
+  const { demo } = load(path.join(root, 'tests/fixtures/demo/demo-store'));
   for (const userRole of ['PATIENT', 'CAREGIVER']) {
     role = userRole;
     await authService.login('real@example.com', 'Test1234');

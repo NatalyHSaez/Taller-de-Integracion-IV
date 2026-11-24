@@ -1,6 +1,6 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
-import type { CurrentUserResponse } from '@/src/core/infrastructure/http/dto';
+import type { CurrentUserResponse } from '@/src/core/domain/contracts';
 import { authSession } from '@/src/core/application/session/auth-session';
 import { authService } from '@/src/modules/identity/application/authservice';
 

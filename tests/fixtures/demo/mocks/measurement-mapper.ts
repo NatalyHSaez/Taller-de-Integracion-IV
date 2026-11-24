@@ -1,5 +1,5 @@
-import type { ReadingResponse } from '../../../../core/infrastructure/http/dto';
-import type { Measurement } from '../../../monitoring/domain/measurement';
+import type { ReadingResponse } from '../../../../src/core/infrastructure/http/dto';
+import type { Measurement } from '../../../../src/modules/monitoring/domain/measurement';
 
 /**
  * Convierte las lecturas con forma de API al modelo que ya usa la interfaz.

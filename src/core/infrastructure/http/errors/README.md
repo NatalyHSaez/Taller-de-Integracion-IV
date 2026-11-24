@@ -1,7 +1,8 @@
 # Manejo centralizado de errores del API (P3)
 
-Esta carpeta centraliza errores del API Gateway, de los microservicios y de los
-mocks. Las pantallas manejan la clase `ApiError` y **nunca deben tratar un error
+Esta carpeta adapta respuestas HTTP del API Gateway. La clase `ApiError` y
+la normalización de valores simples están en `src/core/domain/errors` y se
+reexportan aquí para mantener compatibilidad. Las pantallas manejan esa misma clase y **nunca deben tratar un error
 de red como si se hubiese recibido una respuesta simulada correcta**.
 
 ## Formatos admitidos
@@ -73,7 +74,7 @@ Toda respuesta se transforma a una instancia con `code`, `message`, `details`,
 - `getApiErrorMessage(cause)`: obtiene un mensaje para la pantalla.
 
 ```ts
-import { normalizeApiError } from '@/src/core/infrastructure/http/errors';
+import { normalizeApiError } from '@/src/core/domain/errors';
 
 try {
   await operacion();

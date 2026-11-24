@@ -1,5 +1,5 @@
-import type { CurrentUserResponse, UserRole } from "../../../core/infrastructure/http/dto";
-import type { Measurement } from "../../monitoring/domain/measurement";
+import type { CurrentUserResponse, UserRole } from "../../../src/core/infrastructure/http/dto";
+import type { Measurement } from "../../../src/modules/monitoring/domain/measurement";
 import {
   MOCK_ACCOUNTS,
   MOCK_CAREGIVER_RELATIONSHIPS,

@@ -4,7 +4,7 @@ import {
   type ClinicalParameterCatalog,
   clinicalParametersService,
 } from '@/src/modules/monitoring/application/clinical-parameters';
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import { getApiErrorMessage } from '@/src/core/domain/errors';
 
 type State = {
   catalog: ClinicalParameterCatalog | null;

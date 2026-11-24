@@ -36,7 +36,7 @@ import type {
   ClinicalParameterResponse,
   CreateReadingRequest,
   ReadingContext,
-} from "@/src/core/infrastructure/http/dto";
+} from "@/src/core/domain/contracts";
 import type { MeasurementType } from "@/src/modules/monitoring/domain/measurement";
 import { useRouter } from "expo-router";
 

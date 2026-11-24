@@ -14,7 +14,7 @@ import type {
   PatientProfileResponse,
   PatientSummaryResponse,
   ReadingResponse,
-} from '../../../../core/infrastructure/http/dto';
+} from '../../../../src/core/infrastructure/http/dto';
 import {
   MOCK_ALERTS,
   MOCK_AUTH_TOKENS,
@@ -30,7 +30,7 @@ import {
   MOCK_PATIENTS,
   MOCK_READINGS,
 } from './api-data';
-import { ApiError } from '../../../../core/infrastructure/http/errors';
+import { ApiError } from '../../../../src/core/infrastructure/http/errors';
 import { mockLogin, mockLogout, mockMe } from './auth-mock';
 
 /** Retardo pequeño para que el mock se comporte parecido a una llamada HTTP real. */

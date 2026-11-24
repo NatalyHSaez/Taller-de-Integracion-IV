@@ -1,5 +1,5 @@
 import type { PatientProfileResponse } from '../domain/patient-profile';
-import type { AuthTokensResponse, CurrentUserResponse, RegisterRequest, UpdateMeRequest } from '@/src/core/infrastructure/http/dto';
+import type { AuthTokensResponse, CurrentUserResponse, RegisterRequest, UpdateMeRequest } from '@/src/core/domain/contracts';
 
 export type IdentityDependencies = {
   getPatient: (patientId: string) => Promise<PatientProfileResponse>;

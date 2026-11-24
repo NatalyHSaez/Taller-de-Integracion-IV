@@ -30,14 +30,7 @@ export type HealthConditionParameter = {
  * Item de GET /api/v1/clinical-parameters (contrato real del Gateway).
  * Es la fuente de verdad para nombre, unidad y límites técnicos de cada parámetro.
  */
-export type ClinicalParameterResponse = {
-  code: ClinicalParameterCode;
-  name: string;
-  valueType: string;
-  unit: CanonicalUnit;
-  technicalMin: number | null;
-  technicalMax: number | null;
-};
+export type { ClinicalParameterResponse } from '../../../domain/contracts/clinical-parameter';
 
 /**
  * Item de GET /api/v1/parameter-limits.

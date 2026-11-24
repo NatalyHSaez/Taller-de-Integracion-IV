@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import { getApiErrorMessage } from '@/src/core/domain/errors';
 import { type HealthProgram, healthConditionsService } from '@/src/modules/monitoring/application/health-conditions';
 
 type State = {

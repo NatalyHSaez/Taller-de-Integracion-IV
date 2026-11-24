@@ -1,8 +1,8 @@
-import type { ClinicalParameterCode, ClinicalParameterResponse } from '@/src/core/infrastructure/http/dto';
+import type { ClinicalParameterCode, ClinicalParameterResponse } from '@/src/core/domain/contracts';
 
 import { authSession } from '../../../core/application/session/auth-session';
 import { monitoringRepository } from './monitoring-port';
-import { ApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError } from '../../../core/domain/errors';
 
 /**
  * Catálogo de parámetros clínicos con sus límites técnicos efectivos.

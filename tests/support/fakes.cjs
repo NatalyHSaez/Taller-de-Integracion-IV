@@ -52,7 +52,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
   mockModule('src/core/application/session/app-state.ts', {
     appState: { snapshot: () => ({ selectedPatient: selection.selectedPatient }) },
   });
-  mockModule('src/modules/demo/infrastructure/demo-store.ts', {
+  mockModule('tests/fixtures/demo/demo-store.ts', {
     demo: {
       save: () => { calls.demoSave += 1; },
       patient: () => ({ id: 'demo-patient', name: 'Demo', email: 'd@x.cl' }),
@@ -72,7 +72,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
       invalidate() {},
     },
   });
-  mockModule('src/modules/demo/infrastructure/mocks/index.ts', { mockApi: {} });
+  mockModule('tests/fixtures/demo/mocks/index.ts', { mockApi: {} });
 
   return {
     calls,

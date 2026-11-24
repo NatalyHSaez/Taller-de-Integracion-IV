@@ -1,5 +1,5 @@
 import type { PatientProfileResponse } from '../domain/patient-profile';
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { normalizeApiError } from '../../../core/domain/errors';
 
 /**
  * Ficha del paciente: GET /api/v1/patients/{patientId}.

@@ -1,6 +1,6 @@
-import type { ClinicalParameterCode, CreateReadingRequest } from '@/src/core/infrastructure/http/dto';
+import type { ClinicalParameterCode, CreateReadingRequest } from '@/src/core/domain/contracts';
 
-import { ApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError } from '../../../core/domain/errors';
 
 /** Lugar del formulario donde se muestra un error del registro de lecturas. */
 export type ReadingFormField = ClinicalParameterCode | 'context' | 'measuredAt';

@@ -17,11 +17,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { appState } from "@/src/core/application/session/app-state";
 import { authService } from "@/src/modules/identity/application/authservice";
 import { loginErrorMessage } from "@/src/modules/identity/application/login-validation";
-import { GatewayHealthCard } from "@/src/shared/presentation/components/gateway-health-card";
+import { GatewayHealthCard, type GatewayHealthProps } from "@/src/shared/presentation/components/gateway-health-card";
 import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
 import { BrandColors, Colors } from "@/src/shared/presentation/theme";
 
-export default function LoginScreen() {
+export default function LoginScreen({ gateway }: { gateway: GatewayHealthProps }) {
   const router = useRouter();
   const submitting = useRef(false);
   const theme = Colors[useColorScheme() === "dark" ? "dark" : "light"];
@@ -331,7 +331,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.healthSection}>
-              <GatewayHealthCard />
+              <GatewayHealthCard {...gateway} />
             </View>
           </View>
         </ScrollView>

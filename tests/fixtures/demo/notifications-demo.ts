@@ -1,7 +1,7 @@
-import { demo } from '../../demo/infrastructure/demo-store';
-import { mockApi } from '../../demo/infrastructure/mocks/api-mock';
-import type { AppNotification, NotificationsApi } from '../domain/notification';
-import { toAppNotification } from './notifications-api';
+import { demo } from './demo-store';
+import { mockApi } from './mocks/api-mock';
+import type { AppNotification, NotificationsApi } from '../../../src/modules/notifications/domain/notification';
+import { toAppNotification } from '../../../src/modules/notifications/infrastructure/notifications-api';
 
 /**
  * Notificaciones exclusivas del modo demostración. Incluye los ejemplos del

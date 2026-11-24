@@ -1,6 +1,6 @@
 import { getPatientReading } from './reading-query-port';
 import type { ReadingResponse } from '../domain/reading-query';
-import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError, normalizeApiError } from '../../../core/domain/errors';
 
 /**
  * Detalle de una lectura: GET /api/v1/patients/{patientId}/readings/{readingId}.

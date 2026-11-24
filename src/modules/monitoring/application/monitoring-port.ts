@@ -1,4 +1,4 @@
-import type { CreateReadingRequest, ReadingResponse } from '@/src/core/infrastructure/http/dto';
+import type { CreateReadingRequest, ReadingResponse } from '@/src/core/domain/contracts';
 
 export type LinkedPerson = { userId: string; fullName: string };
 export interface MonitoringRepository {

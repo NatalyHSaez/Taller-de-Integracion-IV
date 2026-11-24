@@ -29,13 +29,14 @@ app se abre directamente en el detalle, primero se carga la primera página.
 - **Del usuario, no del paciente:** al cambiar de usuario (cerrar sesión, entrar
   con otra cuenta) se descartan la lista y la caché. Cambiar de paciente no las
   afecta.
-- **Sin datos simulados en sesión real:** si el servidor falla se muestra el
+- **Sin datos simulados en producción:** si el servidor falla se muestra el
   error (sesión expirada, sin permiso, no encontrada o error de red, este último
-  con «Reintentar»). Los ejemplos solo se usan en el modo demostración.
+  con «Reintentar»). Los ejemplos existen únicamente en las fixtures de pruebas.
 - **Paginación sin duplicados:** se descartan ids repetidos; si se marca como
-  leída una notificación mientras está activo el filtro «Pendientes» o
-  «Enviadas», la siguiente página se pide desde una posición anterior para no
+  leída una notificación mientras está activo el filtro interno de estado
+  `pending` o `sent`, la siguiente página se pide desde una posición anterior para no
   saltarse ninguna.
-- **Leída:** se marca al abrir el detalle o con «Marcar como leída». Tras el 204
+- **Filtros visibles:** «No leídas» reúne los estados `pending` y `sent`; «Leídas» utiliza `read`.
+- **Leída:** se marca mediante la acción «Marcar como leída»; abrir el detalle por sí solo no modifica el estado. Tras el 204
   se actualizan la lista y el detalle sin recargar; al volver a consultar, el
   backend la devuelve como leída.

@@ -20,7 +20,7 @@ import {
   ASSIGNED_CONDITIONS_API_AVAILABLE,
   type HealthProgram,
 } from '@/src/modules/monitoring/application/health-conditions';
-import type { ClinicalParameterCode } from '@/src/core/infrastructure/http/dto';
+import type { ClinicalParameterCode } from '@/src/core/domain/contracts';
 
 type Theme = (typeof Colors)['light'] | (typeof Colors)['dark'];
 

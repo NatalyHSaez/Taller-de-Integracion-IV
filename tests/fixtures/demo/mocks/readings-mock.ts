@@ -1,5 +1,5 @@
-import type { CreateReadingRequest } from '../../../../core/infrastructure/http/dto';
-import { ApiError } from '../../../../core/infrastructure/http/errors';
+import type { CreateReadingRequest } from '../../../../src/core/infrastructure/http/dto';
+import { ApiError } from '../../../../src/core/infrastructure/http/errors';
 import { MOCK_CLINICAL_PARAMETERS } from './api-data';
 
 function reject(code: string, message: string, details: Record<string, unknown> = {}): never {

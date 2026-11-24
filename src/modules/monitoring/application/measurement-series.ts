@@ -1,6 +1,6 @@
 import { getPatientMeasurements } from './reading-query-port';
 import type { MeasurementPointResponse, MeasurementsQuery } from '../domain/reading-query';
-import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { ApiError, normalizeApiError } from '../../../core/domain/errors';
 import { readingsToMeasurements } from '../domain/reading-to-measurements';
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 

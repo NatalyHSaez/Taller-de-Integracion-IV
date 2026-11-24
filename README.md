@@ -37,7 +37,8 @@ El detalle, las reglas entre capas y cómo agregar un endpoint están en
 
 ```
 Taller-de-Integracion-IV/
-├── app/                      # Pantallas y rutas (Expo Router)
+├── app/                      # Rutas y composición de pantallas (Expo Router)
+├── composition/              # Conexión de puertos y adaptadores reales
 ├── src/
 │   ├── core/                 # Núcleo: cliente HTTP, errores, DTO, tokens, sesión
 │   ├── modules/
@@ -47,10 +48,10 @@ Taller-de-Integracion-IV/
 │   │   ├── evaluation/       #   ↔ evaluacion     (alertas)
 │   │   ├── notifications/    #   ↔ notificaciones
 │   │   ├── dashboard/        #   Inicio
-│   │   └── demo/             #   Modo demostración
+│   │   └── medical-care/     #   Atención médica y documentos
 │   │       (cada módulo: domain/ application/ infrastructure/ presentation/)
 │   └── shared/presentation/  # UI y tema comunes
-├── tests/                    # Pruebas (npm test)
+├── tests/                    # Pruebas (npm test), fixtures ficticias aisladas
 ├── scripts/                  # Pruebas de línea de comandos y check-architecture
 ├── docs/                     # Documentación
 └── assets/                   # Íconos, splash e imágenes

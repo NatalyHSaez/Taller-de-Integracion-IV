@@ -1,5 +1,5 @@
-import type { CurrentUserResponse } from '../../../core/infrastructure/http/dto';
-import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
+import type { CurrentUserResponse } from '../../../core/domain/contracts';
+import { ApiError, normalizeApiError } from '../../../core/domain/errors';
 
 export function validateLoginUser(value: unknown): asserts value is CurrentUserResponse {
   const user = value as Partial<CurrentUserResponse> | null;

@@ -1,7 +1,8 @@
 # Contratos del API móvil
 
-Esta carpeta define los DTO compartidos con el **API Gateway**; son distintos de los
-modelos internos de la interfaz. Las rutas públicas se consumen con el prefijo
+Esta carpeta define los DTO del **API Gateway** y reexporta los tipos compartidos
+de `src/core/domain/contracts`. Las capas internas importan los contratos desde
+dominio y no desde esta carpeta. Las rutas públicas se consumen con el prefijo
 `/api/v1` y, en los contratos contrastados, las propiedades JSON se expresan en
 inglés y **camelCase**.
 
@@ -41,7 +42,7 @@ inglés y **camelCase**.
 `reading.ts` conserva **dos familias separadas de tipos**. No deben intercambiarse:
 
 - `ReadingResponse` y `MeasurementResponse` representan el formato **legado**
-  que todavía producen `demo/infrastructure/mocks/api-data.ts`, el adaptador
+  que todavía producen `tests/fixtures/demo/mocks/api-data.ts`, el adaptador
   `measurement-mapper.ts` y ciertos flujos locales. Usan `recordedByUserId`,
   `valueNumeric`, `valueText` y `validationStatus`.
 - `BackendReadingResponse`, `BackendMeasurementResponse`, `ReadingPageResponse` y

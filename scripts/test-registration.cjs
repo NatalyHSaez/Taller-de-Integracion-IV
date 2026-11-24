@@ -22,8 +22,9 @@ function load(file, dependencies, extra = {}) {
 }
 
 async function main() {
-  const errors = load('src/core/infrastructure/http/errors/api-error.ts', {});
-  const form = load('src/modules/identity/application/registration.ts', { '../../../core/infrastructure/http/errors': errors });
+  const domainErrors = load('src/core/domain/errors/api-error.ts', {});
+  const errors = load('src/core/infrastructure/http/errors/api-error.ts', { '../../../domain/errors/api-error': domainErrors });
+  const form = load('src/modules/identity/application/registration.ts', { '../../../core/domain/errors': domainErrors });
   const base = { fullName: '  Cuenta Prueba  ', email: ' NUEVA@example.com ',
     password: 'Cuenta123!', confirmation: 'Cuenta123!', privacyAccepted: true,
     role: 'CAREGIVER', birthDate: 'fecha ignorada' };
