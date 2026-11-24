@@ -8,6 +8,11 @@ const assert = require('node:assert/strict');
 const { installFakes, apiError } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
+projectRequire('src/modules/monitoring/application/monitoring-port.ts').configureMonitoring({
+  ...projectRequire('src/modules/monitoring/infrastructure/monitoring-api.ts').monitoringApi,
+  listCaregivers: async () => { throw new Error('Unexpected caregivers request'); },
+  listDoctors: async () => { throw new Error('Unexpected doctors request'); },
+});
 const { clinicalParametersService, validateAgainstParameter } = projectRequire('src/modules/monitoring/application/clinical-parameters.ts');
 const { buildCreateReadingRequest, readingsService } = projectRequire('src/modules/monitoring/application/readings.ts');
 const { createReadingFlow } = projectRequire('src/modules/monitoring/application/reading-flow.ts');

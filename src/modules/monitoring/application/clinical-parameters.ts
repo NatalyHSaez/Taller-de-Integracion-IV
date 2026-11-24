@@ -1,7 +1,7 @@
 import type { ClinicalParameterCode, ClinicalParameterResponse } from '@/src/core/infrastructure/http/dto';
 
 import { authSession } from '../../../core/application/session/auth-session';
-import { dataClient } from '../../../core/infrastructure/http/data';
+import { monitoringRepository } from './monitoring-port';
 import { ApiError } from '../../../core/infrastructure/http/errors';
 
 /**
@@ -27,10 +27,6 @@ import { ApiError } from '../../../core/infrastructure/http/errors';
  * - La caché es solo en memoria (ver services/data/README.md).
  */
 
-const CATALOG_PATH = '/clinical-parameters';
-const LIMITS_PATH = '/parameter-limits';
-const CATALOG_CACHE_MS = 10 * 60_000;
-const CATALOG_STALE_MS = 60 * 60_000;
 
 /** De dónde salen los límites efectivos de un parámetro. */
 export type LimitsSource = 'parameter-limits' | 'clinical-parameters' | 'none';
@@ -168,11 +164,6 @@ function buildCatalog(
   return catalog;
 }
 
-const cacheOptions = (forceRefresh?: boolean) => ({
-  ttlMs: CATALOG_CACHE_MS,
-  staleIfErrorMs: CATALOG_STALE_MS,
-  forceRefresh,
-});
 
 export const clinicalParametersService = {
   async list(options: { forceRefresh?: boolean } = {}): Promise<ClinicalParameterCatalog> {
@@ -183,11 +174,8 @@ export const clinicalParametersService = {
     // El catálogo es obligatorio; los límites son opcionales: si el endpoint
     // falla, se usan los de /clinical-parameters y el backend sigue validando.
     const [items, limits] = await Promise.all([
-      dataClient.get<ClinicalParameterResponse[]>(CATALOG_PATH, {
-        cache: cacheOptions(options.forceRefresh),
-      }),
-      dataClient
-        .get<unknown>(LIMITS_PATH, { cache: cacheOptions(options.forceRefresh) })
+      monitoringRepository().listClinicalParameters(options.forceRefresh),
+      monitoringRepository().listParameterLimits(options.forceRefresh)
         .then(toLimits)
         .catch((cause: unknown) => {
           if (__DEV__) {
@@ -201,8 +189,7 @@ export const clinicalParametersService = {
   },
 
   invalidate(): void {
-    dataClient.invalidate(CATALOG_PATH);
-    dataClient.invalidate(LIMITS_PATH);
+    monitoringRepository().invalidateClinicalParameters();
   },
 };
 

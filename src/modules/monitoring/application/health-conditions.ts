@@ -1,7 +1,5 @@
-import type { HealthConditionResponse } from '@/src/core/infrastructure/http/dto';
-
 import { authSession } from '../../../core/application/session/auth-session';
-import { dataClient } from '../../../core/infrastructure/http/data';
+import { monitoringRepository } from './monitoring-port';
 import { ApiError } from '../../../core/infrastructure/http/errors';
 
 /**
@@ -15,9 +13,6 @@ import { ApiError } from '../../../core/infrastructure/http/errors';
  * - La caché es solo en memoria (ver services/data/README.md).
  */
 
-const PATH = '/health-conditions';
-const CACHE_MS = 10 * 60_000;
-const STALE_MS = 60 * 60_000;
 
 /**
  * Indica si existe una API para consultar las condiciones asignadas al
@@ -109,17 +104,11 @@ export const healthConditionsService = {
       throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para consultar el servidor.' });
     }
 
-    const items = await dataClient.get<HealthConditionResponse[]>(PATH, {
-      cache: {
-        ttlMs: CACHE_MS,
-        staleIfErrorMs: STALE_MS,
-        forceRefresh: options.forceRefresh,
-      },
-    });
+    const items = await monitoringRepository().listHealthConditions(options.forceRefresh);
     return toPrograms(items);
   },
 
   invalidate(): void {
-    dataClient.invalidate(PATH);
+    monitoringRepository().invalidateHealthConditions();
   },
 };

@@ -5,6 +5,11 @@ const assert = require('node:assert/strict');
 const { installFakes } = require('./support/fakes.cjs');
 
 const fakes = installFakes();
+projectRequire('src/modules/monitoring/application/monitoring-port.ts').configureMonitoring({
+  ...projectRequire('src/modules/monitoring/infrastructure/monitoring-api.ts').monitoringApi,
+  listCaregivers: async () => { throw new Error('Unexpected caregivers request'); },
+  listDoctors: async () => { throw new Error('Unexpected doctors request'); },
+});
 const { healthConditionsService } = projectRequire('src/modules/monitoring/application/health-conditions.ts');
 
 test('lee programas sin conditionId ni active, con parámetros obligatorios y opcionales', async () => {

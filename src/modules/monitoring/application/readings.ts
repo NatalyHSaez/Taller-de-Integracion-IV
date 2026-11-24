@@ -6,7 +6,6 @@ import type {
   ReadingResponse,
 } from '@/src/core/infrastructure/http/dto';
 
-import { apiClient } from '../../../core/infrastructure/http/api-client';
 import { appState } from '../../../core/application/session/app-state';
 import { authSession } from '../../../core/application/session/auth-session';
 import {
@@ -14,10 +13,9 @@ import {
   parseNumericInput,
   validateAgainstParameter,
 } from './clinical-parameters';
-import { dataClient } from '../../../core/infrastructure/http/data';
+import { monitoringRepository } from './monitoring-port';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 
-const DETAIL_CACHE_MS = 30_000;
 
 /** Etiquetas del contexto de glucosa para la interfaz. */
 export const READING_CONTEXT_LABELS: Record<ReadingContext, string> = {
@@ -209,9 +207,6 @@ function once(key: string, run: () => Promise<CreateReadingResponse>): Promise<C
   return action;
 }
 
-const readingPath = (patientId: string, readingId?: string) =>
-  `/patients/${encodeURIComponent(patientId)}/readings` +
-  (readingId ? `/${encodeURIComponent(readingId)}` : '');
 
 /** Mensaje y tipo de un error al confirmar una lectura. */
 export type ConfirmReadingError = {
@@ -243,7 +238,7 @@ export const readingsService = {
       if (authSession.mode() !== 'backend') {
         throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para registrar mediciones.' });
       }
-      const raw = await apiClient.post<unknown>(readingPath(patientId), request);
+      const raw = await monitoringRepository().createReading(patientId, request);
       return toCreateResponse(raw);
     });
   },
@@ -262,7 +257,7 @@ export const readingsService = {
           message: 'La lectura no está pendiente de confirmación.',
         });
       }
-      const raw = await apiClient.post<unknown>(`${readingPath(patientId, readingId)}/confirm`, {});
+      const raw = await monitoringRepository().confirmReading(patientId, readingId);
       const result = toCreateResponse(raw, readingId);
       return { ...result, status: result.status ?? 'PENDING' };
     });
@@ -273,7 +268,7 @@ export const readingsService = {
     if (authSession.mode() !== 'backend') {
       throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión para consultar la lectura.' });
     }
-    const raw = await apiClient.get<unknown>(readingPath(patientId, readingId));
+    const raw = await monitoringRepository().readingStatus(patientId, readingId);
     return toCreateResponse(raw, readingId);
   },
 
@@ -291,12 +286,7 @@ export const readingsService = {
     // Ruta con patientId (la global /readings/{id} no existe) y sin respaldo
     // local: si el servidor falla, el error llega a la pantalla.
     try {
-      return await dataClient.get<ReadingResponse>(readingPath(patientId, readingId), {
-        cache: {
-          key: `reading-detail:${patientId}:${readingId}`,
-          ttlMs: DETAIL_CACHE_MS,
-        },
-      });
+      return await monitoringRepository().readingDetail(patientId, readingId);
     } catch (cause) {
       throw normalizeApiError(cause);
     }

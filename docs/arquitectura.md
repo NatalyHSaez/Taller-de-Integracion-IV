@@ -128,3 +128,7 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
 ### Composición de relaciones
 
 `composition/configure-relationships.ts` conecta `RelationshipsRepository` con el adaptador HTTP real. Los casos de uso de códigos, listados y gestión de vínculos usan ese puerto. Los modelos se encuentran en `domain/relationships.ts`; el adaptador conserva reexportaciones de tipos para compatibilidad. Las rutas de vínculos e invitación y la tarjeta de médico ya no importan el adaptador directamente. Las dependencias de dashboard y monitoring hacia relaciones se resolverán en sus respectivos grupos. Los errores HTTP compartidos siguen pendientes de reorganización.
+
+### Composición de seguimiento (grupo 5)
+
+`MonitoringRepository` separa los casos de uso de registro, confirmación, catálogos y nombres de personas vinculadas del transporte HTTP. `composition/configure-monitoring.ts` conecta `monitoringApi` y los casos de uso de relaciones. Los filtros, límites técnicos y rutas existentes se conservan. Los DTO y errores compartidos de Core, historial, gráficos y pantallas extensas quedan para etapas posteriores.

@@ -1,4 +1,4 @@
-import { getPatientCaregivers, getPatientDoctors, type LinkedUserResponse } from '../../relationships/infrastructure/relationships-api';
+import { monitoringRepository, type LinkedPerson } from './monitoring-port';
 
 /**
  * "Registrada por": el backend solo entrega el id de quien registró la lectura
@@ -8,7 +8,7 @@ import { getPatientCaregivers, getPatientDoctors, type LinkedUserResponse } from
  * nombre y el del paciente. Si no se puede saber, no se inventa un nombre.
  */
 
-export type LinkedPeople = { caregivers: LinkedUserResponse[]; doctors: LinkedUserResponse[] };
+export type LinkedPeople = { caregivers: LinkedPerson[]; doctors: LinkedPerson[] };
 
 export type RecordedByInput = {
   recordedBy: string | null | undefined;
@@ -36,14 +36,14 @@ export function describeRecordedBy(input: RecordedByInput): string | null {
   return 'Otra persona vinculada al paciente';
 }
 
-type Loader = (patientId: string) => Promise<LinkedUserResponse[]>;
+type Loader = (patientId: string) => Promise<LinkedPerson[]>;
 
 const CACHE_MS = 60_000;
 
 /** Vínculos del paciente (para el propio paciente), con caché breve por paciente. */
 export function createLinkedPeopleLoader(
-  caregivers: Loader = getPatientCaregivers,
-  doctors: Loader = getPatientDoctors,
+  caregivers: Loader = (id) => monitoringRepository().listCaregivers(id),
+  doctors: Loader = (id) => monitoringRepository().listDoctors(id),
   now: () => number = Date.now,
 ) {
   const cache = new Map<string, { at: number; promise: Promise<LinkedPeople> }>();
@@ -57,7 +57,7 @@ export function createLinkedPeopleLoader(
       }));
       cache.set(patientId, { at: now(), promise });
       // Un error no queda guardado: el próximo intento vuelve a consultar.
-      promise.catch(() => cache.delete(patientId));
+      promise.catch(() => { if (cache.get(patientId)?.promise === promise) cache.delete(patientId); });
       return promise;
     },
     clear() {
