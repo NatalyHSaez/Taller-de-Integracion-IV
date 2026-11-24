@@ -1,3 +1,4 @@
+import '@/composition/configure-dashboard';
 import '@/composition/configure-notifications';
 import '@/composition/configure-monitoring';
 import '@/composition/configure-relationships';

@@ -113,7 +113,7 @@ test('alerta prioritaria: abierta, de severidad alta primero y más reciente', (
 test('Inicio ya no dice "cuando se conecte esta función al backend"', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const source = fs.readFileSync(path.resolve(__dirname, '..', 'app', '(tabs)', 'index.tsx'), 'utf8');
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'modules', 'dashboard', 'presentation', 'screens', 'home-screen.tsx'), 'utf8');
   assert.doesNotMatch(source, /cuando se conecte esta función al backend/);
   assert.match(source, /createHomeSummary\(\)/);
   assert.match(source, /homeStore\.refresh\(\)/);

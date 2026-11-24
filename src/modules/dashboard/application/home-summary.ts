@@ -1,7 +1,6 @@
-import { getMePatients } from '../../relationships/infrastructure/relationships-api';
+import { homeSummaryDependencies, type HomeSummaryDeps } from './home-summary-port';
+export type { HomeSummaryDeps } from './home-summary-port';
 import { normalizeApiError } from '../../../core/infrastructure/http/errors';
-import { loadChartMeasurements } from '../../monitoring/application/measurement-series';
-import { backendAlertsService } from '../../evaluation/infrastructure/alerts-api';
 import { type PatientAlert } from '../../evaluation/domain/alert';
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
 
@@ -28,21 +27,6 @@ export type HomeSummaryState = {
   loaded: boolean;
   loading: boolean;
   error: { kind: HomeErrorKind; message: string } | null;
-};
-
-export type HomeSummaryDeps = {
-  measurements: (patientId: string) => Promise<Measurement[]>;
-  openAlerts: (patientId: string) => Promise<PatientAlert[]>;
-  caregiverPermissions: (patientId: string) => Promise<string[]>;
-};
-
-export const backendHomeDeps: HomeSummaryDeps = {
-  measurements: (patientId) => loadChartMeasurements(patientId),
-  openAlerts: (patientId) => backendAlertsService.list(patientId, 'OPEN'),
-  async caregiverPermissions(patientId) {
-    const mine = await getMePatients();
-    return mine.find((item) => item.patientId === patientId && item.relationshipType === 'CAREGIVER')?.permissions ?? [];
-  },
 };
 
 export function classifyHomeError(error: unknown): { kind: HomeErrorKind; message: string } {
@@ -75,7 +59,7 @@ const EMPTY: HomeSummaryState = {
   error: null,
 };
 
-export function createHomeSummary(deps: HomeSummaryDeps = backendHomeDeps) {
+export function createHomeSummary(deps: HomeSummaryDeps = homeSummaryDependencies()) {
   let state: HomeSummaryState = EMPTY;
   let role: HomeRole = 'patient';
   let generation = 0;
@@ -103,11 +87,13 @@ export function createHomeSummary(deps: HomeSummaryDeps = backendHomeDeps) {
     } catch (error) {
       const canRegister = await permissionsPromise;
       if (current !== generation) return;
+      const failure = classifyHomeError(error);
+      const accessLost = failure.kind !== 'network';
       set({
-        ...(keepData ? state : { ...EMPTY, patientId }),
-        canRegister,
+        ...(keepData && !accessLost ? state : { ...EMPTY, patientId }),
+        canRegister: !accessLost && canRegister,
         loading: false,
-        error: classifyHomeError(error),
+        error: failure,
       });
     }
   }

@@ -51,7 +51,7 @@ src/modules/<módulo>/
   presentation/    Componentes y hooks de React del módulo.
 ```
 
-Un módulo solo tiene las capas que necesita (por ejemplo, `dashboard` solo tiene `application`).
+Un módulo solo tiene las capas que necesita (por ejemplo, `dashboard` tiene `application` y `presentation`).
 
 ### Ejemplo: alertas (`evaluation`)
 
@@ -140,3 +140,7 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
 ### Notificaciones internas (grupo 7)
 
 El contrato `NotificationsApi` permanece en dominio. `notifications-port.ts` registra el repositorio y la raíz `composition/configure-notifications.ts` conecta el adaptador HTTP. El hook observa la sesión de Core y delega en aplicación. Las rutas de Expo Router reexportan las pantallas de presentación. Se conserva la lectura manual y la paginación; se verifica también la generación de sesión antes de mostrar datos o refrescar tras marcar. No se incorpora push ni se modifica el contrato HTTP. La eliminación de adaptadores demo y la reorganización de errores Core siguen pendientes.
+
+### Dashboard (grupo 8)
+
+`HomeSummaryDeps` y `home-summary-port.ts` permiten configurar las consultas de mediciones, alertas y permisos desde `composition/configure-dashboard.ts`. La pantalla se mueve a `dashboard/presentation/screens/home-screen.tsx`; la ruta reexporta el componente. Se conserva la lógica de presentación y se limpian los datos del resumen si la actualización devuelve 401 o 403. Los modelos de lectura y alerta se comparten mediante tipos de dominio; la reorganización de errores Core y la limpieza demo siguen pendientes.
