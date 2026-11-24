@@ -36,6 +36,8 @@ function load(filename) {
   return exports;
 }
 async function main() {
+  load(path.join(root, 'composition/configure-identity'));
+  load(path.join(root, 'composition/configure-app-state'));
   const { randomUUID } = require('node:crypto');
   const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));

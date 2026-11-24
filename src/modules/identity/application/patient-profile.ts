@@ -1,4 +1,4 @@
-import { getPatient, type PatientProfileResponse } from '../infrastructure/identity-api';
+import type { PatientProfileResponse } from '../domain/patient-profile';
 import { normalizeApiError } from '../../../core/infrastructure/http/errors';
 
 /**
@@ -123,7 +123,7 @@ type FetchPatient = (patientId: string) => Promise<PatientProfileResponse>;
 
 const EMPTY: PatientProfileState = { patientId: null, profile: null, loading: false, error: null };
 
-export function createPatientProfile(fetchPatient: FetchPatient = getPatient) {
+export function createPatientProfile(fetchPatient: FetchPatient) {
   let state: PatientProfileState = EMPTY;
   let generation = 0;
   const listeners = new Set<() => void>();

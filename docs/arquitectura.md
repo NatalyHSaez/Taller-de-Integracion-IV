@@ -106,10 +106,8 @@ lista las dependencias entre módulos y las excepciones conocidas, para revisarl
 
 Están identificadas y no rompen las reglas prohibidas, pero conviene resolverlas:
 
-- `core/application/session/app-state.ts` usa `relationships` (lista de pacientes del cuidador) y
-  el modo demo. Pendiente: inyectarlos desde `app/_layout.tsx`.
-- `app/perfil.tsx` y `app/(tabs)/vinculos.tsx` llaman endpoints directamente. Pendiente: pasarlos
-  por un caso de uso de `application/`.
+- La composición de `app-state.ts` y `auth-session.ts` está resuelta.
+- Revisar las llamadas directas restantes en las rutas, especialmente vínculos.
 - `monitoring/application/clinical-parameters.ts` consulta también `/parameter-limits`, que es del
   servicio de evaluación (los límites se usan para validar el registro). Pendiente: pedirlos a
   través de un adaptador de `evaluation`.
@@ -121,4 +119,8 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
 
 ### Composición del estado global
 
-`composition/configure-app-state.ts` conecta el puerto `AppStateDependencies` con los adaptadores reales y se importa desde `app/_layout.tsx` antes de restaurar la sesión. La carpeta `composition/` queda fuera de las capas internas a propósito. `app-state.ts` no importa el módulo de relaciones ni la caché HTTP; las pruebas pueden inyectar sus propias implementaciones. La separación de `auth-session.ts` del transporte HTTP se abordará junto con identidad.
+`composition/configure-app-state.ts` conecta el puerto `AppStateDependencies` con los adaptadores reales y se importa desde `app/_layout.tsx` antes de restaurar la sesión. La carpeta `composition/` queda fuera de las capas internas a propósito. `app-state.ts` no importa el módulo de relaciones ni la caché HTTP; las pruebas pueden inyectar sus propias implementaciones. `auth-session.ts` recibe ahora la invalidación del transporte mediante `configureAuthSession`.
+
+### Composición de identidad
+
+`composition/configure-identity.ts` configura el puerto `IdentityDependencies`, conecta el almacenamiento y transporte reales, y registra los callbacks de renovación e invalidación de sesión. `authservice.ts` y `profile.ts` consumen el puerto; el formulario registra mediante `authService`. La ficha recibe su adaptador por parámetro. Los DTO y errores compartidos aún viven en infraestructura core: su reorganización transversal queda pendiente.

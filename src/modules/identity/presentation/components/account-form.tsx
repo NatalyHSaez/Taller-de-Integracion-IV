@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { register as registerWithBackend } from '@/src/modules/identity/infrastructure/identity-api';
+import { authService } from '@/src/modules/identity/application/authservice';
 import { buildRegistrationRequest, registrationErrorMessage } from '@/src/modules/identity/application/registration';
 import { Colors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
@@ -38,7 +38,7 @@ export function AccountForm() {
         role: role === 'paciente' ? 'PATIENT' : 'CAREGIVER',
         birthDate, privacyAccepted,
       });
-      await registerWithBackend(request);
+      await authService.register(request);
       setPassword(''); setConfirm(''); setRegistered(true);
     } catch (cause) {
       setError(registrationErrorMessage(cause));

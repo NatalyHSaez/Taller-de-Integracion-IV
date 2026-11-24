@@ -1,3 +1,4 @@
+import '@/composition/configure-identity';
 import '@/composition/configure-app-state';
 import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
 import { Colors } from "@/src/shared/presentation/theme";

@@ -1,7 +1,6 @@
 import type { CurrentUserResponse, UpdateMeRequest } from '@/src/core/infrastructure/http/dto';
-import { apiClient } from '../../../core/infrastructure/http/api-client';
+import { identityDependencies } from './identity-port';
 import { authSession } from '../../../core/application/session/auth-session';
-import { dataClient } from '../../../core/infrastructure/http/data';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 import { validateLoginUser } from './login-validation';
 
@@ -18,7 +17,7 @@ export async function updateMyProfile(name: string): Promise<CurrentUserResponse
   if (authSession.mode() !== 'backend' || !previous) {
     throw new ApiError({ code: 'AUTHENTICATION_REQUIRED', status: 401, message: 'Inicia sesión nuevamente para editar tu perfil.' });
   }
-  const user = await apiClient.patch<CurrentUserResponse>('/me', buildProfileUpdate(name));
+  const user = await identityDependencies().updateMe(buildProfileUpdate(name));
   validateLoginUser(user);
   if (user.id !== previous.id) {
     throw new ApiError({ code: 'INVALID_API_RESPONSE', message: 'El servidor no confirmó tu perfil. Vuelve a consultar tus datos.' });
@@ -27,7 +26,7 @@ export async function updateMyProfile(name: string): Promise<CurrentUserResponse
   if (authSession.mode() !== 'backend' || authSession.user() !== previous) {
     throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió. Inicia sesión y revisa tu perfil.' });
   }
-  dataClient.clearCache();
+  identityDependencies().clearCache();
   authSession.setUser(user);
   return user;
 }

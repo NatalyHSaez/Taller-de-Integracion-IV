@@ -1,7 +1,3 @@
-import {
-  invalidateApiSession,
-  setApiAccessTokenProvider,
-} from "@/src/core/infrastructure/http/api-client";
 import type {
   AuthTokensResponse,
   CurrentUserResponse,
@@ -19,6 +15,12 @@ export type SessionState = {
 let state: SessionState = { mode: null, tokens: null, user: null };
 let sessionGeneration = 0;
 const listeners = new Set<() => void>();
+let invalidateTransport: () => void = () => {};
+
+/** La composición conecta el transporte; el estado no conoce HTTP. */
+export function configureAuthSession(invalidate: () => void): void {
+  invalidateTransport = invalidate;
+}
 
 function publish(next: SessionState): void {
   state = next;
@@ -30,7 +32,7 @@ function publish(next: SessionState): void {
  * Cambiar tokens durante un refresh NO inicia una sesión nueva.
  */
 function replaceSession(next: SessionState): void {
-  invalidateApiSession();
+  invalidateTransport();
   sessionGeneration += 1;
   publish(next);
 }
@@ -89,5 +91,4 @@ export const authSession = {
   },
 };
 
-// El API Gateway siempre obtiene el access token de la sesión real activa.
-setApiAccessTokenProvider(() => authSession.accessToken());
+

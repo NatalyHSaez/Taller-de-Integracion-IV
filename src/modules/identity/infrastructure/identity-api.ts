@@ -101,14 +101,8 @@ export async function getMe(): Promise<CurrentUserResponse> {
   return apiClient.get<CurrentUserResponse>("/me");
 }
 
-export type PatientProfileResponse = {
-  id: string;
-  fullName: string;
-  birthDate: string | null;
-  age: number | null;
-  biologicalSex: string | null;
-  managementMode: string;
-};
+export type { PatientProfileResponse } from '../domain/patient-profile';
+import type { PatientProfileResponse } from '../domain/patient-profile';
 
 export async function getPatient(
   patientId: string,

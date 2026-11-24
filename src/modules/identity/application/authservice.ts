@@ -1,13 +1,5 @@
 import { appState } from "@/src/core/application/session/app-state";
 import { authSession } from "@/src/core/application/session/auth-session";
-import { IS_API_CONFIGURED } from "@/src/core/infrastructure/config/api-config";
-import {
-  apiClient,
-  apiSessionRevision,
-  refreshAccessToken,
-  setApiSessionHandlers,
-} from "@/src/core/infrastructure/http/api-client";
-import { dataClient } from "@/src/core/infrastructure/http/data";
 import type {
   AuthTokensResponse,
   CurrentUserResponse,
@@ -17,29 +9,15 @@ import {
   ApiError,
   normalizeApiError,
 } from "@/src/core/infrastructure/http/errors";
-import {
-  clearTokens,
-  getAccessToken,
-  getRefreshToken,
-} from "@/src/core/infrastructure/storage/token-storage";
-import {
-  login as apiLogin,
-  register as apiRegister,
-} from "../infrastructure/identity-api";
+import { identityDependencies } from "./identity-port";
 import { validateLoginUser } from "./login-validation";
 import { updateMyProfile } from "./profile";
 
 /** Borra la identidad observable y la caché antes de cualquier cambio de sesión. */
-function clearLocalSession(): void {
+export function clearLocalSession(): void {
   authSession.clear();
-  dataClient.clearCache();
+  identityDependencies().clearCache();
 }
-
-// El refresh HTTP actualiza la única sesión observable; un 401 definitivo la invalida.
-setApiSessionHandlers({
-  refreshed: (tokens) => authSession.updateTokens(tokens),
-  expired: clearLocalSession,
-});
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -60,7 +38,7 @@ function ensureMobileRole(user: CurrentUserResponse): void {
 }
 
 function requireGateway(): void {
-  if (IS_API_CONFIGURED) return;
+  if (identityDependencies().isConfigured()) return;
   throw new ApiError({
     code: "API_NOT_CONFIGURED",
     message: "Configura EXPO_PUBLIC_API_URL para conectar con el servidor.",
@@ -72,13 +50,9 @@ function requireGateway(): void {
 async function revokeBackendSession(
   refreshToken: string | null,
 ): Promise<void> {
-  if (!refreshToken || !IS_API_CONFIGURED) return;
+  if (!refreshToken || !identityDependencies().isConfigured()) return;
   try {
-    await apiClient.post<void>(
-      "/auth/logout",
-      { refreshToken },
-      { auth: false, timeoutMs: 7_000 },
-    );
+    await identityDependencies().revoke(refreshToken);
   } catch {
     // El token remoto expirará según las reglas del backend.
   }
@@ -90,12 +64,12 @@ async function loginWithBackend(
 ): Promise<AuthTokensResponse> {
   requireGateway();
   clearLocalSession();
-  await clearTokens();
+  await identityDependencies().clearTokens();
 
   // identity-api comprueba la revisión de sesión antes y después de persistir tokens.
-  const loginRevision = apiSessionRevision();
-  const tokens = await apiLogin(normalizeEmail(email), password);
-  if (loginRevision !== apiSessionRevision()) {
+  const loginRevision = identityDependencies().revision();
+  const tokens = await identityDependencies().login(normalizeEmail(email), password);
+  if (loginRevision !== identityDependencies().revision()) {
     await revokeBackendSession(tokens.refreshToken);
     throw new ApiError({
       code: "SESSION_CHANGED",
@@ -104,13 +78,10 @@ async function loginWithBackend(
   }
 
   authSession.startBackend(tokens);
-  const revision = apiSessionRevision();
+  const revision = identityDependencies().revision();
   try {
-    const user = await dataClient.get<CurrentUserResponse>("/me", {
-      cache: false,
-      retry: { attempts: 2, initialDelayMs: 300, maxDelayMs: 600 },
-    });
-    if (revision !== apiSessionRevision() || authSession.mode() !== "backend") {
+    const user = await identityDependencies().getMe(true);
+    if (revision !== identityDependencies().revision() || authSession.mode() !== "backend") {
       throw new ApiError({
         code: "SESSION_CHANGED",
         message: "La sesión cambió.",
@@ -122,9 +93,9 @@ async function loginWithBackend(
     return authSession.tokens() ?? tokens;
   } catch (error) {
     // Evitar que una respuesta atrasada borre otra sesión iniciada después.
-    if (revision === apiSessionRevision()) {
+    if (revision === identityDependencies().revision()) {
       clearLocalSession();
-      await clearTokens();
+      await identityDependencies().clearTokens();
       await revokeBackendSession(tokens.refreshToken);
     }
     throw error;
@@ -136,19 +107,19 @@ let restoration: Promise<void> | null = null;
 /** Restaura una sesión real sin reemplazar una sesión que haya iniciado entretanto. */
 async function restoreStoredSession(): Promise<void> {
   if (authSession.mode()) return;
-  const initialRevision = apiSessionRevision();
+  const initialRevision = identityDependencies().revision();
   const [accessToken, refreshToken] = await Promise.all([
-    getAccessToken(),
-    getRefreshToken(),
+    identityDependencies().getAccessToken(),
+    identityDependencies().getRefreshToken(),
   ]);
-  if (initialRevision !== apiSessionRevision() || authSession.mode()) return;
+  if (initialRevision !== identityDependencies().revision() || authSession.mode()) return;
 
   if (!refreshToken) {
     // Si solo queda un access token huérfano, se elimina.
-    if (accessToken) await clearTokens();
+    if (accessToken) await identityDependencies().clearTokens();
     return;
   }
-  if (!IS_API_CONFIGURED) return;
+  if (!identityDependencies().isConfigured()) return;
 
   authSession.startBackend({
     accessToken: accessToken ?? "",
@@ -156,12 +127,12 @@ async function restoreStoredSession(): Promise<void> {
     tokenType: "bearer",
     expiresIn: 0,
   });
-  const revision = apiSessionRevision();
+  const revision = identityDependencies().revision();
   try {
     // El refresh token permite recuperar una sesión aunque falte el access token.
     if (!accessToken) {
-      const renewed = await refreshAccessToken();
-      if (revision !== apiSessionRevision()) return;
+      const renewed = await identityDependencies().refresh();
+      if (revision !== identityDependencies().revision()) return;
       if (!renewed) {
         throw new ApiError({
           code: "AUTHENTICATION_REQUIRED",
@@ -171,13 +142,13 @@ async function restoreStoredSession(): Promise<void> {
       }
     }
 
-    const user = await apiClient.get<CurrentUserResponse>("/me");
-    if (revision !== apiSessionRevision() || authSession.mode() !== "backend")
+    const user = await identityDependencies().getMe(false);
+    if (revision !== identityDependencies().revision() || authSession.mode() !== "backend")
       return;
     ensureMobileRole(user);
     authSession.setUser(user);
   } catch (cause) {
-    if (revision === apiSessionRevision()) {
+    if (revision === identityDependencies().revision()) {
       const error = normalizeApiError(cause);
       clearLocalSession();
       const invalidSession =
@@ -185,7 +156,7 @@ async function restoreStoredSession(): Promise<void> {
         error.status === 403 ||
         error.code === "FLOW_NOT_AVAILABLE" ||
         error.code === "INVALID_API_RESPONSE";
-      if (invalidSession) await clearTokens();
+      if (invalidSession) await identityDependencies().clearTokens();
       // Un fallo transitorio de red no elimina los tokens persistidos.
     }
     throw cause;
@@ -199,13 +170,10 @@ export const authService = {
 
   async me(): Promise<CurrentUserResponse> {
     if (authSession.mode() === "backend") {
-      const revision = apiSessionRevision();
-      const user = await dataClient.get<CurrentUserResponse>("/me", {
-        cache: false,
-        retry: { attempts: 2, initialDelayMs: 300, maxDelayMs: 600 },
-      });
+      const revision = identityDependencies().revision();
+      const user = await identityDependencies().getMe(true);
       if (
-        revision !== apiSessionRevision() ||
+        revision !== identityDependencies().revision() ||
         authSession.mode() !== "backend"
       ) {
         throw new ApiError({
@@ -232,7 +200,7 @@ export const authService = {
         message: "No hay una sesión real activa.",
       });
     }
-    const access = await refreshAccessToken();
+    const access = await identityDependencies().refresh();
     const tokens = authSession.tokens();
     if (!access || !tokens || authSession.mode() !== "backend") {
       throw new ApiError({
@@ -258,12 +226,12 @@ export const authService = {
       authSession.mode() === "backend" ? authSession.refreshToken() : null;
     clearLocalSession();
     // Invalidar memoria primero y borrar tokens incluso cuando el servidor esté caído.
-    await Promise.all([clearTokens(), revokeBackendSession(token)]);
+    await Promise.all([identityDependencies().clearTokens(), revokeBackendSession(token)]);
   },
 
   async register(data: RegisterRequest): Promise<CurrentUserResponse> {
     requireGateway();
-    return apiRegister(data);
+    return identityDependencies().register(data);
   },
 
   /** Compatibilidad con la edición de nombre agregada en Cristian. */

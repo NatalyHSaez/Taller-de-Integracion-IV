@@ -1,3 +1,4 @@
+import { getPatient } from '@/src/modules/identity/infrastructure/identity-api';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import { Colors } from '@/src/shared/presentation/theme';
@@ -45,7 +46,7 @@ function LinkedPatientContent() {
   });
 
   // GET /patients/{patientId}. Cambiar de paciente descarta la ficha anterior.
-  const [profileStore] = useState(() => createPatientProfile());
+  const [profileStore] = useState(() => createPatientProfile(getPatient));
   const profileState = useSyncExternalStore(
     profileStore.subscribe,
     profileStore.getState,
