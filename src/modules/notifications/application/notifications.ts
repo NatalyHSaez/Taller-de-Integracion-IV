@@ -1,4 +1,5 @@
 import { normalizeApiError } from '../../../core/infrastructure/http/errors';
+import { notificationsRepository } from './notifications-port';
 import type { AppNotification, NotificationFilter, NotificationsApi } from '../domain/notification';
 
 /**
@@ -158,6 +159,8 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
 
   return {
     getState: () => state,
+    isOwner: (ownerId: string | null, revision: number) =>
+      ownerId !== null && state.ownerId === ownerId && ownerRevision === revision,
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => {
@@ -268,3 +271,8 @@ export function createNotificationsStore(options: { pageSize?: number; now?: () 
 
 /** Almacén compartido por la lista (app/notificaciones) y el detalle (app/notificacion/[id]). */
 export const notificationsStore = createNotificationsStore();
+
+/** Conecta el almacén compartido a la sesión mediante el puerto configurado. */
+export function selectNotificationOwner(ownerId: string | null, revision: number): Promise<void> {
+  return notificationsStore.setOwner(ownerId, notificationsRepository(), revision);
+}

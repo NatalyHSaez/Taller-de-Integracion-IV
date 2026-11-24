@@ -43,13 +43,16 @@ test('historial muestra presión, glucosa y peso; no presenta pulso', () => {
 
 test('notificaciones solo muestran Leídas y No leídas', () => {
   const view = read('src', 'modules', 'notifications', 'presentation', 'components', 'notifications-view.tsx');
-  const screen = read('app', 'notificaciones.tsx');
+  const screen = read('src', 'modules', 'notifications', 'presentation', 'screens', 'notifications-screen.tsx');
   for (const source of [view, screen]) {
     assert.match(source, /No leídas/);
     assert.match(source, /Leídas/);
     assert.doesNotMatch(source, /label: ['"]Pendientes['"]|label: ['"]Enviadas['"]/);
   }
   const hook = read('src', 'modules', 'notifications', 'presentation', 'hooks', 'use-notifications.ts');
-  assert.match(hook, /backendNotificationsApi/);
+  assert.match(hook, /selectNotificationOwner/);
+  assert.doesNotMatch(hook, /infrastructure\//);
+  const composition = read('composition', 'configure-notifications.ts');
+  assert.match(composition, /configureNotifications\(backendNotificationsApi\)/);
   assert.doesNotMatch(hook, /demoNotificationsApi/);
 });

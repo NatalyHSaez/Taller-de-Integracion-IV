@@ -136,3 +136,7 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
 ### Consultas de lecturas (grupo 6)
 
 `ReadingQueryRepository` separa las consultas frescas de historial, detalle y gráficos del transporte. La composición de seguimiento registra el adaptador; los modelos y el mapper se ubican en dominio. Los adaptadores anteriores conservan reexportaciones por compatibilidad. Las pantallas usan el puerto sin importar el adaptador; la lógica visual y filtros existentes se conservan. La extracción adicional de controladores de rutas y los errores compartidos siguen pendientes.
+
+### Notificaciones internas (grupo 7)
+
+El contrato `NotificationsApi` permanece en dominio. `notifications-port.ts` registra el repositorio y la raíz `composition/configure-notifications.ts` conecta el adaptador HTTP. El hook observa la sesión de Core y delega en aplicación. Las rutas de Expo Router reexportan las pantallas de presentación. Se conserva la lectura manual y la paginación; se verifica también la generación de sesión antes de mostrar datos o refrescar tras marcar. No se incorpora push ni se modifica el contrato HTTP. La eliminación de adaptadores demo y la reorganización de errores Core siguen pendientes.

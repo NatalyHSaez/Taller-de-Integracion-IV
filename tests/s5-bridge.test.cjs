@@ -205,8 +205,8 @@ test('S5: modo demo no consulta el Gateway y reinicia marcas tras cerrar sesión
 
 test('S5: pantalla usa paginación y caché; no se inventa GET de detalle ni push', () => {
   const root=path.resolve(__dirname,'..');
-  const list=fs.readFileSync(path.join(root,'app/notificaciones.tsx'),'utf8');
-  const detail=fs.readFileSync(path.join(root,'app/notificacion/[id].tsx'),'utf8');
+  const list=fs.readFileSync(path.join(root,'src/modules/notifications/presentation/screens/notifications-screen.tsx'),'utf8');
+  const detail=fs.readFileSync(path.join(root,'src/modules/notifications/presentation/screens/notification-detail-screen.tsx'),'utf8');
   const view=fs.readFileSync(path.join(root,'src/modules/notifications/presentation/components/notifications-view.tsx'),'utf8');
   assert.match(list,/loadMore|Cargar más/);
   assert.match(list,/useNotifications/);
