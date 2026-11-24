@@ -58,6 +58,7 @@ function load(filename) {
   return exports;
 }
 async function main() {
+  load(path.join(root, 'composition/configure-app-state'));
   const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));

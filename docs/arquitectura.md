@@ -118,3 +118,7 @@ Están identificadas y no rompen las reglas prohibidas, pero conviene resolverla
   como ya está hecho en alertas y notificaciones.
 - El modo demo se usa directamente desde varias pantallas. Pendiente: que cada módulo reciba el
   adaptador demo igual que recibe el del backend.
+
+### Composición del estado global
+
+`composition/configure-app-state.ts` conecta el puerto `AppStateDependencies` con los adaptadores reales y se importa desde `app/_layout.tsx` antes de restaurar la sesión. La carpeta `composition/` queda fuera de las capas internas a propósito. `app-state.ts` no importa el módulo de relaciones ni la caché HTTP; las pruebas pueden inyectar sus propias implementaciones. La separación de `auth-session.ts` del transporte HTTP se abordará junto con identidad.

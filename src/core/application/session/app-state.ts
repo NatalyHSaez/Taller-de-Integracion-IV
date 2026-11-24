@@ -1,7 +1,7 @@
-import { getMePatients, type MyPatientResponse } from '../../../modules/relationships/infrastructure/relationships-api';
+import type { AppStateDependencies, LinkedPatient } from './linked-patients-port';
 import { authSession, type AuthSessionMode } from './auth-session';
 import { ApiError } from '../../infrastructure/http/errors';
-import { dataClient } from '../../infrastructure/http/data';
+
 
 export type Permissions = { alerts: boolean; read: boolean; write: boolean };
 export type GlobalUser = { id: string; name: string; email: string; role: 'patient' | 'caregiver'; source: 'backend' };
@@ -16,10 +16,17 @@ export type GlobalAppState = {
   hasSelectedPatient: boolean;
 };
 
+let dependencies: AppStateDependencies | null = null;
+
+/** Se configura una sola vez en la raíz de composición, antes de restaurar sesión. */
+export function configureAppState(next: AppStateDependencies): void {
+  dependencies = next;
+}
+
 type AuthSnapshot = ReturnType<typeof authSession.snapshot>;
 let previousAuthSnapshot: AuthSnapshot | null = null;
 let previousDerivedState: GlobalAppState | null = null;
-let realPatients: MyPatientResponse[] = [];
+let realPatients: LinkedPatient[] = [];
 let realSelectedPatientId: string | null = null;
 let realPatientsUserId: string | null = null;
 let realPatientsGeneration = -1;
@@ -30,13 +37,13 @@ function notifyRealPatientsChange() {
 }
 
 /** Nunca aceptar vínculos duplicados, incompletos ni de un rol distinto al cuidador. */
-export function checkLinkedPatients(raw: unknown): MyPatientResponse[] {
+export function checkLinkedPatients(raw: unknown): LinkedPatient[] {
   const invalid = () => new ApiError({
     code: 'INVALID_API_RESPONSE', message: 'El servidor devolvió vinculaciones inválidas.',
   });
   if (!Array.isArray(raw)) throw invalid();
   const ids = new Set<string>();
-  const result: MyPatientResponse[] = [];
+  const result: LinkedPatient[] = [];
   for (const item of raw) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw invalid();
     const link = item as Record<string, unknown>;
@@ -49,7 +56,7 @@ export function checkLinkedPatients(raw: unknown): MyPatientResponse[] {
         !link.permissions.every((code: unknown) => typeof code === 'string') ||
         ids.has(link.patientId)) throw invalid();
     ids.add(link.patientId);
-    result.push(item as MyPatientResponse);
+    result.push(item as LinkedPatient);
   }
   return result;
 }
@@ -61,7 +68,10 @@ async function loadRealPatients(): Promise<void> {
   const userId = user.id;
   const generation = authSession.generation();
   try {
-    const patients = checkLinkedPatients(await getMePatients());
+    if (!dependencies) {
+      throw new ApiError({ code: 'APP_STATE_NOT_CONFIGURED', message: 'No se configuró la consulta de pacientes.' });
+    }
+    const patients = checkLinkedPatients(await dependencies.listLinkedPatients());
     if (authSession.mode() !== 'backend' ||
         authSession.generation() !== generation || authSession.user()?.id !== userId) return;
     realPatients = patients;
@@ -78,7 +88,7 @@ async function loadRealPatients(): Promise<void> {
       realPatientsUserId = userId;
       realPatientsGeneration = generation;
       realSelectedPatientId = null;
-      dataClient.clearCache();
+      dependencies?.clearClinicalCache();
       notifyRealPatientsChange();
     }
     throw error;

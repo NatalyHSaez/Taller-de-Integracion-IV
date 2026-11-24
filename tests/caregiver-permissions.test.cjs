@@ -20,6 +20,7 @@ mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
 const { authSession } = projectRequire('src/core/application/session/auth-session.ts');
 const { demo } = projectRequire('src/modules/demo/infrastructure/demo-store.ts');
 const { appState, permissionsFromCodes } = projectRequire('src/core/application/session/app-state.ts');
+projectRequire('composition/configure-app-state.ts');
 
 const caregiver = { id: 'cui-1', email: 'cui@x.cl', fullName: 'Cuidadora Ana', roles: ['CAREGIVER'], status: 'active' };
 const link = (patientId, permissions) => ({

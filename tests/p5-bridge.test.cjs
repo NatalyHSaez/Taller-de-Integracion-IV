@@ -21,6 +21,7 @@ mockModule('src/modules/relationships/infrastructure/relationships-api.ts', {
 const { authSession } = projectRequire('src/core/application/session/auth-session.ts');
 const { demo } = projectRequire('src/modules/demo/infrastructure/demo-store.ts');
 const { appState, checkLinkedPatients, permissionsFromCodes } = projectRequire('src/core/application/session/app-state.ts');
+projectRequire('composition/configure-app-state.ts');
 const { ApiError } = projectRequire('src/core/infrastructure/http/errors/api-error.ts');
 
 function begin(user = caregiver) {
