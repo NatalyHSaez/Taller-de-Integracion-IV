@@ -1,6 +1,4 @@
-import { normalizeApiError } from '../../../core/infrastructure/http/errors';
 import type { AlertFilter, AlertsService, PatientAlert } from '../domain/alert';
-import { backendAlertsService } from '../infrastructure/alerts-api';
 
 /**
  * Alertas del paciente.
@@ -15,7 +13,10 @@ import { backendAlertsService } from '../infrastructure/alerts-api';
 export type AlertErrorKind = 'session' | 'forbidden' | 'not_found' | 'network';
 
 export function classifyAlertError(cause: unknown): { kind: AlertErrorKind; message: string } {
-  const error = normalizeApiError(cause, 'No se pudieron cargar las alertas.');
+  // El contrato de error no depende de HTTP ni de una clase de infraestructura.
+  const error = typeof cause === 'object' && cause !== null
+    ? cause as { status?: number; code?: string }
+    : {};
   if (error.status === 401) {
     return { kind: 'session', message: 'Tu sesión expiró. Inicia sesión nuevamente para ver las alertas.' };
   }
@@ -59,11 +60,11 @@ const countsOf = (alerts: PatientAlert[]): AlertCounts => ({
   read: alerts.filter((a) => a.status === 'READ').length,
 });
 
-export function createPatientAlerts(service: AlertsService = backendAlertsService, options: { now?: () => Date } = {}) {
+export function createPatientAlerts(service: AlertsService, options: { now?: () => Date; initialFilter?: AlertFilter } = {}) {
   const now = options.now ?? (() => new Date());
   let state: AlertsState = {
     patientId: null,
-    filter: 'ALL',
+    filter: options.initialFilter ?? 'ALL',
     items: [],
     counts: null,
     loaded: false,
@@ -75,6 +76,7 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
     selectedId: null,
   };
   let generation = 0;
+  let patientGeneration = 0;
   /** Lista completa conocida (para el detalle y los contadores). */
   let all: PatientAlert[] = [];
   const inFlight = new Map<string, Promise<void>>();
@@ -111,7 +113,12 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
       });
     } catch (cause) {
       if (current !== generation) return;
-      set({ loading: false, refreshing: false, error: classifyAlertError(cause) });
+      const error = classifyAlertError(cause);
+      if (error.kind === 'session' || error.kind === 'forbidden') {
+        all = [];
+        set({ items: [], counts: null, loaded: false, selectedId: null });
+      }
+      set({ loading: false, refreshing: false, error });
     }
   }
 
@@ -128,11 +135,12 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
     setPatient(patientId: string | null): Promise<void> {
       if (patientId === state.patientId) return Promise.resolve();
       generation++;
+      patientGeneration++;
       all = [];
       inFlight.clear();
       set({
         patientId,
-        filter: 'ALL',
+        filter: options.initialFilter ?? 'ALL',
         items: [],
         counts: null,
         loaded: false,
@@ -147,13 +155,13 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
     },
 
     setFilter(filter: AlertFilter): Promise<void> {
-      if (filter === state.filter && state.loaded) return Promise.resolve();
+      if (state.marking.length || (filter === state.filter && state.loaded)) return Promise.resolve();
       set({ filter, markError: null });
       return load('initial');
     },
 
     refresh(): Promise<void> {
-      if (!state.patientId || state.loading || state.refreshing) return Promise.resolve();
+      if (!state.patientId || state.loading || state.refreshing || state.marking.length) return Promise.resolve();
       return load(state.loaded ? 'refresh' : 'initial');
     },
 
@@ -166,14 +174,14 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
       if (pending) return pending;
       const alert = all.find((a) => a.id === alertId) ?? state.items.find((a) => a.id === alertId);
       const patientId = state.patientId;
-      if (!alert || alert.status === 'READ' || !patientId) return Promise.resolve();
+      if (!alert || alert.status === 'READ' || !patientId || state.loading || state.refreshing) return Promise.resolve();
 
-      const current = generation;
+      const current = patientGeneration;
       set({ marking: [...state.marking, alertId], markError: null });
       const action = (async () => {
         try {
           await service.markRead(patientId, alertId);
-          if (current !== generation) return;
+          if (current !== patientGeneration) return;
           const readAt = now().toISOString();
           const markReadLocal = (a: PatientAlert): PatientAlert =>
             a.id === alertId ? { ...a, status: 'READ', readAt } : a;
@@ -184,8 +192,12 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
               : state.items.map(markReadLocal);
           set({ items, counts: countsOf(all) });
         } catch (cause) {
-          if (current !== generation) return;
+          if (current !== patientGeneration) return;
           const error = classifyAlertError(cause);
+          if (error.kind === 'session' || error.kind === 'forbidden') {
+            all = [];
+            set({ items: [], counts: null, loaded: false, selectedId: null, error });
+          }
           if (error.kind === 'not_found') {
             // Ya no existe: se quita de la lista y del detalle.
             all = all.filter((a) => a.id !== alertId);
@@ -197,8 +209,10 @@ export function createPatientAlerts(service: AlertsService = backendAlertsServic
           }
           set({ markError: { alertId, ...error } });
         } finally {
-          inFlight.delete(alertId);
-          if (current === generation) set({ marking: state.marking.filter((id) => id !== alertId) });
+          if (current === patientGeneration) {
+            inFlight.delete(alertId);
+            set({ marking: state.marking.filter((id) => id !== alertId) });
+          }
         }
       })();
       inFlight.set(alertId, action);
