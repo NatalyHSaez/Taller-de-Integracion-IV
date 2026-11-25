@@ -8,7 +8,11 @@ import { expoPushToken } from '../../src/modules/notifications/infrastructure/na
 import { configurePushReception } from '../../src/modules/notifications/application/ports/push-reception-port';
 import { expoPushReception } from '../../src/modules/notifications/infrastructure/native/expo-push-reception';
 
+import { configurePushNavigation } from '../../src/modules/notifications/application/ports/push-navigation-port';
+import { expoPushNavigation } from '../../src/modules/notifications/infrastructure/native/expo-push-navigation';
+
 configureNotifications(backendNotificationsApi);
 configurePushPermissions(expoPushPermissions);
 configurePushToken(expoPushToken);
 configurePushReception(expoPushReception);
+configurePushNavigation(expoPushNavigation);

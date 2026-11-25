@@ -5,6 +5,7 @@ import '@/composition/configure/configure-relationships';
 import '@/composition/configure/configure-identity';
 import '@/composition/configure/configure-app-state';
 import { useEffect } from "react";
+import { startPushNavigation } from "@/src/modules/notifications/application/use-cases/push-navigation";
 import { startPushReception } from "@/src/modules/notifications/application/use-cases/push-reception";
 import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
 import { Colors } from "@/src/shared/presentation/theme";
@@ -12,7 +13,7 @@ import { AppStateProvider } from "@/src/core/presentation/session/app-state-cont
 import { AuthProvider, useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
 import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
 
-import { Stack } from "expo-router";
+import { Stack, useRootNavigationState, useRouter } from "expo-router";
 import {
   DarkTheme,
   DefaultTheme,
@@ -29,6 +30,13 @@ export const unstable_settings = {
 function RootNavigator() {
   const colorScheme = useColorScheme();
   const { loading } = useAuth();
+  const router = useRouter();
+  const rootKey = useRootNavigationState()?.key;
+
+  useEffect(() => {
+    if (loading || !rootKey) return;
+    return startPushNavigation(() => router.navigate("/notificaciones"));
+  }, [loading, rootKey, router]);
 
   const themeName = colorScheme === "dark" ? "dark" : "light";
   const appColors = Colors[themeName];
