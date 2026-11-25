@@ -51,8 +51,9 @@ async function main() {
     console.log('P7 — Verificación real del API Gateway (no muestra credenciales ni tokens).');
     const health = await request('GET', '/health', undefined, false);
     check(health.status === 200 && health.payload?.status === 'ok' &&
-      health.payload?.servicios && Object.values(health.payload.servicios).every(v => v === 'ok'),
-      'Gateway y siete microservicios disponibles.');
+      ['acceso', 'clinico', 'notificaciones', 'auditoria'].every(name => health.payload?.servicios?.[name] === 'ok') &&
+      Object.values(health.payload.servicios).every(v => v === 'ok'),
+      'Gateway y cuatro microservicios disponibles.');
     if (!process.env.P7_EMAIL || !process.env.P7_PASSWORD) {
       incomplete = true;
       console.log('PENDIENTE: define P7_EMAIL y P7_PASSWORD para probar sesión y paciente real.');
@@ -69,10 +70,10 @@ async function main() {
         : login.status === 422
           ? 'Solicitud rechazada por validación. Comprueba email/password y la versión del backend.'
           : login.status === 503
-            ? 'Identidad no está respondiendo correctamente al Gateway. Revisa docker compose logs identidad.'
+            ? 'Acceso no está respondiendo correctamente al Gateway. Revisa docker compose logs acceso.'
             : login.status >= 500
-              ? 'Error interno del backend. Revisa docker compose logs identidad y gateway.'
-              : 'Revisa la respuesta del servicio Identidad y los registros del backend.';
+              ? 'Error interno del backend. Revisa docker compose logs acceso y gateway.'
+              : 'Revisa la respuesta del servicio Acceso y los registros del backend.';
       fail(`Login real: HTTP ${login.status}${code}. ${guidance}`);
     }
     check(typeof login.payload?.accessToken === 'string' &&
@@ -111,7 +112,7 @@ async function main() {
       if (permissions.includes('MEASUREMENT_VIEW')) {
         const readings = await request('GET', `/patients/${encodeURIComponent(patientId)}/readings?page=1&size=1`);
         check(readings.status === 200 && Number.isInteger(readings.payload?.total) &&
-          Array.isArray(readings.payload?.items), 'GET historial paginado responde desde Seguimiento.');
+          Array.isArray(readings.payload?.items), 'GET historial paginado responde desde Clínico.');
         if (readings.payload.total === 0) {
           incomplete = true;
           console.log('PENDIENTE: no existen lecturas reales para probar S1/S2.');
