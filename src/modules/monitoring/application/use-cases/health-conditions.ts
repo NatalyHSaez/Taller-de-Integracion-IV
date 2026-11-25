@@ -2,24 +2,7 @@ import { authSession } from '../../../../core/application/session/auth-session';
 import { monitoringRepository } from '../ports/monitoring-port';
 import { ApiError } from '../../../../core/domain/errors';
 
-/**
- * Catálogo global de programas de seguimiento (GET /api/v1/health-conditions).
- *
- * - Es información general del servicio: NO describe condiciones asignadas ni
- *   diagnósticos del paciente.
- * - No se consultan rutas /patients/{id}/conditions: su integración móvil
- *   se realizará en el grupo de condiciones asignadas.
- * - Los datos provienen exclusivamente del Gateway.
- * - La caché es solo en memoria (ver src/core/infrastructure/http/data).
- */
-
-
-/**
- * Indica si la app ha integrado la consulta de condiciones asignadas.
- * El endpoint ya existe, pero este grupo todavía no lo consume.
- */
-export const ASSIGNED_CONDITIONS_API_AVAILABLE = false;
-
+/** Catálogo global, independiente de las condiciones asignadas al paciente. */
 export type ProgramParameter = {
   code: string;
   /** true si el programa lo exige; false si es opcional. */

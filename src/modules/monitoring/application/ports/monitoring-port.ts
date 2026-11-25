@@ -4,6 +4,7 @@ export type LinkedPerson = { userId: string; fullName: string };
 export interface MonitoringRepository {
   listClinicalParameters(forceRefresh?: boolean): Promise<unknown>;
   listParameterLimits(forceRefresh?: boolean): Promise<unknown>;
+  listPatientConditions(patientId: string): Promise<unknown>;
   listHealthConditions(forceRefresh?: boolean): Promise<unknown>;
   invalidateClinicalParameters(): void;
   invalidateHealthConditions(): void;

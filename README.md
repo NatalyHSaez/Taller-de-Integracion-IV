@@ -13,7 +13,9 @@ Aplicación móvil para pacientes y cuidadores, desarrollada con Expo, React Nat
 - Alertas y notificaciones internas con marcado de lectura.
 - Catálogo general de condiciones clínicas.
 
-Pendiente: condiciones asignadas al paciente, completar validación clínica real, integración de atención médica/documentos y notificaciones push. La app no genera diagnósticos ni datos clínicos de demostración.
+Disponible: consulta de condiciones asignadas al paciente (solo lectura).
+
+Pendiente: completar validación clínica real, integración de atención médica/documentos y notificaciones push. La app no genera diagnósticos ni datos clínicos de demostración.
 
 ## Arquitectura
 

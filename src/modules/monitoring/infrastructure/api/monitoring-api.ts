@@ -9,6 +9,7 @@ const readingPath = (patientId: string, readingId?: string) =>
 export const monitoringApi = {
   listClinicalParameters: (forceRefresh?: boolean) => dataClient.get<unknown>('/clinical-parameters', { cache: catalogCache(forceRefresh) }),
   listParameterLimits: (forceRefresh?: boolean) => dataClient.get<unknown>('/parameter-limits', { cache: catalogCache(forceRefresh) }),
+  listPatientConditions: (patientId: string) => dataClient.get<unknown>(`/patients/${encodeURIComponent(patientId)}/conditions`, { cache: false }),
   listHealthConditions: (forceRefresh?: boolean) => dataClient.get<unknown>('/health-conditions', { cache: catalogCache(forceRefresh) }),
   invalidateClinicalParameters() { dataClient.invalidate('/clinical-parameters'); dataClient.invalidate('/parameter-limits'); },
   invalidateHealthConditions() { dataClient.invalidate('/health-conditions'); },

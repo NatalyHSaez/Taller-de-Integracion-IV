@@ -25,7 +25,7 @@ test('lee programas sin conditionId ni active, con parámetros obligatorios y op
   ]);
 });
 
-test('solo consulta /health-conditions, nunca condiciones asignadas del paciente', async () => {
+test('el catálogo global solo consulta /health-conditions', async () => {
   await healthConditionsService.list({ forceRefresh: true });
   assert.ok(fakes.calls.dataGet.every((path) => path === '/health-conditions'));
   assert.equal(fakes.calls.get.length, 0);

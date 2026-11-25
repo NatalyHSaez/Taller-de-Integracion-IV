@@ -17,30 +17,26 @@ import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme
 import { useHealthConditions } from '@/src/modules/monitoring/presentation/hooks/use-health-conditions';
 import type { ClinicalParameterCatalog } from '@/src/modules/monitoring/application/use-cases/clinical-parameters';
 import {
-  ASSIGNED_CONDITIONS_API_AVAILABLE,
   type HealthProgram,
 } from '@/src/modules/monitoring/application/use-cases/health-conditions';
+import { usePatientConditions } from '@/src/modules/monitoring/presentation/hooks/use-patient-conditions';
 import type { ClinicalParameterCode } from '@/src/modules/monitoring/domain/contracts';
 
 type Theme = (typeof Colors)['light'] | (typeof Colors)['dark'];
 
-/**
- * Vista informativa del catálogo GLOBAL de programas de seguimiento.
- *
- * Explica qué mediciones corresponden a cada programa. No muestra ni supone
- * condiciones asignadas al paciente, no permite seleccionarlas y no presenta
- * ningún programa como diagnóstico personal.
- */
+/** Catálogo global y condiciones asignadas, consultados por separado. */
 export default function ProgramsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
   const { programs, loading, refreshing, error, refresh, retry } = useHealthConditions();
   const { catalog, refetch } = useParameterNames();
+  const assigned = usePatientConditions();
 
   const onRefresh = () => {
     refresh();
     refetch();
+    void assigned.refresh();
   };
 
   return (
@@ -52,7 +48,7 @@ export default function ProgramsScreen() {
         ]}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={refreshing || assigned.loading}
             onRefresh={onRefresh}
             tintColor={theme.primary}
             colors={[theme.primary]}
@@ -132,7 +128,7 @@ export default function ProgramsScreen() {
         <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
           Programas asignados
         </ThemedText>
-        <AssignedConditionsSection theme={theme} />
+        <AssignedConditionsSection theme={theme} assigned={assigned} />
       </ScrollView>
     </ThemedView>
   );
@@ -202,30 +198,25 @@ function ProgramCard({
   );
 }
 
-/**
- * Espacio reservado para las condiciones asignadas al paciente.
- * No inventa datos: la consulta del endpoint se integrará en el Grupo 6.
- */
-function AssignedConditionsSection({ theme }: { theme: Theme }) {
-  if (!ASSIGNED_CONDITIONS_API_AVAILABLE) {
-    return (
-      <View
-        style={[styles.card, styles.placeholder, { borderColor: theme.border }]}
-        accessible
-        accessibilityLabel="Programas asignados: información aún no disponible">
-        <MaterialCommunityIcons name="account-clock-outline" size={28} color={theme.icon} />
-        <ThemedText style={styles.placeholderTitle}>Aún no disponible</ThemedText>
-        <ThemedText style={[styles.muted, { color: theme.mutedText }]}>
-          El catálogo de arriba no informa qué programas tiene asignados cada paciente. Esa
-          información todavía no está integrada en la app; para conocerla, consulta
-          con tu equipo de salud.
-        </ThemedText>
+function AssignedConditionsSection({ theme, assigned }: { theme: Theme; assigned: ReturnType<typeof usePatientConditions> }) {
+  if (!assigned.allowed) return <ThemedText style={[styles.muted, { color: theme.mutedText }]}>{assigned.patientId ? 'No tienes permiso para consultar las condiciones asignadas.' : 'Selecciona un paciente para consultar sus condiciones.'}</ThemedText>;
+  if (assigned.loading) return <ActivityIndicator accessibilityLabel="Cargando condiciones asignadas" color={theme.primary} />;
+  if (assigned.error) return <View style={styles.centered}>
+    <ThemedText style={{ color: theme.danger }}>{assigned.error}</ThemedText>
+    <Pressable accessibilityRole="button" onPress={assigned.refresh} style={[styles.retryButton, { backgroundColor: theme.primary }]}><ThemedText lightColor={theme.onPrimary} darkColor={theme.onPrimary}>Reintentar</ThemedText></Pressable>
+  </View>;
+  return <View style={styles.list}>
+    <ThemedText style={{ color: theme.mutedText }}>Paciente: {assigned.patientName}</ThemedText>
+    {assigned.items?.length === 0 && <ThemedText>No hay condiciones asignadas.</ThemedText>}
+    {assigned.items?.map(item => <View key={item.conditionCode} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.codeChip, { backgroundColor: theme.primarySoft }]}><ThemedText style={[styles.codeText, { color: theme.primary }]}>{item.conditionCode}</ThemedText></View>
+        <ThemedText style={styles.cardTitle}>{item.name}</ThemedText>
       </View>
-    );
-  }
-
-  // Al integrar la consulta de condiciones asignadas, su lista se renderiza aquí.
-  return null;
+      <ThemedText>Estado: {item.status === 'active' ? 'Activa' : item.status}</ThemedText>
+      <ThemedText style={{ color: theme.mutedText }}>Fecha de inicio: {item.startedAt ? item.startedAt.split('-').reverse().join('/') : 'Sin información'}</ThemedText>
+    </View>)}
+  </View>;
 }
 
 function Notice({
@@ -348,8 +339,6 @@ const styles = StyleSheet.create({
   parameters: { gap: 6 },
   parameterRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   parameterText: { flex: 1, fontSize: 15, lineHeight: 21 },
-  placeholder: { alignItems: 'center', borderStyle: 'dashed' },
-  placeholderTitle: { fontSize: 16, fontWeight: '700', lineHeight: 22 },
   centered: { alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 32 },
   emptyTitle: { fontSize: 18, fontWeight: '700', lineHeight: 25, textAlign: 'center' },
   muted: { fontSize: 15, lineHeight: 22, textAlign: 'center' },

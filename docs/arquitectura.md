@@ -119,6 +119,6 @@ externos y la corrección del comportamiento del backend requieren otras verific
 
 `composition/configure/` conecta los puertos de sesión, identidad, relaciones, seguimiento, notificaciones y dashboard con adaptadores reales. Las rutas especiales de login, alertas y configuración delegan en `composition/routes/`. Monitoring contiene los contratos de registro y catálogo y el DTO de lectura. Core mantiene los contratos transversales y una única clase de error. Las fixtures históricas no se importan desde producción.
 
-El backend conserva el Gateway y cuatro microservicios: acceso (identidad y relaciones), clínico (seguimiento, evaluación y atención médica), notificaciones y auditoría. Dashboard combina datos de otros módulos y no tiene microservicio propio. El módulo medical-care actualmente contiene presentación; no inventa documentos. Las condiciones asignadas aún no se consumen desde la app. Push sigue pendiente.
+El backend conserva el Gateway y cuatro microservicios: acceso (identidad y relaciones), clínico (seguimiento, evaluación y atención médica), notificaciones y auditoría. Dashboard combina datos de otros módulos y no tiene microservicio propio. El módulo medical-care actualmente contiene presentación; no inventa documentos. Las condiciones asignadas se consultan en modo de solo lectura, con permisos vigentes y sin caché clínica. Push sigue pendiente.
 
 La validación estática no reemplaza las pruebas contra el servidor real. Ejecutar `npm run check:arch`, `npm test` y `npx tsc --noEmit` antes de cerrar cambios.
