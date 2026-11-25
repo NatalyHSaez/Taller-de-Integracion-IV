@@ -28,7 +28,7 @@ export type CreateReadingRequest = {
   measurements: {
     parameterCode: ClinicalParameterCode;
     value: number;
-    unit: CanonicalUnit;
+    unit: string | null;
   }[];
 };
 

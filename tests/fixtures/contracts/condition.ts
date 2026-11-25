@@ -1,5 +1,5 @@
 import type { ISODate, UUID } from '@/tests/fixtures/contracts/common';
-import type { CanonicalUnit, ClinicalParameterCode } from '@/src/modules/monitoring/domain/contracts/reading';
+import type { ClinicalParameterCode } from '@/src/modules/monitoring/domain/contracts/reading';
 
 /**
  * Item de GET /api/v1/health-conditions: catálogo GLOBAL de programas de
@@ -39,9 +39,9 @@ export type { ClinicalParameterResponse } from '@/src/modules/monitoring/domain/
  */
 export type ParameterLimitResponse = {
   parameterCode: ClinicalParameterCode;
-  minValue: number | null;
-  maxValue: number | null;
-  unit: CanonicalUnit;
+  technicalMin: number | null;
+  technicalMax: number | null;
+  unit: string | null;
 };
 
 export type PatientConditionResponse = {

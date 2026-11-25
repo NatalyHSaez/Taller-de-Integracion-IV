@@ -1,13 +1,8 @@
-import type { CurrentUserResponse } from '../../../../core/domain/contracts';
+import { isCurrentUserResponse, type CurrentUserResponse } from '../../../../core/domain/contracts/auth';
 import { ApiError, normalizeApiError } from '../../../../core/domain/errors';
 
 export function validateLoginUser(value: unknown): asserts value is CurrentUserResponse {
-  const user = value as Partial<CurrentUserResponse> | null;
-  if (!user || typeof user.id !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) ||
-      typeof user.fullName !== 'string' || !user.fullName.trim() ||
-      typeof user.email !== 'string' || !Array.isArray(user.roles) ||
-      !user.roles.length || user.roles.some(role => !['PATIENT', 'CAREGIVER', 'DOCTOR', 'ADMIN'].includes(role))) {
+  if (!isCurrentUserResponse(value)) {
     throw new ApiError({ code: 'INVALID_API_RESPONSE', message: 'El servidor devolvió un perfil inválido. Intenta nuevamente más tarde.' });
   }
 }

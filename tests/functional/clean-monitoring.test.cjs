@@ -13,7 +13,7 @@ test('seguimiento sin composición no consulta un adaptador implícito', async (
 test('catálogo y nombres usan el repositorio inyectado', async () => {
   const calls = [];
   configureMonitoring({
-    async listHealthConditions(forceRefresh) { calls.push(forceRefresh); return [{code:'HTA',name:'Hipertensión'}]; },
+    async listHealthConditions(forceRefresh) { calls.push(forceRefresh); return [{code:'HTA',name:'Hipertensión',parameters:[]}]; },
     async listCaregivers(id) { calls.push(id); return [{userId:'c',fullName:'Cuidador'}]; },
     async listDoctors(id) { calls.push(id); return []; },
   });

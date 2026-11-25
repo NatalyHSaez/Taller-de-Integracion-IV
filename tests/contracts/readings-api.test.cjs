@@ -18,7 +18,9 @@ globalThis.fetch = async (url, init = {}) => {
   }
   const body = String(url).includes('/readings/')
     ? { readingId: 'r9', patientId: 'p 1', measuredAt: '2026-11-06T12:00:00Z', status: 'PENDING', confirmationReasons: [], measurements: [] }
-    : { total: 0, page: 2, size: 5, items: [] };
+    : String(url).endsWith('/patients/p%201')
+      ? { id: 'p 1', fullName: 'Paciente', birthDate: null, age: null, biologicalSex: null, managementMode: null }
+      : { total: 0, page: 2, size: 5, items: [] };
   return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };
 

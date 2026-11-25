@@ -171,11 +171,7 @@ function ProgramCard({
         Mediciones que se registran en este programa
       </ThemedText>
 
-      {parameters === null ? (
-        <ThemedText style={[styles.muted, styles.left, { color: theme.mutedText }]}>
-          El servicio aún no informa qué mediciones corresponden a este programa.
-        </ThemedText>
-      ) : parameters.length === 0 ? (
+      {parameters.length === 0 ? (
         <ThemedText style={[styles.muted, styles.left, { color: theme.mutedText }]}>
           Este programa no tiene mediciones asociadas.
         </ThemedText>
@@ -193,7 +189,7 @@ function ProgramCard({
                 <ThemedText style={styles.parameterText}>
                   {definition ? definition.name : code}
                   <ThemedText style={{ color: theme.mutedText }}>
-                    {definition ? ` · ${definition.unit}` : ''}
+                    {definition?.unit ? ` · ${definition.unit}` : ''}
                     {required ? '' : ' · opcional'}
                   </ThemedText>
                 </ThemedText>
@@ -208,7 +204,7 @@ function ProgramCard({
 
 /**
  * Espacio reservado para las condiciones asignadas al paciente.
- * No inventa datos: mientras no exista la API, solo lo explica.
+ * No inventa datos: la consulta del endpoint se integrará en el Grupo 6.
  */
 function AssignedConditionsSection({ theme }: { theme: Theme }) {
   if (!ASSIGNED_CONDITIONS_API_AVAILABLE) {
@@ -221,14 +217,14 @@ function AssignedConditionsSection({ theme }: { theme: Theme }) {
         <ThemedText style={styles.placeholderTitle}>Aún no disponible</ThemedText>
         <ThemedText style={[styles.muted, { color: theme.mutedText }]}>
           El catálogo de arriba no informa qué programas tiene asignados cada paciente. Esa
-          información se mostrará aquí cuando el servicio la entregue; para conocerla, consulta
+          información todavía no está integrada en la app; para conocerla, consulta
           con tu equipo de salud.
         </ThemedText>
       </View>
     );
   }
 
-  // Cuando exista la API de condiciones asignadas, su lista se renderiza aquí.
+  // Al integrar la consulta de condiciones asignadas, su lista se renderiza aquí.
   return null;
 }
 

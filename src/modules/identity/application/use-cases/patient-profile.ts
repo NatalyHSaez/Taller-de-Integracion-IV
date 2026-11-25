@@ -1,5 +1,5 @@
-import type { PatientProfileResponse } from '../../domain/patient-profile';
-import { normalizeApiError } from '../../../../core/domain/errors';
+import { isPatientProfileResponse, type PatientProfileResponse } from '../../domain/patient-profile';
+import { ApiError, normalizeApiError } from '../../../../core/domain/errors';
 
 /**
  * Ficha del paciente: GET /api/v1/patients/{patientId}.
@@ -55,6 +55,10 @@ export function classifyPatientProfileError(error: unknown): PatientProfileError
       retryable: false,
     };
   }
+  if (apiError.code === 'INVALID_API_RESPONSE') return {
+    kind: 'network', title: 'Ficha no disponible',
+    message: 'El servidor devolvió una ficha incompleta o inválida. Intenta nuevamente.', retryable: true,
+  };
   if (apiError.status === 404 || apiError.code === 'PATIENT_NOT_FOUND') return NOT_FOUND;
   return {
     kind: 'network',
@@ -140,7 +144,10 @@ export function createPatientProfile(fetchPatient: FetchPatient) {
       const profile = await fetchPatient(patientId);
       if (current !== generation) return;
       // Defensa: solo se acepta la ficha del paciente pedido.
-      if (profile?.id && profile.id !== patientId) {
+      if (!isPatientProfileResponse(profile)) {
+        throw new ApiError({ code: 'INVALID_API_RESPONSE', message: 'Ficha inválida.' });
+      }
+      if (profile.id !== patientId) {
         set({ patientId, profile: null, loading: false, error: NOT_FOUND });
         return;
       }

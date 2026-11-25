@@ -78,7 +78,8 @@ const REQUIRED_PARAMETERS: Record<FormMeasurementType, ClinicalParameterCode[]> 
 
 /** Pista con el rango técnico efectivo (viene de la API, no de constantes locales). */
 function rangeHint(parameter: ClinicalParameterResponse) {
-  const { technicalMin: min, technicalMax: max, unit } = parameter;
+  const { technicalMin: min, technicalMax: max } = parameter;
+  const unit = parameter.unit ?? "";
   if (min !== null && max !== null) return `Rango aceptado: ${min}–${max} ${unit}`;
   if (min !== null) return `Mínimo: ${min} ${unit}`;
   if (max !== null) return `Máximo: ${max} ${unit}`;
@@ -249,7 +250,7 @@ export default function RegisterMeasurementScreen() {
         label={definition.name}
         value={value}
         onChangeText={edited(onChangeText)}
-        unit={definition.unit}
+        unit={definition.unit ?? ""}
         hint={rangeHint(definition)}
         error={fieldErrors[code] ?? serverErrors[code]}
         placeholder={placeholder}

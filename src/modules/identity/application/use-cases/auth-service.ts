@@ -179,8 +179,12 @@ export const authService = {
         });
       }
       ensureMobileRole(user);
+      const previous = authSession.user();
+      if (previous && user.id !== previous.id) {
+        throw new ApiError({ code: 'INVALID_API_RESPONSE', message: 'El servidor devolvió una identidad distinta a la sesión activa.' });
+      }
       authSession.setUser(user);
-        return user;
+      return user;
     }
     throw new ApiError({
       code: "AUTHENTICATION_REQUIRED",

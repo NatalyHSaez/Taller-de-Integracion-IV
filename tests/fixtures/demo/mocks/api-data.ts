@@ -181,8 +181,8 @@ export const MOCK_CLINICAL_PARAMETERS = [
 export const MOCK_PARAMETER_LIMITS: ParameterLimitResponse[] =
   MOCK_CLINICAL_PARAMETERS.map((parameter) => ({
     parameterCode: parameter.code,
-    minValue: parameter.technicalMin,
-    maxValue: parameter.technicalMax,
+    technicalMin: parameter.technicalMin,
+    technicalMax: parameter.technicalMax,
     unit: parameter.unit,
   }));
 

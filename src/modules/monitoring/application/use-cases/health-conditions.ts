@@ -7,17 +7,16 @@ import { ApiError } from '../../../../core/domain/errors';
  *
  * - Es información general del servicio: NO describe condiciones asignadas ni
  *   diagnósticos del paciente.
- * - No se consultan rutas /patients/{id}/conditions: la API de condiciones
- *   asignadas todavía no existe (ver ASSIGNED_CONDITIONS_API_AVAILABLE).
+ * - No se consultan rutas /patients/{id}/conditions: su integración móvil
+ *   se realizará en el grupo de condiciones asignadas.
  * - Los datos provienen exclusivamente del Gateway.
- * - La caché es solo en memoria (ver services/data/README.md).
+ * - La caché es solo en memoria (ver src/core/infrastructure/http/data).
  */
 
 
 /**
- * Indica si existe una API para consultar las condiciones asignadas al
- * paciente. Mientras sea false, la app no muestra ni supone asignaciones.
- * Al existir el endpoint, se activa aquí y se implementa su servicio.
+ * Indica si la app ha integrado la consulta de condiciones asignadas.
+ * El endpoint ya existe, pero este grupo todavía no lo consume.
  */
 export const ASSIGNED_CONDITIONS_API_AVAILABLE = false;
 
@@ -28,74 +27,41 @@ export type ProgramParameter = {
 };
 
 export type HealthProgram = {
-  /** conditionId si el backend lo envía; si no, el código del programa. */
+  /** Código del programa, identificador estable del catálogo. */
   id: string;
   code: string;
   name: string;
   /**
    * Parámetros que informa el backend para el programa.
-   * null significa que el backend no envió esta información.
    */
-  parameters: ProgramParameter[] | null;
+  parameters: ProgramParameter[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-/**
- * Lee los parámetros del programa. El backend envía
- * `parameters: [{ code, required }]`; por tolerancia también se acepta una lista
- * de códigos (se consideran obligatorios) bajo `requiredParameters`,
- * `requiredParameterCodes` o `parameterCodes`.
- */
-function readParameters(item: Record<string, unknown>): ProgramParameter[] | null {
-  const raw =
-    item.parameters ??
-    item.requiredParameters ??
-    item.requiredParameterCodes ??
-    item.parameterCodes;
-  if (!Array.isArray(raw)) return null;
-
-  const byCode = new Map<string, ProgramParameter>();
-  for (const entry of raw) {
-    if (typeof entry === 'string') {
-      if (!byCode.has(entry)) byCode.set(entry, { code: entry, required: true });
-      continue;
-    }
-    if (!isRecord(entry)) continue;
-    const code = entry.parameterCode ?? entry.code;
-    if (typeof code !== 'string' || byCode.has(code)) continue;
-    byCode.set(code, { code, required: entry.required !== false });
-  }
-  return Array.from(byCode.values());
+function invalidCatalog(): ApiError {
+  return new ApiError({ code: 'INVALID_API_RESPONSE', message: 'El catálogo de programas tiene un formato inesperado.', details: {} });
 }
 
+const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
+
+/** El contrato vigente exige parameters con code y required explícitos. */
 function toPrograms(items: unknown): HealthProgram[] {
-  if (!Array.isArray(items)) {
-    throw new ApiError({
-      code: 'INVALID_API_RESPONSE',
-      message: 'El catálogo de programas tiene un formato inesperado.',
-      details: {},
+  if (!Array.isArray(items)) throw invalidCatalog();
+  const seen = new Set<string>();
+  return items.map((item) => {
+    if (!isRecord(item) || !nonEmpty(item.code) || !nonEmpty(item.name) || !Array.isArray(item.parameters) || seen.has(item.code)) throw invalidCatalog();
+    seen.add(item.code);
+    const parameterCodes = new Set<string>();
+    const parameters: ProgramParameter[] = item.parameters.map((entry) => {
+      if (!isRecord(entry) || !nonEmpty(entry.code) || typeof entry.required !== 'boolean' || parameterCodes.has(entry.code)) throw invalidCatalog();
+      parameterCodes.add(entry.code);
+      return { code: entry.code, required: entry.required };
     });
-  }
-
-  const programs: HealthProgram[] = [];
-  for (const item of items) {
-    if (!isRecord(item)) continue;
-    const { conditionId, code, name, active } = item;
-    if (typeof code !== 'string' || typeof name !== 'string') continue;
-    // Solo se muestran programas vigentes en el catálogo.
-    if (active === false) continue;
-
-    programs.push({
-      id: typeof conditionId === 'string' ? conditionId : code,
-      code,
-      name,
-      parameters: readParameters(item),
-    });
-  }
-  return programs;
+    return { id: item.code, code: item.code, name: item.name, parameters };
+  });
 }
 
 export const healthConditionsService = {

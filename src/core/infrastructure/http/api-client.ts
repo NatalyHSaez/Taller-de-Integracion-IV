@@ -1,4 +1,5 @@
 import { API_V1_URL } from "@/src/core/infrastructure/config/api-config";
+import { isAuthTokensResponse } from "@/src/core/domain/contracts/auth";
 import type {
   AuthTokensResponse,
   UUID,
@@ -386,12 +387,7 @@ export function refreshAccessToken(
 
       const tokens =
         await parseSuccessfulResponse<AuthTokensResponse>(response);
-      if (
-        typeof tokens?.accessToken !== "string" ||
-        !tokens.accessToken ||
-        typeof tokens?.refreshToken !== "string" ||
-        !tokens.refreshToken
-      ) {
+      if (!isAuthTokensResponse(tokens)) {
         await expireSession(revision);
         throw new ApiError({
           code: "INVALID_API_RESPONSE",

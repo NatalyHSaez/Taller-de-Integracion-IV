@@ -52,7 +52,7 @@ test('formatos: campos nulos no inventan valores', () => {
 });
 
 test('carga la ficha del paciente activo y tolera nulos', async () => {
-  const store = createPatientProfile(async (id) => profile(id, { birthDate: null, age: null, biologicalSex: null }));
+  const store = createPatientProfile(async (id) => profile(id, { birthDate: null, age: null, biologicalSex: null, managementMode: null }));
   const opening = store.setPatient('pia');
   assert.equal(store.getState().loading, true);
   await opening;
@@ -60,6 +60,7 @@ test('carga la ficha del paciente activo y tolera nulos', async () => {
   assert.equal(state.patientId, 'pia');
   assert.equal(state.profile.fullName, 'Paciente pia');
   assert.equal(state.profile.birthDate, null);
+  assert.equal(state.profile.managementMode, null);
   assert.equal(state.error, null);
 });
 
@@ -143,4 +144,14 @@ test('la pantalla utiliza solo la ficha real del backend, sin alternativa demo',
     'ya no puede existir una rama visual alternativa para modo demo');
   assert.doesNotMatch(source, /\b(?:demoStore|mockApi|useDemo|fakePatient)\b/,
     'la ficha no debe importar ni consultar datos simulados');
+});
+
+
+test('ficha incompleta, sin id o con fecha imposible no se publica', async () => {
+  for (const invalid of [null, {}, profile('pia', { id: undefined }), profile('pia', { age: -1 }), profile('pia', { birthDate: '2026-02-30' }), profile('pia', { managementMode: undefined })]) {
+    const store = createPatientProfile(async () => invalid);
+    await store.setPatient('pia');
+    assert.equal(store.getState().profile, null);
+    assert.equal(store.getState().error.title, 'Ficha no disponible');
+  }
 });

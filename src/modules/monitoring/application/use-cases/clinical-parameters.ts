@@ -24,7 +24,7 @@ import { ApiError } from '../../../../core/domain/errors';
  * autoridad final de validación.
  *
  * - En sesión backend la única fuente es el Gateway: nunca se completa con mocks.
- * - La caché es solo en memoria (ver services/data/README.md).
+ * - La caché es solo en memoria (ver src/core/infrastructure/http/data).
  */
 
 
@@ -54,64 +54,33 @@ function invalidResponse(message: string): ApiError {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Devuelve el primer campo numérico presente, null si no hay, o undefined si es inválido. */
-function pickNumber(
-  record: Record<string, unknown>,
-  keys: string[],
-): number | null | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (value === null || value === undefined) continue;
-    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+const supportedCodes = new Set<string>(['SBP', 'DBP', 'HEART_RATE', 'GLUCOSE', 'WEIGHT']);
+const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
+const nullableNumber = (value: unknown): value is number | null => value === null || (typeof value === 'number' && Number.isFinite(value));
+const nullableUnit = (value: unknown): value is string | null => value === null || nonEmpty(value);
+
+function readBounds(item: Record<string, unknown>): { min: number | null; max: number | null } {
+  const min = item.technicalMin;
+  const max = item.technicalMax;
+  if (!nullableNumber(min) || !nullableNumber(max) || (min !== null && max !== null && min > max)) {
+    throw invalidResponse('El servidor entregó límites técnicos inválidos.');
   }
-  return null;
+  return { min, max };
 }
 
-function isValidCatalogItem(item: unknown): item is ClinicalParameterResponse {
-  if (!isRecord(item)) return false;
-  const optionalNumber = (field: unknown) =>
-    field === null || field === undefined || typeof field === 'number';
-
-  return (
-    typeof item.code === 'string' &&
-    typeof item.name === 'string' &&
-    typeof item.unit === 'string' &&
-    typeof item.valueType === 'string' &&
-    optionalNumber(item.technicalMin) &&
-    optionalNumber(item.technicalMax)
-  );
-}
-
-/**
- * Normaliza la respuesta de /parameter-limits.
- * Acepta `minValue`/`maxValue` y, por tolerancia, `min`/`max` o
- * `technicalMin`/`technicalMax`. Descarta ítems incoherentes.
- */
+/** Contrato vigente: parameterCode, technicalMin, technicalMax y unit. */
 function toLimits(items: unknown): Map<string, NormalizedLimit> {
-  if (!Array.isArray(items)) {
-    throw invalidResponse('Los límites técnicos tienen un formato inesperado.');
-  }
-
+  if (!Array.isArray(items)) throw invalidResponse('Los límites técnicos tienen un formato inesperado.');
   const limits = new Map<string, NormalizedLimit>();
   for (const item of items) {
-    if (!isRecord(item)) continue;
-    const code = item.parameterCode ?? item.code;
-    if (typeof code !== 'string') continue;
-
-    const min = pickNumber(item, ['minValue', 'min', 'technicalMin']);
-    const max = pickNumber(item, ['maxValue', 'max', 'technicalMax']);
-    if (min === undefined || max === undefined) continue;
-    if (min !== null && max !== null && min > max) continue;
-    if (min === null && max === null) continue;
-
-    limits.set(code, {
-      min,
-      max,
-      unit: typeof item.unit === 'string' ? item.unit : null,
-    });
+    if (!isRecord(item) || !nonEmpty(item.parameterCode) || !nullableUnit(item.unit) || limits.has(item.parameterCode)) {
+      throw invalidResponse('El servidor entregó límites técnicos inválidos o duplicados.');
+    }
+    const bounds = readBounds(item);
+    limits.set(item.parameterCode, { ...bounds, unit: item.unit });
   }
   return limits;
 }
@@ -125,15 +94,18 @@ function buildCatalog(
   }
 
   const catalog: ClinicalParameterCatalog = {};
+  const seen = new Set<string>();
   for (const item of items) {
-    if (!isValidCatalogItem(item)) continue;
-
-    const fromCatalog = {
-      min: item.technicalMin ?? null,
-      max: item.technicalMax ?? null,
-    };
-    const fromLimits = limits?.get(item.code);
-    const sameUnit = !!fromLimits && (fromLimits.unit === null || fromLimits.unit === item.unit);
+    if (!isRecord(item) || !nonEmpty(item.code) || !nonEmpty(item.name) || !nonEmpty(item.valueType) || !nullableUnit(item.unit) || seen.has(item.code)) {
+      throw invalidResponse('El servidor entregó parámetros clínicos inválidos o duplicados.');
+    }
+    seen.add(item.code);
+    const fromCatalog = readBounds(item);
+    // El catálogo puede crecer; el formulario solo implementa estos cinco códigos.
+    if (!supportedCodes.has(item.code)) continue;
+    const code = item.code as ClinicalParameterCode;
+    const fromLimits = limits?.get(code);
+    const sameUnit = !!fromLimits && fromLimits.unit === item.unit;
 
     if (fromLimits && !sameUnit && __DEV__) {
       console.warn(
@@ -143,7 +115,7 @@ function buildCatalog(
 
     let effective: { min: number | null; max: number | null };
     let limitsSource: LimitsSource;
-    if (fromLimits && sameUnit) {
+    if (fromLimits && sameUnit && (fromLimits.min !== null || fromLimits.max !== null)) {
       effective = fromLimits;
       limitsSource = 'parameter-limits';
     } else if (fromCatalog.min !== null || fromCatalog.max !== null) {
@@ -154,8 +126,8 @@ function buildCatalog(
       limitsSource = 'none';
     }
 
-    catalog[item.code] = {
-      ...item,
+    catalog[code] = {
+      code, name: item.name, valueType: item.valueType, unit: item.unit,
       technicalMin: effective.min,
       technicalMax: effective.max,
       limitsSource,
@@ -178,6 +150,7 @@ export const clinicalParametersService = {
       monitoringRepository().listParameterLimits(options.forceRefresh)
         .then(toLimits)
         .catch((cause: unknown) => {
+          if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) throw cause;
           if (__DEV__) {
             console.warn('[parameter-limits] No se pudieron cargar; se usa /clinical-parameters.', cause);
           }
@@ -225,10 +198,10 @@ export function validateAgainstParameter(
   const { technicalMin: min, technicalMax: max, unit } = parameter;
   const format = (n: number) => String(n).replace('.', ',');
   if (min !== null && value < min) {
-    return `Valor demasiado bajo para ser una medición real. El mínimo aceptado es ${format(min)} ${unit}.`;
+    return `Valor demasiado bajo para ser una medición real. El mínimo aceptado es ${format(min)}${unit ? ` ${unit}` : ""}.`;
   }
   if (max !== null && value > max) {
-    return `Valor demasiado alto para ser una medición real. El máximo aceptado es ${format(max)} ${unit}.`;
+    return `Valor demasiado alto para ser una medición real. El máximo aceptado es ${format(max)}${unit ? ` ${unit}` : ""}.`;
   }
 
   return null;

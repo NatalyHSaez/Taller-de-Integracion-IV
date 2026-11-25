@@ -1,10 +1,10 @@
-import type { CanonicalUnit, ClinicalParameterCode } from './reading';
+import type { ClinicalParameterCode } from './reading';
 
 export type ClinicalParameterResponse = {
   code: ClinicalParameterCode;
   name: string;
   valueType: string;
-  unit: CanonicalUnit;
+  unit: string | null;
   technicalMin: number | null;
   technicalMax: number | null;
 };
