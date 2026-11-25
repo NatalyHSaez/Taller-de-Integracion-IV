@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { type AppTheme, StatusColors } from '@/src/shared/presentation/theme';
 import type { AlertFilter, PatientAlert } from '@/src/modules/evaluation/domain/alert';
-import type { AlertsState } from '@/src/modules/evaluation/application/patient-alerts';
+import type { AlertsState } from '@/src/modules/evaluation/application/use-cases/patient-alerts';
 
 type Colors2 = { background: string; foreground: string };
 

@@ -2,8 +2,8 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { authService } from '@/src/modules/identity/application/authservice';
-import { buildRegistrationRequest, registrationErrorMessage } from '@/src/modules/identity/application/registration';
+import { authService } from '@/src/modules/identity/application/use-cases/auth-service';
+import { buildRegistrationRequest, registrationErrorMessage } from '@/src/modules/identity/application/use-cases/registration';
 import { Colors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 import { Action, Copy, Field, FlowPage } from '@/src/shared/presentation/components/flow-ui';

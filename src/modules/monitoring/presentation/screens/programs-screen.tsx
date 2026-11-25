@@ -15,12 +15,12 @@ import { BrandColors, Colors, StatusColors } from '@/src/shared/presentation/the
 import { useClinicalParameters } from '@/src/modules/monitoring/presentation/hooks/use-clinical-parameters';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 import { useHealthConditions } from '@/src/modules/monitoring/presentation/hooks/use-health-conditions';
-import type { ClinicalParameterCatalog } from '@/src/modules/monitoring/application/clinical-parameters';
+import type { ClinicalParameterCatalog } from '@/src/modules/monitoring/application/use-cases/clinical-parameters';
 import {
   ASSIGNED_CONDITIONS_API_AVAILABLE,
   type HealthProgram,
-} from '@/src/modules/monitoring/application/health-conditions';
-import type { ClinicalParameterCode } from '@/src/core/domain/contracts';
+} from '@/src/modules/monitoring/application/use-cases/health-conditions';
+import type { ClinicalParameterCode } from '@/src/modules/monitoring/domain/contracts';
 
 type Theme = (typeof Colors)['light'] | (typeof Colors)['dark'];
 

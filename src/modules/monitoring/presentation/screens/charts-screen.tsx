@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { getApiErrorMessage } from '@/src/core/domain/errors';
-import { getPatientMeasurements } from '@/src/modules/monitoring/application/reading-query-port';
+import { getPatientMeasurements } from '@/src/modules/monitoring/application/ports/reading-query-port';
 import type { MeasurementPointResponse } from '@/src/modules/monitoring/domain/reading-query';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';

@@ -8,6 +8,6 @@
  */
 const { run } = require('./legacy-suite-runner.cjs');
 if (run('P7: diagnóstico Gateway, identidad, selección y autorización',
-  '--require', './tests/support/register.cjs', '--test', 'tests/p7-bridge.test.cjs')) {
+  '--require', './tests/support/register.cjs', '--test', 'tests/contracts/p7-bridge.test.cjs')) {
   console.log('\nP7 simulado aprobado. P7 real con Docker/API Gateway sigue pendiente.');
 }

@@ -7,18 +7,18 @@ import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
 import {
   createReadingDetail,
   parameterName,
-} from '@/src/modules/monitoring/application/reading-detail';
+} from '@/src/modules/monitoring/application/use-cases/reading-detail';
 import {
   confirmReadingErrorFrom,
   readingsService,
   type ConfirmReadingError,
-} from '@/src/modules/monitoring/application/readings';
+} from '@/src/modules/monitoring/application/use-cases/readings';
 import {
   describeRecordedBy,
   linkedPeopleLoader,
   type LinkedPeople,
-} from '@/src/modules/monitoring/application/recorded-by';
-import { getPatientReading } from '@/src/modules/monitoring/application/reading-query-port';
+} from '@/src/modules/monitoring/application/use-cases/recorded-by';
+import { getPatientReading } from '@/src/modules/monitoring/application/ports/reading-query-port';
 import { Colors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 

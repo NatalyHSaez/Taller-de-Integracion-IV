@@ -14,7 +14,7 @@ import type {
   ParameterLimitResponse,
   PatientSummaryResponse,
   ReadingResponse,
-} from '../../../../src/core/infrastructure/http/dto';
+} from '@/tests/fixtures/contracts';
 
 /**
  * Datos de demostración ajustados al contrato HTTP actual de Integra II.

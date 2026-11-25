@@ -1,6 +1,6 @@
 import { apiClient } from './api-client';
 import { normalizeApiError } from './errors';
-import type { CurrentUserResponse, HealthResponse } from './dto';
+import type { CurrentUserResponse, HealthResponse } from '../../domain/contracts';
 
 import type { P7CheckContext, P7Report, P7Step } from '../../domain/integration-check';
 export type { P7CheckContext, P7Report, P7Step } from '../../domain/integration-check';

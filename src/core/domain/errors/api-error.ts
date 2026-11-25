@@ -1,5 +1,5 @@
 import type { UUID } from '../contracts/common';
-import type { ApiErrorResponse, ClientApiErrorResponse } from '../contracts/error';
+import type { ApiErrorResponse, ClientApiErrorResponse } from './error-contract';
 
 export type ApiErrorInit = {
   code: string;

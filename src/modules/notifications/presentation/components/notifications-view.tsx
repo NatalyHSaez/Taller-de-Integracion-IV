@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { type AppTheme, StatusColors } from '@/src/shared/presentation/theme';
 import type { AppNotification, NotificationFilter } from '@/src/modules/notifications/domain/notification';
-import type { NotificationsState } from '@/src/modules/notifications/application/notifications';
+import type { NotificationsState } from '@/src/modules/notifications/application/use-cases/notifications';
 
 export const NOTIFICATION_STATUS: Record<AppNotification['status'], { label: string; colors: { background: string; foreground: string } }> = {
   pending: { label: 'No leída', colors: StatusColors.info },

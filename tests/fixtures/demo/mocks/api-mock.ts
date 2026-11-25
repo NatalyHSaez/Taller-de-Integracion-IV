@@ -14,7 +14,7 @@ import type {
   PatientProfileResponse,
   PatientSummaryResponse,
   ReadingResponse,
-} from '../../../../src/core/infrastructure/http/dto';
+} from '@/tests/fixtures/contracts';
 import {
   MOCK_ALERTS,
   MOCK_AUTH_TOKENS,

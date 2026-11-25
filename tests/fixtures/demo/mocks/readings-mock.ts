@@ -1,4 +1,4 @@
-import type { CreateReadingRequest } from '../../../../src/core/infrastructure/http/dto';
+import type { CreateReadingRequest } from '@/tests/fixtures/contracts';
 import { ApiError } from '../../../../src/core/infrastructure/http/errors';
 import { MOCK_CLINICAL_PARAMETERS } from './api-data';
 

@@ -48,11 +48,11 @@ function load(filename) {
   return exports;
 }
 async function main() {
-  load(path.join(root, 'composition/configure-identity'));
-  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  load(path.join(root, 'composition/configure/configure-identity'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  const { buildProfileUpdate, updateMyProfile, profileErrorMessage } = load(path.join(root, 'src/modules/identity/application/profile'));
+  const { buildProfileUpdate, updateMyProfile, profileErrorMessage } = load(path.join(root, 'src/modules/identity/application/use-cases/profile'));
   for (const invalid of ['', '  ', 'ab', 'x'.repeat(201)]) assert.throws(() => buildProfileUpdate(invalid));
   assert.equal(buildProfileUpdate('  Ana  ').fullName, 'Ana');
   for (const userRole of ['PATIENT', 'CAREGIVER']) {

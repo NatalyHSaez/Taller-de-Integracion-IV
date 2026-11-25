@@ -24,7 +24,7 @@ function load(file, dependencies, extra = {}) {
 async function main() {
   const domainErrors = load('src/core/domain/errors/api-error.ts', {});
   const errors = load('src/core/infrastructure/http/errors/api-error.ts', { '../../../domain/errors/api-error': domainErrors });
-  const form = load('src/modules/identity/application/registration.ts', { '../../../core/domain/errors': domainErrors });
+  const form = load('src/modules/identity/application/use-cases/registration.ts', { '../../../../core/domain/errors': domainErrors });
   const base = { fullName: '  Cuenta Prueba  ', email: ' NUEVA@example.com ',
     password: 'Cuenta123!', confirmation: 'Cuenta123!', privacyAccepted: true,
     role: 'CAREGIVER', birthDate: 'fecha ignorada' };
@@ -55,7 +55,7 @@ async function main() {
     return new Response(JSON.stringify(responseBody), { status: responseStatus, headers: { 'content-type': 'application/json' } });
   } });
   // El registro es un endpoint del microservicio de identidad.
-  const api = load('src/modules/identity/infrastructure/identity-api.ts', {
+  const api = load('src/modules/identity/infrastructure/api/identity-api.ts', {
     '@/src/core/infrastructure/http/api-client': client,
     '@/src/core/infrastructure/http/errors': errors,
     '@/src/core/infrastructure/storage/token-storage': new Proxy({}, { get: () => () => { throw new Error('Register must not access tokens'); } }),

@@ -7,11 +7,11 @@ import { appState } from "@/src/core/application/session/app-state";
 import { authSession } from "@/src/core/application/session/auth-session";
 import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
 
-import { getPatient } from "@/src/modules/identity/application/identity-port";
+import { getPatient } from "@/src/modules/identity/application/ports/identity-port";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { updateMyProfile, profileErrorMessage } from "@/src/modules/identity/application/profile";
+import { updateMyProfile, profileErrorMessage } from "@/src/modules/identity/application/use-cases/profile";
 
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, } from "react-native";
 

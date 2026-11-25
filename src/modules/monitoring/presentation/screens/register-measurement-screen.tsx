@@ -23,20 +23,20 @@ import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme
 import {
   clinicalParametersService,
   validateAgainstParameter,
-} from "@/src/modules/monitoring/application/clinical-parameters";
-import { createReadingFlow } from "@/src/modules/monitoring/application/reading-flow";
+} from "@/src/modules/monitoring/application/use-cases/clinical-parameters";
+import { createReadingFlow } from "@/src/modules/monitoring/application/flows/reading-flow";
 import {
   buildCreateReadingRequest,
   READING_CONTEXT_LABELS,
   readingsService,
   resolveActivePatientId,
-} from "@/src/modules/monitoring/application/readings";
+} from "@/src/modules/monitoring/application/use-cases/readings";
 import type {
   ClinicalParameterCode,
   ClinicalParameterResponse,
   CreateReadingRequest,
   ReadingContext,
-} from "@/src/core/domain/contracts";
+} from "@/src/modules/monitoring/domain/contracts";
 import type { MeasurementType } from "@/src/modules/monitoring/domain/measurement";
 import { useRouter } from "expo-router";
 
@@ -130,7 +130,7 @@ export default function RegisterMeasurementScreen() {
   const [date, setDate] = useState(formatDate(now));
   const [time, setTime] = useState(formatTime(now));
   const [showReview, setShowReview] = useState(false);
-  // Flujo envío → confirmación → resultado (src/modules/monitoring/application/reading-flow.ts).
+  // Flujo envío → confirmación → resultado (src/modules/monitoring/application/flows/reading-flow.ts).
   const flow = useMemo(() => createReadingFlow(readingsService), []);
   const flowState = useSyncExternalStore(flow.subscribe, flow.getState, flow.getState);
   const submitting = flowState.step === "submitting";

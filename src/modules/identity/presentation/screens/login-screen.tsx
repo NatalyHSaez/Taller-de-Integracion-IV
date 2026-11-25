@@ -15,8 +15,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { appState } from "@/src/core/application/session/app-state";
-import { authService } from "@/src/modules/identity/application/authservice";
-import { loginErrorMessage } from "@/src/modules/identity/application/login-validation";
+import { authService } from "@/src/modules/identity/application/use-cases/auth-service";
+import { loginErrorMessage } from "@/src/modules/identity/application/validation/login-validation";
 import { GatewayHealthCard, type GatewayHealthProps } from "@/src/shared/presentation/components/gateway-health-card";
 import { useColorScheme } from "@/src/shared/presentation/hooks/use-color-scheme";
 import { BrandColors, Colors } from "@/src/shared/presentation/theme";

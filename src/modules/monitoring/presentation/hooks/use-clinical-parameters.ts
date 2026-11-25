@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type ClinicalParameterCatalog,
   clinicalParametersService,
-} from '@/src/modules/monitoring/application/clinical-parameters';
+} from '@/src/modules/monitoring/application/use-cases/clinical-parameters';
 import { getApiErrorMessage } from '@/src/core/domain/errors';
 
 type State = {

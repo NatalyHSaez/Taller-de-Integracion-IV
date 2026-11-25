@@ -13,7 +13,7 @@ import type { Measurement, MeasurementType } from '@/src/modules/monitoring/doma
 
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
 import { appState } from '@/src/core/application/session/app-state';
-import { createHomeSummary } from '@/src/modules/dashboard/application/home-summary';
+import { createHomeSummary } from '@/src/modules/dashboard/application/use-cases/home-summary';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 

@@ -1,4 +1,4 @@
-import type { HealthResponse } from '@/src/core/infrastructure/http/dto';
+import type { HealthResponse } from '@/src/core/domain/contracts';
 import { dataClient } from './data';
 
 type HealthRequestOptions = {

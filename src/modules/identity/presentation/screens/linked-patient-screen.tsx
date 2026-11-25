@@ -1,4 +1,4 @@
-import { getPatient } from '@/src/modules/identity/application/identity-port';
+import { getPatient } from '@/src/modules/identity/application/ports/identity-port';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
 import { Colors } from '@/src/shared/presentation/theme';
@@ -25,7 +25,7 @@ import {
   formatBirthDate,
   formatManagementMode,
   resolveProfilePatientId,
-} from '@/src/modules/identity/application/patient-profile';
+} from '@/src/modules/identity/application/use-cases/patient-profile';
 
 function LinkedPatientContent() {
   const router = useRouter();

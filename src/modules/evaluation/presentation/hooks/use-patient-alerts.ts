@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { createPatientAlerts } from '../../application/patient-alerts';
+import { createPatientAlerts } from '../../application/use-cases/patient-alerts';
 import type { AlertsService } from '../../domain/alert';
 
 /** El controlador pertenece exclusivamente a esta sesión y paciente. */

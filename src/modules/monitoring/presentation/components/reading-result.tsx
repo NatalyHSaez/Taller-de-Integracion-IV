@@ -3,8 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import type { AppTheme } from '@/src/shared/presentation/theme';
-import type { SubmittedReading } from '@/src/modules/monitoring/application/reading-flow';
-import { readingStatusLabel } from '@/src/modules/monitoring/application/readings';
+import type { SubmittedReading } from '@/src/modules/monitoring/application/flows/reading-flow';
+import { readingStatusLabel } from '@/src/modules/monitoring/application/use-cases/readings';
 
 import { SecondaryButton } from './reading-confirmation';
 

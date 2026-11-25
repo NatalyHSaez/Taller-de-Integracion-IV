@@ -1,10 +1,8 @@
 import { API_V1_URL } from "@/src/core/infrastructure/config/api-config";
 import type {
   AuthTokensResponse,
-  CurrentUserResponse,
-  RegisterRequest,
   UUID,
-} from "@/src/core/infrastructure/http/dto";
+} from "@/src/core/domain/contracts";
 import {
   clearTokens,
   getAccessToken,
@@ -60,13 +58,9 @@ export type AccessTokenProvider = () =>
  * Alias para mantener compatibilidad con
  * componentes agregados por Sebastián.
  */
-export type AuthTokens = AuthTokensResponse;
 
-export type AuthUser = CurrentUserResponse;
 
-export type RegisterData = RegisterRequest;
 
-export type RegisterResponse = CurrentUserResponse;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const API_PREFIX = "/api/v1";

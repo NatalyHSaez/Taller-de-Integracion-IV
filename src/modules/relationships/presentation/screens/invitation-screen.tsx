@@ -9,7 +9,7 @@ import {
   consumeLinkCode,
   describeLinkCodeError,
   normalizeLinkCode,
-} from "@/src/modules/relationships/application/link-codes";
+} from "@/src/modules/relationships/application/use-cases/link-codes";
 import type { ConsumeLinkCodeResponse } from "@/src/modules/relationships/domain/relationships";
 import {
   Action,

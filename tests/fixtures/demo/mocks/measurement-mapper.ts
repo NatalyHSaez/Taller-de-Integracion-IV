@@ -1,4 +1,4 @@
-import type { ReadingResponse } from '../../../../src/core/infrastructure/http/dto';
+import type { ReadingResponse } from '@/tests/fixtures/contracts';
 import type { Measurement } from '../../../../src/modules/monitoring/domain/measurement';
 
 /**

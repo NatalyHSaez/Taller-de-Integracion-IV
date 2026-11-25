@@ -4,7 +4,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { Action, Card, Copy } from '@/src/shared/presentation/components/flow-ui';
 import { LinkCodeCountdown } from '@/src/modules/relationships/presentation/components/link-code-countdown';
-import { createPatientLinkCode } from '@/src/modules/relationships/application/link-codes';
+import { createPatientLinkCode } from '@/src/modules/relationships/application/use-cases/link-codes';
 import type { LinkCodeResponse } from '@/src/modules/relationships/domain/relationships';
 
 /**

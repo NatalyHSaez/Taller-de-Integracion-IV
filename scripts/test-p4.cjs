@@ -10,7 +10,7 @@ const steps = [
   ['P4: almacenamiento de tokens', ['scripts/test-token-storage.cjs']],
   ['P4: permisos e identidad del cuidador', [
     '--require', './tests/support/register.cjs', '--test',
-    'tests/caregiver-permissions.test.cjs', 'tests/patient-links.test.cjs',
+    'tests/functional/caregiver-permissions.test.cjs', 'tests/functional/patient-links.test.cjs',
   ]],
 ];
 for (const [label, args] of steps) {

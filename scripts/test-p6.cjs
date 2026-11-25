@@ -7,13 +7,13 @@
 const { run } = require('./legacy-suite-runner.cjs');
 const checks = [
   ['P6: caché por sesión, URL y filtros; concurrencia y errores', [
-    '--require', './tests/support/register.cjs', '--test', 'tests/p6-bridge.test.cjs',
+    '--require', './tests/support/register.cjs', '--test', 'tests/contracts/p6-bridge.test.cjs',
   ]],
   ['P6: mocks, lecturas, gráficos y notificaciones', [
     '--require', './tests/support/register.cjs', '--test',
-    'tests/notifications.test.cjs', 'tests/readings-service.test.cjs',
-    'tests/measurement-series.test.cjs', 'tests/patient-alerts.test.cjs',
-    'tests/error-matrix.test.cjs',
+    'tests/functional/notifications.test.cjs', 'tests/functional/readings-service.test.cjs',
+    'tests/functional/measurement-series.test.cjs', 'tests/functional/patient-alerts.test.cjs',
+    'tests/functional/error-matrix.test.cjs',
   ]],
 ];
 for (const [label, args] of checks) {

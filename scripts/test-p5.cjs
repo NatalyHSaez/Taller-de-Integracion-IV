@@ -9,12 +9,12 @@ const { run } = require('./legacy-suite-runner.cjs');
 const checks = [
   ['P5: UUID, vínculos y permisos de cuidador', [
     '--require', './tests/support/register.cjs', '--test',
-    'tests/caregiver-permissions.test.cjs', 'tests/patient-links.test.cjs',
-    'tests/patient-profile.test.cjs', 'tests/p5-bridge.test.cjs',
+    'tests/functional/caregiver-permissions.test.cjs', 'tests/functional/patient-links.test.cjs',
+    'tests/functional/patient-profile.test.cjs', 'tests/contracts/p5-bridge.test.cjs',
   ]],
   ['P5: códigos, revocación y aislamiento por vínculo', [
     '--require', './tests/support/register.cjs', '--test',
-    'tests/link-codes.test.cjs', 'tests/relationship-actions.test.cjs',
+    'tests/functional/link-codes.test.cjs', 'tests/functional/relationship-actions.test.cjs',
   ]],
 ];
 for (const [label, args] of checks) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Copy } from '@/src/shared/presentation/components/flow-ui';
-import { formatCountdown, secondsLeft } from '@/src/modules/relationships/application/link-codes';
+import { formatCountdown, secondsLeft } from '@/src/modules/relationships/application/use-cases/link-codes';
 
 /**
  * Cuenta regresiva del código de vinculación ("Vence en 4:32").

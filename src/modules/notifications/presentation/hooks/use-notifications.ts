@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { authSession } from '@/src/core/application/session/auth-session';
-import { notificationsStore, selectNotificationOwner } from '@/src/modules/notifications/application/notifications';
+import { notificationsStore, selectNotificationOwner } from '@/src/modules/notifications/application/use-cases/notifications';
 
 /** Vincula las notificaciones exclusivamente a la sesión autenticada. */
 export function useNotifications() {

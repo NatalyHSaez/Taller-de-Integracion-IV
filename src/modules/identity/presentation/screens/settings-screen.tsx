@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
-import { authService } from '@/src/modules/identity/application/authservice';
+import { authService } from '@/src/modules/identity/application/use-cases/auth-service';
 import type { P7Report, P7CheckContext } from '@/src/core/domain/integration-check';
 
 type VerifyIntegration = (context: P7CheckContext) => Promise<P7Report>;

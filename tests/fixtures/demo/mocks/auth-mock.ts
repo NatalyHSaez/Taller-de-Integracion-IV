@@ -2,7 +2,7 @@ import type {
   AuthTokensResponse,
   CurrentUserResponse,
   UserRole,
-} from '../../../../src/core/infrastructure/http/dto';
+} from '@/tests/fixtures/contracts';
 import { ApiError } from '../../../../src/core/infrastructure/http/errors';
 import {
   MOCK_ACCOUNTS,

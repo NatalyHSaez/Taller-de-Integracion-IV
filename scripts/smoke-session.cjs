@@ -36,10 +36,10 @@ function load(filename) {
   return exports;
 }
 async function main() {
-  load(path.join(root, 'composition/configure-identity'));
-  load(path.join(root, 'composition/configure-app-state'));
+  load(path.join(root, 'composition/configure/configure-identity'));
+  load(path.join(root, 'composition/configure/configure-app-state'));
   const { randomUUID } = require('node:crypto');
-  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
   const { demo } = load(path.join(root, 'tests/fixtures/demo/demo-store'));

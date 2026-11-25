@@ -1,9 +1,9 @@
-import '@/composition/configure-dashboard';
-import '@/composition/configure-notifications';
-import '@/composition/configure-monitoring';
-import '@/composition/configure-relationships';
-import '@/composition/configure-identity';
-import '@/composition/configure-app-state';
+import '@/composition/configure/configure-dashboard';
+import '@/composition/configure/configure-notifications';
+import '@/composition/configure/configure-monitoring';
+import '@/composition/configure/configure-relationships';
+import '@/composition/configure/configure-identity';
+import '@/composition/configure/configure-app-state';
 import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
 import { Colors } from "@/src/shared/presentation/theme";
 import { AppStateProvider } from "@/src/core/presentation/session/app-state-context";

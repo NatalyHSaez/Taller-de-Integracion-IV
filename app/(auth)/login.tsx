@@ -1,1 +1,1 @@
-export { default } from "@/composition/login-route";
+export { default } from "@/composition/routes/login-route";

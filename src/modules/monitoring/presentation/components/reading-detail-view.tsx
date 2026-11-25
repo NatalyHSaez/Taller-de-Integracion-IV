@@ -1,8 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { describeConfirmationReason, PENDING_POLL, type ReadingDetail, type DetailState, type DetailError } from '@/src/modules/monitoring/application/reading-detail';
-import { type ConfirmReadingError } from '@/src/modules/monitoring/application/readings';
+import { describeConfirmationReason, PENDING_POLL, type ReadingDetail, type DetailState, type DetailError } from '@/src/modules/monitoring/application/use-cases/reading-detail';
+import { type ConfirmReadingError } from '@/src/modules/monitoring/application/use-cases/readings';
 import { ReadingConfirmationModal } from '@/src/modules/monitoring/presentation/components/reading-confirmation';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';

@@ -6,8 +6,8 @@
 const { run, runNpm } = require('./legacy-suite-runner.cjs');
 runNpm('P3: contrato ApiError y manejo HTTP', 'test:api-errors');
 if (!process.exitCode) run('P3: retry, seguridad y normalización',
-  '--require', './tests/support/register.cjs', '--test', 'tests/p3-bridge.test.cjs');
+  '--require', './tests/support/register.cjs', '--test', 'tests/contracts/p3-bridge.test.cjs');
 if (!process.exitCode) run('P3: errores sin filtración, datos de lecturas y notificaciones',
   '--require', './tests/support/register.cjs', '--test',
-  'tests/error-matrix.test.cjs', 'tests/notifications.test.cjs', 'tests/readings-service.test.cjs');
+  'tests/functional/error-matrix.test.cjs', 'tests/functional/notifications.test.cjs', 'tests/functional/readings-service.test.cjs');
 if (!process.exitCode) console.log('\nP3 actual: pruebas aprobadas. Los casos legados no se ejecutan automáticamente.');

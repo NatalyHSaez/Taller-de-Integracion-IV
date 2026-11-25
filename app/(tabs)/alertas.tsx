@@ -1,1 +1,1 @@
-export { default } from "@/composition/alerts-route";
+export { default } from "@/composition/routes/alerts-route";

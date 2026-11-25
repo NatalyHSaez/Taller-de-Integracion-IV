@@ -2,7 +2,7 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import type { CurrentUserResponse } from '@/src/core/domain/contracts';
 import { authSession } from '@/src/core/application/session/auth-session';
-import { authService } from '@/src/modules/identity/application/authservice';
+import { authService } from '@/src/modules/identity/application/use-cases/auth-service';
 
 type AuthContextValue = {
   user: CurrentUserResponse | null;

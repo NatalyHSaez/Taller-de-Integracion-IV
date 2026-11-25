@@ -1,4 +1,4 @@
-import type { CurrentUserResponse, UserRole } from "../../../src/core/infrastructure/http/dto";
+import type { CurrentUserResponse, UserRole } from "@/tests/fixtures/contracts";
 import type { Measurement } from "../../../src/modules/monitoring/domain/measurement";
 import {
   MOCK_ACCOUNTS,

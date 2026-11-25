@@ -7,8 +7,8 @@
  */
 const { run } = require('./legacy-suite-runner.cjs');
 const checks = [
-  ['S1: validación clínica y cambios de paciente', ['--require', './tests/support/register.cjs', '--test', 'tests/s1-bridge.test.cjs']],
-  ['S1: historial, permisos, paginación, URLs y estados', ['--require', './tests/support/register.cjs', '--test', 'tests/readings-history.test.cjs', 'tests/readings-api.test.cjs', 'tests/caregiver-permissions.test.cjs', 'tests/error-matrix.test.cjs']]
+  ['S1: validación clínica y cambios de paciente', ['--require', './tests/support/register.cjs', '--test', 'tests/contracts/s1-bridge.test.cjs']],
+  ['S1: historial, permisos, paginación, URLs y estados', ['--require', './tests/support/register.cjs', '--test', 'tests/functional/readings-history.test.cjs', 'tests/contracts/readings-api.test.cjs', 'tests/functional/caregiver-permissions.test.cjs', 'tests/functional/error-matrix.test.cjs']]
 ];
 for (const [label, args] of checks) {
   if (!run(label, ...args)) break;

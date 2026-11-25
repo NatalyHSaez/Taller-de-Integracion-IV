@@ -45,9 +45,9 @@ function load(filename) {
   return exports;
 }
 async function main() {
-  load(path.join(root, 'composition/configure-identity'));
-  load(path.join(root, 'composition/configure-app-state'));
-  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  load(path.join(root, 'composition/configure/configure-identity'));
+  load(path.join(root, 'composition/configure/configure-app-state'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
   for (const userRole of ['PATIENT', 'CAREGIVER']) {
