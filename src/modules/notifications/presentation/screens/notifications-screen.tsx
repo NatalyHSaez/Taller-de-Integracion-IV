@@ -17,6 +17,7 @@ import {
   INTERNAL_NOTICE,
   formatDateTime,
 } from "@/src/modules/notifications/presentation/components/notifications-view";
+import { PushPermissionPanel } from "@/src/modules/notifications/presentation/components/push-permission-panel";
 import { useNotifications } from "@/src/modules/notifications/presentation/hooks/use-notifications";
 import { ThemedText } from "@/src/shared/presentation/components/themed-text";
 import { ThemedView } from "@/src/shared/presentation/components/themed-view";
@@ -218,6 +219,7 @@ export default function NotificacionesScreen() {
               <ThemedText style={[styles.small, { color: theme.mutedText }]}>
                 {INTERNAL_NOTICE}
               </ThemedText>
+              {ownerReady && <PushPermissionPanel key={`${ownerId}:${sessionRevision}`} theme={theme} />}
               {ownerReady && state.loaded && !error && (
                 <ThemedText style={[styles.small, { color: theme.mutedText }]}>
                   {state.filter === 'unread'

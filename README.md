@@ -15,7 +15,7 @@ Aplicación móvil para pacientes y cuidadores, desarrollada con Expo, React Nat
 
 Disponible: consulta de condiciones asignadas al paciente (solo lectura).
 
-Pendiente: completar validación clínica real, integración de atención médica/documentos y notificaciones push. La app no genera diagnósticos ni datos clínicos de demostración.
+Validación clínica HTTP realizada en desarrollo (Grupo 8); revisión visual pendiente. Preparación de permisos push (Grupo 9), sin registro ni envío remoto. Pendiente: integración de atención médica/documentos y flujo push completo. La app no genera diagnósticos ni datos clínicos de demostración. Ver [preparación de push](docs/push-notificaciones.md).
 
 ## Arquitectura
 

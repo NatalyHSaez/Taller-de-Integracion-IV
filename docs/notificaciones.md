@@ -7,11 +7,9 @@ Las notificaciones que muestra la app (`app/notificaciones.tsx` y
 backend las guarda y la app las **consulta** cuando la persona abre la pantalla,
 desliza para actualizar o vuelve a ella.
 
-**No existe envío push.** La app no usa Expo Notifications, Firebase Cloud
-Messaging (FCM) ni Apple Push Notification service (APNs), no registra tokens de
-dispositivo y no recibe avisos con la app cerrada. Si en el futuro se necesitan,
-habría que agregar el registro de tokens en el backend y el envío desde el
-servicio `notificaciones`.
+**Todavía no existe envío push.** Desde el Grupo 9 la app prepara Expo Notifications y permite consultar o solicitar el permiso del dispositivo desde Notificaciones. No obtiene ni registra tokens, no recibe avisos remotos y no activa FCM ni APNs. Las notificaciones internas siguen funcionando de forma independiente.
+
+Ver [preparación de push](push-notificaciones.md) para instalación, compilación y límites.
 
 ## Endpoints
 
