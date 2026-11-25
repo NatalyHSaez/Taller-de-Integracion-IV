@@ -19,22 +19,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isDate(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0 &&
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) &&
     Number.isFinite(Date.parse(value));
 }
 
-/** Acepta el contrato camelCase y los nombres históricos del mock. */
+/** Valida NotificationOut en camelCase, sin alias ni normalizaciones históricas. */
 export function toAppNotification(raw: unknown): AppNotification | null {
   if (!isRecord(raw)) return null;
-  const status = String(raw.status ?? raw.estado ?? '').toLowerCase() as NotificationStatus;
-  const createdAt = raw.createdAt ?? raw.creada_en;
-  const readAt = raw.readAt ?? raw.leida_en ?? null;
-  const type = raw.type ?? raw.tipo;
-  const title = raw.title ?? raw.titulo;
-  const body = raw.body ?? raw.cuerpo;
+  const { status, createdAt, readAt, type, title, body } = raw;
   if (
     typeof raw.id !== 'string' || !raw.id.trim() ||
-    !STATUSES.includes(status) || !isDate(createdAt) ||
+    typeof status !== 'string' || !STATUSES.includes(status as NotificationStatus) || !isDate(createdAt) ||
     (readAt !== null && !isDate(readAt)) ||
     typeof type !== 'string' || !type.trim() ||
     typeof title !== 'string' || !title.trim() ||
@@ -42,7 +37,7 @@ export function toAppNotification(raw: unknown): AppNotification | null {
   ) return null;
   return {
     id: raw.id, type, title, body,
-    status, createdAt, readAt: readAt as string | null,
+    status: status as NotificationStatus, createdAt, readAt: readAt as string | null,
   };
 }
 
@@ -95,6 +90,10 @@ export const backendNotificationsApi: NotificationsApi = {
   },
   async markRead(notificationId) {
     // 204: el detalle y readAt se confirman al actualizar el listado.
-    await apiClient.post<void>(`/notifications/${encodeURIComponent(notificationId)}/read`);
+    const result = await apiClient.post<unknown>(`/notifications/${encodeURIComponent(notificationId)}/read`);
+    if (result !== undefined) {
+      throw new ApiError({ code: 'INVALID_API_RESPONSE', status: 502,
+        message: 'El servidor devolvió una respuesta inesperada al marcar la notificación.' });
+    }
   },
 };

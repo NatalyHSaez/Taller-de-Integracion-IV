@@ -8,15 +8,12 @@ import type { AlertsState } from '@/src/modules/evaluation/application/use-cases
 
 type Colors2 = { background: string; foreground: string };
 
-/** Severidad tal como la informa el backend (BAJA…MUY_ALTA) o el mock (ADVERTENCIA…). */
+/** Severidad tal como la informa el backend (BAJA…MUY_ALTA). */
 const SEVERITY: Record<string, { label: string; colors: Colors2 }> = {
   BAJA: { label: 'Severidad baja', colors: StatusColors.info },
   MEDIA: { label: 'Severidad media', colors: StatusColors.warning },
   ALTA: { label: 'Severidad alta', colors: StatusColors.danger },
   MUY_ALTA: { label: 'Severidad muy alta', colors: StatusColors.danger },
-  INFORMATIVA: { label: 'Informativa', colors: StatusColors.info },
-  ADVERTENCIA: { label: 'Advertencia', colors: StatusColors.warning },
-  ALERTA: { label: 'Alerta', colors: StatusColors.danger },
 };
 
 export function severityOf(severity: string) {

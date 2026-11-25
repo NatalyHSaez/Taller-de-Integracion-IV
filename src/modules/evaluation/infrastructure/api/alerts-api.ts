@@ -13,24 +13,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Normaliza un elemento de la respuesta (acepta `id` del backend o `alertId` del mock). */
+/** Valida los campos del contrato AlertOut vigente, sin alias históricos. */
 export function toPatientAlert(raw: unknown): PatientAlert | null {
   if (!isRecord(raw)) return null;
-  const id = raw.id ?? raw.alertId;
-  const status = typeof raw.status === 'string' ? raw.status.toUpperCase() : '';
-  if (typeof id !== 'string' || (status !== 'OPEN' && status !== 'READ') || typeof raw.createdAt !== 'string') {
+  const { id, readingId, ruleCode, severity, explanation, status, createdAt, readAt } = raw;
+  if (typeof id !== 'string' || !id.trim() ||
+      typeof readingId !== 'string' || !readingId.trim() ||
+      typeof ruleCode !== 'string' || !ruleCode.trim() ||
+      typeof severity !== 'string' || !severity.trim() ||
+      typeof explanation !== 'string' ||
+      (status !== 'OPEN' && status !== 'READ') ||
+      typeof createdAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T/.test(createdAt) || !Number.isFinite(Date.parse(createdAt)) ||
+      (readAt !== null && (typeof readAt !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T/.test(readAt) || !Number.isFinite(Date.parse(readAt))))) {
     return null;
   }
-  return {
-    id,
-    readingId: typeof raw.readingId === 'string' ? raw.readingId : null,
-    ruleCode: typeof raw.ruleCode === 'string' ? raw.ruleCode : '',
-    severity: typeof raw.severity === 'string' ? raw.severity : '',
-    explanation: typeof raw.explanation === 'string' ? raw.explanation : '',
-    status,
-    createdAt: raw.createdAt,
-    readAt: typeof raw.readAt === 'string' ? raw.readAt : null,
-  };
+  return { id, readingId, ruleCode, severity, explanation, status, createdAt, readAt };
 }
 
 /**
@@ -48,12 +47,7 @@ export function checkAlertList(raw: unknown, status?: 'OPEN' | 'READ'): PatientA
   const result: PatientAlert[] = [];
   for (const row of raw) {
     const item = toPatientAlert(row);
-    if (!item || !item.id.trim() || !item.ruleCode.trim() || !item.severity.trim() ||
-        typeof row.explanation !== 'string' ||
-        !/^\d{4}-\d{2}-\d{2}T/.test(item.createdAt) ||
-        !Number.isFinite(Date.parse(item.createdAt)) ||
-        (item.readAt !== null && !Number.isFinite(Date.parse(item.readAt))) ||
-        (status !== undefined && item.status !== status) || seen.has(item.id)) {
+    if (!item || (status !== undefined && item.status !== status) || seen.has(item.id)) {
       throw invalid();
     }
     seen.add(item.id);

@@ -119,3 +119,9 @@ test('S4: fallo 403 del servidor nunca presenta alertas clínicas simuladas', as
   assert.deepEqual(controller.getState().items,[]);
   assert.equal(controller.getState().error.kind,'forbidden');
 });
+
+test('S4: exige campos del contrato actual y rechaza alias y estados históricos', () => {
+  for (const overrides of [{id:undefined,alertId:A1}, {readingId:null}, {readingId:undefined}, {readAt:undefined}, {status:'open'}, {readAt:'2026-11-23'}]) {
+    invalid([alert(A1,'OPEN',overrides)]);
+  }
+});

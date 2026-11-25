@@ -44,12 +44,12 @@ function invalid(raw, p=1, size=20, status) {
   assert.throws(() => checkNotificationPage(raw,p,size,status), e => e.code === 'INVALID_API_RESPONSE');
 }
 
-test('S5: adapta contrato camelCase y mock histórico sin perder fechas ni estado', () => {
+test('S5: acepta camelCase y rechaza el formato histórico', () => {
   assert.deepEqual(toAppNotification(notification()),notification());
   const old = {id:'n2', tipo:'WELCOME',titulo:'Aviso n2',cuerpo:'Mensaje de n2',
     estado:'read',creada_en:NOW,leida_en:NOW};
   const converted = toAppNotification(old);
-  assert.deepEqual(converted, notification('n2','read'));
+  assert.equal(converted,null);
   assert.equal(toAppNotification(notification('n3','pending',{readAt:null})).readAt,null);
 });
 
@@ -215,4 +215,15 @@ test('S5: pantalla usa paginación y caché; no se inventa GET de detalle ni pus
   assert.doesNotMatch(detail,/apiClient\.get\s*\(/);
   assert.match(view,/INTERNAL_NOTICE/);
   assert.doesNotMatch(list,/['"`]\/notificaciones['"`]/);
+});
+
+ test('S5: exige campos y estados exactos del contrato actual', () => {
+  for (const overrides of [{status:'READ'}, {readAt:undefined}, {createdAt:'2026-11-23'}, {title:undefined,titulo:'antiguo'}]) {
+    invalid(page([notification('n1','pending',overrides)]));
+  }
+});
+test('S5: marcado rechaza un cuerpo inesperado', async () => {
+  postReply={ok:true};
+  try { await assert.rejects(backendNotificationsApi.markRead('n1'), e=>e.code==='INVALID_API_RESPONSE'); }
+  finally { postReply=undefined; }
 });
