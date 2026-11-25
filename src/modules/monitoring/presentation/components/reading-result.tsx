@@ -1,3 +1,4 @@
+import { evaluationPresentation } from './evaluation-presentation';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
@@ -46,6 +47,7 @@ export function ReadingResult({
           'La lectura quedó guardada, pero el servicio no la evaluará hasta que confirmes sus valores. Si te equivocaste al ingresarlos, registra una nueva medición.',
       }
     : readingStatusLabel(reading.status);
+  const evaluation = !unconfirmed && reading.status === 'EVALUATED' && reading.evaluation ? evaluationPresentation(reading.evaluation) : null;
   const pending = !unconfirmed && reading.status === 'PENDING';
 
   return (
@@ -66,6 +68,11 @@ export function ReadingResult({
       <ThemedText style={[styles.summary]}>{summary}</ThemedText>
       <ThemedText style={[styles.text, { color: theme.mutedText }]}>{label.description}</ThemedText>
 
+      {!unconfirmed && reading.status === 'EVALUATED' && (
+        <ThemedText style={[styles.text, { color: evaluation?.colors.foreground ?? theme.mutedText }]}>
+          {evaluation ? `Resultado: ${evaluation.label}${evaluation.severity ? ` · Severidad: ${evaluation.severity}` : ''}` : 'Sin resultado clínico disponible'}
+        </ThemedText>
+      )}
       {!!refreshError && (
         <ThemedText accessibilityRole="alert" style={[styles.text, { color: theme.danger }]}>
           {refreshError}

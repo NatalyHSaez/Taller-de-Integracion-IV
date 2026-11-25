@@ -1,3 +1,4 @@
+import { evaluationPresentation } from './evaluation-presentation';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -19,23 +20,6 @@ const PARAMETER_PRESENTATION: Record<string, ParameterPresentation> = {
   HEART_RATE: { icon: 'heart-outline', label: 'Frecuencia cardíaca' },
   GLUCOSE: { icon: 'water-outline', label: 'Glucosa' },
   WEIGHT: { icon: 'scale-bathroom', label: 'Peso' },
-};
-
-const EVALUATION_STATUS_LABELS: Record<string, string> = {
-  NORMAL: 'Normal',
-  ADVERTENCIA: 'Advertencia',
-  ALERTA: 'Alerta',
-  INFORMATIVA: 'Informativa',
-  DATOS_INSUFICIENTES: 'Datos insuficientes',
-  NO_APLICABLE: 'No aplicable',
-  ENTRADA_INVALIDA: 'Entrada inválida',
-};
-
-const SEVERITY_LABELS: Record<string, string> = {
-  BAJA: 'Baja',
-  MEDIA: 'Media',
-  ALTA: 'Alta',
-  MUY_ALTA: 'Muy alta',
 };
 
 function formatDate(value: string): string {
@@ -90,15 +74,6 @@ function readingStatusColors(status: ReadingDetail['status']) {
   switch (status) {
     case 'REQUIRES_CONFIRMATION': return StatusColors.warning;
     case 'PENDING': return StatusColors.info;
-    default: return StatusColors.neutral;
-  }
-}
-
-function evaluationStatusColors(status: string) {
-  switch (status) {
-    case 'NORMAL': return StatusColors.normal;
-    case 'ADVERTENCIA': return StatusColors.warning;
-    case 'ALERTA': return StatusColors.danger;
     default: return StatusColors.neutral;
   }
 }
@@ -162,8 +137,9 @@ export function ReadingDetailView({ state, theme, reading, loading, detailError,
   }
 
   const badgeColors = readingStatusColors(reading.status);
-  const evaluation = reading.evaluation ?? null;
-  const evaluationColors = evaluation ? evaluationStatusColors(evaluation.status) : StatusColors.neutral;
+  const evaluation = reading.status === 'EVALUATED' ? reading.evaluation ?? null : null;
+  const clinicalPresentation = evaluation ? evaluationPresentation(evaluation) : null;
+  const evaluationColors = clinicalPresentation?.colors ?? StatusColors.neutral;
 
   return (
     <ThemedView style={styles.screen}>
@@ -257,7 +233,7 @@ export function ReadingDetailView({ state, theme, reading, loading, detailError,
           )}
           {reading.status === 'EVALUATED' && !evaluation && (
             <ThemedText style={[styles.explanation, { color: theme.mutedText }]}>
-              La lectura está evaluada, pero el servicio no entregó detalles de la evaluación.
+              Lectura procesada. No hay un resultado clínico disponible para esta medición.
             </ThemedText>
           )}
           <ActionButton
@@ -268,16 +244,16 @@ export function ReadingDetailView({ state, theme, reading, loading, detailError,
           />
         </View>
 
-        {evaluation && (
+        {evaluation && clinicalPresentation && (
           <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Evaluación del servidor</ThemedText>
             <View style={[styles.statusBadge, { alignSelf: 'flex-start', backgroundColor: evaluationColors.background }]}>
               <ThemedText style={[styles.statusText, { color: evaluationColors.foreground }]}>
-                {EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status}
+                {clinicalPresentation.label}
               </ThemedText>
             </View>
-            {evaluation.severity && (
-              <InfoRow icon="alert-outline" label="Severidad" value={SEVERITY_LABELS[evaluation.severity] ?? evaluation.severity} theme={theme} />
+            {clinicalPresentation.severity !== null && (
+              <InfoRow icon="alert-outline" label="Severidad" value={clinicalPresentation.severity} theme={theme} />
             )}
             <ThemedText style={styles.explanation}>{evaluation.explanation || 'Sin explicación entregada por el servidor.'}</ThemedText>
             <InfoRow icon="clock-outline" label="Fecha de evaluación"

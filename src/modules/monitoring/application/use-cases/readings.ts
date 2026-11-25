@@ -1,3 +1,4 @@
+import { hasValidReadingEvaluation, isReadingEvaluation } from '../../domain/reading-query';
 import type {
   ClinicalParameterCode,
   CreateReadingRequest,
@@ -179,8 +180,12 @@ function toCreateResponse(raw: unknown, expectedReadingId?: string): CreateReadi
       message: 'El servidor respondió sin identificador de lectura. Revisa el historial antes de volver a intentar.',
     });
   }
+  if (!hasValidReadingEvaluation(value.status, value.evaluation)) {
+    throw new ApiError({ code: 'INVALID_API_RESPONSE', message: 'El servidor devolvió una evaluación inválida. Revisa el historial.' });
+  }
   return {
     readingId: value.readingId,
+    ...(value.evaluation === null ? { evaluation: null } : isReadingEvaluation(value.evaluation) ? { evaluation: value.evaluation } : {}),
     status: typeof value.status === 'string' ? value.status : undefined,
     confirmationReasons: Array.isArray(value.confirmationReasons)
       ? value.confirmationReasons.filter((r): r is string => typeof r === 'string')

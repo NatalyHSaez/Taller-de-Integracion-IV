@@ -1,3 +1,4 @@
+import { hasValidReadingEvaluation } from '../../domain/reading-query';
 import { getPatientReadings } from '../ports/reading-query-port';
 import type { PaginatedReadingsResponse, ReadingResponse, ReadingsQuery } from '../../domain/reading-query';
 import { ApiError, getApiErrorMessage } from '../../../../core/domain/errors';
@@ -86,6 +87,7 @@ export function checkHistoryPage(raw: unknown, patientId: string, page: number):
         seen.has(reading.readingId) ||
         typeof reading.measuredAt !== 'string' || !Number.isFinite(Date.parse(reading.measuredAt)) ||
         !['PENDING', 'REQUIRES_CONFIRMATION', 'EVALUATED'].includes(String(reading.status)) ||
+        !hasValidReadingEvaluation(reading.status, reading.evaluation) ||
         !Array.isArray(reading.measurements) ||
         !reading.measurements.every((measurement: unknown) => {
           if (!measurement || typeof measurement !== 'object' || Array.isArray(measurement)) return false;

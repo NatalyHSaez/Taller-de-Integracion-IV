@@ -1,3 +1,4 @@
+import type { ReadingEvaluation } from '../reading-query';
 import type { ISODateTime, UUID } from '@/src/core/domain/contracts/common';
 
 /** Unidades canónicas de los parámetros contemplados por la aplicación. */
@@ -37,6 +38,7 @@ export type CreateReadingResponse = {
   readingId: UUID;
   status?: string;
   confirmationReasons?: string[];
+  evaluation?: ReadingEvaluation | null;
 };
 
 

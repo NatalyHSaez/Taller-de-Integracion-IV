@@ -1,3 +1,4 @@
+import { evaluationPresentation } from './evaluation-presentation';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -71,6 +72,7 @@ export function ReadingHistoryItem({ reading, theme, onOpen }: ReadingHistoryIte
     label: 'Registrada',
     colors: StatusColors.neutral,
   };
+  const evaluation = reading.status === 'EVALUATED' && reading.evaluation ? evaluationPresentation(reading.evaluation) : null;
   const lines = describeReading(reading);
   const context = reading.context ? CONTEXT_LABELS[reading.context] ?? reading.context : null;
 
@@ -79,7 +81,7 @@ export function ReadingHistoryItem({ reading, theme, onOpen }: ReadingHistoryIte
       accessibilityRole="button"
       accessibilityLabel={`Lectura de las ${formatTime(reading.measuredAt)}. ${lines
         .map((line) => `${line.title}: ${line.value}`)
-        .join('. ')}. Estado: ${badge.label}`}
+        .join('. ')}. Estado: ${badge.label}${evaluation ? `. Resultado: ${evaluation.label}` : ''}`}
       accessibilityHint="Abre el detalle de esta lectura"
       onPress={() => onOpen(reading.readingId)}
       style={({ pressed }) => [
@@ -101,6 +103,11 @@ export function ReadingHistoryItem({ reading, theme, onOpen }: ReadingHistoryIte
         </View>
       ))}
 
+      {reading.status === 'EVALUATED' && (
+        <ThemedText style={{ color: evaluation?.colors.foreground ?? theme.mutedText }}>
+          {evaluation ? `Resultado: ${evaluation.label}${evaluation.severity ? ` · Severidad: ${evaluation.severity}` : ''}` : 'Sin resultado clínico disponible'}
+        </ThemedText>
+      )}
       <View style={styles.footer}>
         {context ? (
           <ThemedText style={[styles.context, { color: theme.mutedText }]}>{context}</ThemedText>

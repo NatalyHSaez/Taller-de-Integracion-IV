@@ -1,3 +1,4 @@
+import type { ReadingEvaluation } from '../../domain/reading-query';
 import type { ISODateTime, UUID } from '@/src/core/domain/contracts/common';
 import type { ReadingStatus } from '@/src/modules/monitoring/domain/contracts/reading';
 import type { ReadingContext } from '@/src/modules/monitoring/domain/contracts/reading';
@@ -12,12 +13,7 @@ export type BackendMeasurementResponse = {
 };
 
 /** Evaluación anidada en la respuesta de una lectura; no es el DTO legado de Evaluación. */
-export type BackendReadingEvaluationResponse = {
-  status: string;
-  severity: string | null;
-  explanation: string | null;
-  evaluatedAt: ISODateTime | null;
-};
+export type BackendReadingEvaluationResponse = ReadingEvaluation;
 
 /**
  * ReadingOut real de GET /patients/{patientId}/readings y GET de detalle.

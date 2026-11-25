@@ -1,3 +1,25 @@
+/** Resultado clínico informado por el servidor, no calculado por la app. */
+export type ReadingEvaluation = {
+  status: 'NORMAL' | 'ADVERTENCIA' | 'ALERTA';
+  severity: 'BAJA' | 'MEDIA' | 'ALTA' | 'MUY_ALTA' | null;
+  explanation: string | null;
+  evaluatedAt: string | null;
+};
+
+/** El servidor puede procesar una lectura sin reglas aplicables. */
+export function isReadingEvaluation(value: unknown): value is ReadingEvaluation {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.status === 'string' && ['NORMAL', 'ADVERTENCIA', 'ALERTA'].includes(row.status) &&
+    (row.severity === null || (typeof row.severity === 'string' && ['BAJA', 'MEDIA', 'ALTA', 'MUY_ALTA'].includes(row.severity))) &&
+    (row.explanation === null || typeof row.explanation === 'string') &&
+    (row.evaluatedAt === null || (typeof row.evaluatedAt === 'string' && Number.isFinite(Date.parse(row.evaluatedAt))));
+}
+
+export function hasValidReadingEvaluation(status: unknown, evaluation: unknown): boolean {
+  return evaluation === undefined || evaluation === null || (status === 'EVALUATED' && isReadingEvaluation(evaluation));
+}
+
 export type ReadingResponse = {
   readingId: string;
   patientId: string;
@@ -14,12 +36,7 @@ export type ReadingResponse = {
   context?: string | null;
   source?: string;
   recordedBy?: string;
-  evaluation?: {
-    status: string;
-    severity: string | null;
-    explanation: string | null;
-    evaluatedAt: string | null;
-  } | null;
+  evaluation?: ReadingEvaluation | null;
 };
 
 export type PaginatedReadingsResponse = {

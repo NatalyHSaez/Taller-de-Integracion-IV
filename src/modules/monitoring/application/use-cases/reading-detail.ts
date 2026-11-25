@@ -1,5 +1,5 @@
 import { getPatientReading } from '../ports/reading-query-port';
-import type { ReadingResponse } from '../../domain/reading-query';
+import { hasValidReadingEvaluation, type ReadingResponse } from '../../domain/reading-query';
 import { ApiError, normalizeApiError } from '../../../../core/domain/errors';
 
 /**
@@ -125,16 +125,7 @@ export function checkReadingDetail(raw: unknown, patientId: string, readingId: s
         typeof m.confirmedByUser !== 'boolean') throw invalid();
     ids.add(m.measurementId);
   }
-  if (row.evaluation !== undefined && row.evaluation !== null) {
-    if (typeof row.evaluation !== 'object' || Array.isArray(row.evaluation)) throw invalid();
-    const ev = row.evaluation as Record<string, unknown>;
-    if (typeof ev.status !== 'string' || !ev.status ||
-        (ev.severity != null && typeof ev.severity !== 'string') ||
-        (ev.explanation != null && typeof ev.explanation !== 'string') ||
-        (ev.evaluatedAt != null && (typeof ev.evaluatedAt !== 'string' || !Number.isFinite(Date.parse(ev.evaluatedAt))))) {
-      throw invalid();
-    }
-  }
+  if (!hasValidReadingEvaluation(row.status, row.evaluation)) throw invalid();
   return raw as ReadingDetail;
 }
 

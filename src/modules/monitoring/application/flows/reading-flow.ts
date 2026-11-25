@@ -10,6 +10,7 @@ export type SubmittedReading = {
   status: string;
   /** Motivos tal como los entrega el backend; no se reinterpretan. */
   reasons: string[];
+  evaluation?: CreateReadingResponse['evaluation'];
 };
 
 /**
@@ -36,6 +37,7 @@ function toReading(patientId: string, response: CreateReadingResponse): Submitte
     readingId: response.readingId,
     status: response.status ?? 'PENDING',
     reasons: response.confirmationReasons ?? [],
+    evaluation: response.evaluation,
   };
 }
 
@@ -94,7 +96,7 @@ export function createReadingFlow(service: ReadingFlowService) {
         const response = await service.confirm(reading.patientId, reading.readingId);
         set({
           step: 'result',
-          reading: { ...reading, status: response.status ?? 'PENDING', reasons: reading.reasons },
+          reading: { ...reading, status: response.status ?? 'PENDING', reasons: reading.reasons, evaluation: response.evaluation },
           refreshing: false,
           refreshError: null,
         });
@@ -128,6 +130,7 @@ export function createReadingFlow(service: ReadingFlowService) {
             ...reading,
             status: response.status ?? reading.status,
             reasons: response.confirmationReasons ?? reading.reasons,
+            evaluation: response.evaluation,
           }),
         );
       } catch (cause) {
