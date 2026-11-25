@@ -1,8 +1,7 @@
 # Arquitectura de la app
 
 La app sigue **arquitectura limpia (clean architecture) por capas, organizada por módulos que
-corresponden a los microservicios del backend**. Así, cuando cambia un microservicio, en la app
-se toca solo su módulo, y la lógica se puede probar sin la interfaz ni el servidor.
+representan funcionalidades de la aplicación**. Varios módulos pueden consumir el mismo microservicio; la lógica se puede probar sin la interfaz ni el servidor.
 
 ```
 app/                         Rutas y layouts de Expo Router; las pantallas viven en los módulos.
@@ -18,11 +17,11 @@ src/
       storage/               Tokens (SecureStore en el celular, sessionStorage en la web)
     presentation/session/    Contexto y hook de React del estado global
   modules/
-    identity/                ↔ microservicio identidad
-    relationships/           ↔ microservicio relaciones
-    monitoring/              ↔ microservicio seguimiento
-    evaluation/              ↔ microservicio evaluacion
-    notifications/           ↔ microservicio notificaciones
+    identity/                ↔ acceso
+    relationships/           ↔ acceso
+    monitoring/              ↔ clínico
+    evaluation/              ↔ clínico
+    notifications/           ↔ notificaciones
     dashboard/               Inicio: combina datos de varios módulos (sin microservicio propio)
     medical-care/            Atención médica y documentos (sin datos simulados)
   shared/presentation/       Componentes de UI, tema y hooks visuales comunes
@@ -39,10 +38,10 @@ scripts/check-architecture.cjs   Verifica las reglas de este documento (npm run 
 
 | Módulo          | Microservicio   | Endpoints (vía API Gateway)                                                        |
 |-----------------|-----------------|------------------------------------------------------------------------------------|
-| `identity`      | identidad       | `/auth/*`, `/me`, `/patients/{id}`                                                  |
-| `relationships` | relaciones      | `/me/patients`, `/patients/{id}/caregivers` y `/doctors`, `/caregiver-relationships/*`, `/doctor-relationships/*`, `/link-codes/*` |
-| `monitoring`    | seguimiento     | `/patients/{id}/readings`, `/patients/{id}/measurements`, `/clinical-parameters`, `/health-conditions` |
-| `evaluation`    | evaluacion      | `/patients/{id}/alerts` (y `/parameter-limits`, ver excepciones)                   |
+| `identity`      | acceso          | `/auth/*`, `/me`, `/patients/{id}`                                                  |
+| `relationships` | acceso          | `/me/patients`, `/patients/{id}/caregivers` y `/doctors`, `/caregiver-relationships/*`, `/doctor-relationships/*`, `/link-codes/*` |
+| `monitoring`    | clínico         | `/patients/{id}/readings`, `/patients/{id}/measurements`, `/clinical-parameters`, `/health-conditions`, `/parameter-limits` |
+| `evaluation`    | clínico         | `/patients/{id}/alerts`                   |
 | `notifications` | notificaciones  | `/notifications`                                                                    |
 
 ## Las cuatro capas de cada módulo
@@ -116,55 +115,10 @@ externos y la corrección del comportamiento del backend requieren otras verific
   `modules/identity/application/use-cases/registration`…) usan imports **relativos** a propósito: los scripts
   de `scripts/` los compilan con `tsc` sin el alias. Al editarlos, mantenerlos relativos.
 
-## Excepciones conocidas y próximos pasos
+## Composición y alcance actual
 
-La validación final ya analiza las dependencias hacia Core, las rutas y las fixtures. Los puertos y modelos compartidos todavía preservan algunas formas del contrato anterior por compatibilidad; no se agregan endpoints nuevos.
+`composition/configure/` conecta los puertos de sesión, identidad, relaciones, seguimiento, notificaciones y dashboard con adaptadores reales. Las rutas especiales de login, alertas y configuración delegan en `composition/routes/`. Monitoring contiene los contratos de registro y catálogo y el DTO de lectura. Core mantiene los contratos transversales y una única clase de error. Las fixtures históricas no se importan desde producción.
 
-### Composición del estado global
+El backend conserva el Gateway y cuatro microservicios: acceso (identidad y relaciones), clínico (seguimiento, evaluación y atención médica), notificaciones y auditoría. Dashboard combina datos de otros módulos y no tiene microservicio propio. El módulo medical-care actualmente contiene presentación; no inventa documentos. Las condiciones asignadas aún no se consumen desde la app. Push sigue pendiente.
 
-`composition/configure/configure-app-state.ts` conecta el puerto `AppStateDependencies` con los adaptadores reales y se importa desde `app/_layout.tsx` antes de restaurar la sesión. La carpeta `composition/` queda fuera de las capas internas a propósito. `app-state.ts` no importa el módulo de relaciones ni la caché HTTP; las pruebas pueden inyectar sus propias implementaciones. `auth-session.ts` recibe ahora la invalidación del transporte mediante `configureAuthSession`.
-
-### Composición de identidad
-
-`composition/configure/configure-identity.ts` configura el puerto `IdentityDependencies`, conecta el almacenamiento y transporte reales, y registra los callbacks de renovación e invalidación de sesión. `auth-service.ts` y `profile.ts` consumen el puerto; el formulario registra mediante `authService`. La ficha recibe su adaptador por parámetro. Los contratos compartidos y errores se reorganizaron en el Grupo 10.
-
-### Composición de relaciones
-
-`composition/configure/configure-relationships.ts` conecta `RelationshipsRepository` con el adaptador HTTP real. Los casos de uso de códigos, listados y gestión de vínculos usan ese puerto. Los modelos se encuentran en `domain/relationships.ts`; el adaptador conserva reexportaciones de tipos para compatibilidad. Las rutas de vínculos e invitación y la tarjeta de médico ya no importan el adaptador directamente. Las dependencias de dashboard y monitoring hacia relaciones se resolverán en sus respectivos grupos. Los errores HTTP compartidos se reorganizaron en el Grupo 10.
-
-### Composición de seguimiento (grupo 5)
-
-`MonitoringRepository` separa los casos de uso de registro, confirmación, catálogos y nombres de personas vinculadas del transporte HTTP. `composition/configure/configure-monitoring.ts` conecta `monitoringApi` y los casos de uso de relaciones. Los filtros, límites técnicos y rutas existentes se conservan. Historial y gráficos se reorganizaron en el Grupo 6, las pantallas en el Grupo 9 y los contratos y errores de Core en el Grupo 10.
-
-### Consultas de lecturas (grupo 6)
-
-`ReadingQueryRepository` separa las consultas frescas de historial, detalle y gráficos del transporte. La composición de seguimiento registra el adaptador; los modelos y el mapper se ubican en dominio. Los adaptadores anteriores conservan reexportaciones por compatibilidad. Las pantallas usan el puerto sin importar el adaptador; la lógica visual y filtros existentes se conservan. Las rutas se reorganizaron en el Grupo 9 y los errores compartidos en el Grupo 10.
-
-### Notificaciones internas (grupo 7)
-
-El contrato `NotificationsApi` permanece en dominio. `notifications-port.ts` registra el repositorio y la raíz `composition/configure/configure-notifications.ts` conecta el adaptador HTTP. El hook observa la sesión de Core y delega en aplicación. Las rutas de Expo Router reexportan las pantallas de presentación. Se conserva la lectura manual y la paginación; se verifica también la generación de sesión antes de mostrar datos o refrescar tras marcar. No se incorpora push ni se modifica el contrato HTTP. Los adaptadores demo y errores Core se reorganizaron en el Grupo 10.
-
-### Dashboard (grupo 8)
-
-`HomeSummaryDeps` y `home-summary-port.ts` permiten configurar las consultas de mediciones, alertas y permisos desde `composition/configure/configure-dashboard.ts`. La pantalla se mueve a `dashboard/presentation/screens/home-screen.tsx`; la ruta reexporta el componente. Se conserva la lógica de presentación y se limpian los datos del resumen si la actualización devuelve 401 o 403. Los modelos de lectura y alerta se comparten mediante tipos de dominio; los errores Core y las fixtures se reorganizaron en el Grupo 10.
-
-### Grupo 9: pantallas y rutas
-Las rutas de Expo Router delegan en pantallas de presentación de los módulos; los layouts mantienen la navegación. Perfil y ficha usan el puerto de identidad. Configuración recibe el diagnóstico P7 por composición en su ruta. Documentos no muestra archivos ficticios ni incorpora endpoints sin contrato. Los errores y contratos compartidos de Core se reorganizaron en el Grupo 10; la revisión final de responsabilidades queda en el Grupo 11.
-
-### Grupo 10: limpieza de producción
-El módulo demo y los adaptadores ficticios salen de `src/`. El código histórico requerido por pruebas se conserva bajo `tests/fixtures/demo`, sin importaciones desde producción. Los scripts activos apuntan a esas fixtures. `core/domain/contracts` contiene los tipos compartidos utilizados por las capas internas; los DTO HTTP mantienen reexportaciones de compatibilidad y los tipos exclusivos de transporte. `core/domain/errors` contiene una clase ApiError única y la normalización de valores simples; la lectura de objetos Response permanece en infraestructura. El diagnóstico del Gateway se inyecta a la pantalla de login desde su ruta. La normalización de payloads históricos y los tipos de lectura legados se conservan temporalmente para no romper los contratos existentes.
-
-### Grupo 11: validación final
-
-El verificador ampliado analiza 168 archivos productivos de la copia acumulada de los grupos 1–10: cero infracciones y cero ciclos locales detectados. Las cuatro nuevas pruebas comprueban el código real, el rechazo de dependencias indebidas, la extracción de imports y la detección de ciclos y destinos inexistentes. Las referencias entre módulos a modelos y casos de uso permitidos se conservan: no es necesario eliminar toda colaboración entre módulos.
-
-Antes de cerrar la tarea ejecutar `npm run check:arch`, `npm test`, `npx tsc --noEmit` y las pruebas específicas de identidad y seguridad. Comprobar también la aplicación con Expo y el backend real. La revisión estática no certifica por sí sola toda la arquitectura ni los flujos de ejecución.
-
-
-## Depuración complementaria
-
-Las rutas de alertas, login y configuración delegan en componentes de `composition/`; ninguna ruta importa infraestructura directamente. El verificador devuelve error también ante ciclos locales. El detalle de lectura utiliza un único componente visual de producción, probado directamente. Se retiraron los modelos históricos de severidad y el tipo antiguo queda solo en una fixture. Los scripts históricos se conservan en el historial de Git; los guiones activos se mantienen. No se modifican los endpoints ni se añaden cálculos clínicos.
-
-## Grupo 13 — Organización interna
-
-`composition/configure/` registra dependencias y `composition/routes/` contiene los puntos de entrada que requieren composición. Los módulos separan `application/ports/`, `application/use-cases/`, `application/flows/`, `application/errors/` y `application/validation/` según corresponda. Los adaptadores HTTP se encuentran en `infrastructure/api/`. Monitoring posee sus contratos de registro y catálogo en `domain/contracts/` y su DTO real de lectura en `infrastructure/dto/`. Core conserva solo contratos compartidos de sesión, identificadores, salud del Gateway y errores; las solicitudes de cuenta pertenecen a Identity. Los contratos históricos que solo usan fixtures se encuentran en `tests/fixtures/contracts/`, sin referencias desde producción. Se elimina el método de detalle legado sin consumidores; el detalle real sigue en el repositorio de consultas. Las pruebas se agrupan en `architecture/`, `contracts/` y `functional/` (estas últimas incluyen pruebas de vistas y casos de uso). No se cambian las rutas HTTP ni el diseño de las pantallas.
+La validación estática no reemplaza las pruebas contra el servidor real. Ejecutar `npm run check:arch`, `npm test` y `npx tsc --noEmit` antes de cerrar cambios.

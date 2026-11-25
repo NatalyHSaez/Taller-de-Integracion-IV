@@ -1,3 +1,3 @@
-# Expo HAS CHANGED
+# Proyecto Expo
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+Consultar la documentación correspondiente a la versión declarada en `package.json` (actualmente SDK 57) antes de modificar código dependiente de Expo. Respetar `docs/arquitectura.md` y ejecutar las pruebas del README.

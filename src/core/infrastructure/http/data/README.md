@@ -1,6 +1,6 @@
 # Capa de datos — P3
 
-`services/api.ts` concentra HTTP, Bearer token, timeout, cancelación y normalización.
+`../api-client.ts` concentra HTTP, Bearer token, timeout, cancelación y normalización.
 `data-client.ts` añade caché en memoria, deduplicación de GET y reintentos.
 `cache.ts` conserva respuestas temporalmente; `retry.ts` define la política común.
 
@@ -16,13 +16,13 @@ Sin estado HTTP, se admiten `NETWORK_ERROR`, `REQUEST_TIMEOUT`,
 `AUTHORIZATION_UNAVAILABLE`. Una cancelación no se reintenta.
 
 Esta es la política de `dataClient`. La renovación de tokens ante un 401 que ya
-existe en `api.ts` es otro mecanismo, cuya consolidación corresponde a P4.
+existe en `api-client.ts` es un mecanismo separado.
 POST/PATCH/DELETE no utilizan los reintentos automáticos de esta capa.
 
 ## Caché
 
 La caché permanece solo en memoria. Por defecto, una entrada dura 30 segundos y
-puede usarse durante cinco minutos adicionales ante un fallo transitorio.
+solo puede usarse ante un fallo transitorio si se configura explícitamente `staleIfErrorMs`.
 La misma función `isRetryableApiError` decide qué fallos permiten esta copia.
 
 Un fallo no transitorio descarta la entrada afectada y se propaga como `ApiError`.
@@ -33,8 +33,8 @@ petición de red: usar `forceRefresh` cuando corresponda comprobar el estado act
 `clearCache()` cambia la generación: una petición antigua no puede escribir en la
 caché nueva, recuperar su contenido como respaldo de un fallo ni borrar sus
 peticiones en curso. La selección de paciente y el aislamiento completo de sesión
-continúan desarrollándose en P4–P6.
+se gestionan mediante la revisión de sesión y claves de consulta.
 
 Notificaciones usa `staleIfErrorMs: 0`, fuerza red al enfocar/refrescar y propaga
-fallos. Los datos de demostración requieren una sesión explícita `mock`.
+fallos. No existe modo de demostración en producción.
 El detalle de lectura conserva su configuración previa de caché temporal.

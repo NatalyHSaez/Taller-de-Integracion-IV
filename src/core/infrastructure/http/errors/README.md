@@ -86,4 +86,4 @@ try {
 
 La política de caché y reintentos se documenta en `../data/README.md`.
 Para verificar el parser en `main`, ejecutar `npm run test:api-errors`.
-En la rama integrada de Cristian también está disponible `node scripts/test-p3.cjs`.
+Las pruebas de contratos y regresión se ejecutan con `npm test`.

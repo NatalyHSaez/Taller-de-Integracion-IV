@@ -1,110 +1,79 @@
-# Sistema de Acompañamiento de Salud para Adultos Mayores — App Móvil
+# Sistema de Acompañamiento de Salud — App móvil
 
 **Curso:** INFO1173 - Taller de Integración IV
 
-##  ¿Qué es el proyecto?
+Aplicación móvil para pacientes y cuidadores, desarrollada con Expo, React Native y TypeScript. Consume el API Gateway del backend de Integración II.
 
-Un sistema de acompañamiento de salud que permite a cuidadores registrar y monitorear el estado de salud de adultos mayores (o personas con condiciones crónicas) a su cargo: mediciones de signos vitales, medicamentos, recordatorios y comunicación con un profesional de salud — todo compartido entre una plataforma web y una aplicación móvil que trabajan sobre el mismo backend.
+## Funcionalidades actuales
 
-**Problema que resuelve:** hoy, muchas familias llevan el control de salud de un adulto mayor en papel, WhatsApp o de memoria, perdiendo información valiosa, sin poder detectar tendencias a tiempo, ni compartir un historial ordenado con el médico tratante.
+- Registro, autenticación, renovación de sesión y perfil.
+- Vínculos de pacientes y cuidadores, códigos QR y permisos.
+- Registro y confirmación de mediciones de presión arterial, glucosa y peso.
+- Historial, gráficos, detalle de lecturas y resultados clínicos entregados por el backend.
+- Alertas y notificaciones internas con marcado de lectura.
+- Catálogo general de condiciones clínicas.
 
-Este repositorio contiene específicamente la **aplicación móvil** (INFO1173), construida en Expo (React Native).
+Pendiente: condiciones asignadas al paciente, completar validación clínica real, integración de atención médica/documentos y notificaciones push. La app no genera diagnósticos ni datos clínicos de demostración.
 
-##  Funcionalidades principales
+## Arquitectura
 
-| Función | Descripción |
+La app usa arquitectura limpia modular por funcionalidades, no un módulo por microservicio. El backend de Integración II consolida acceso, clínico, notificaciones y auditoría; la app se conecta solo al Gateway en `/api/v1`.
+
+```text
+app/                         Rutas Expo Router
+composition/                 Inyección de dependencias
+src/core/                    Sesión, contratos comunes, transporte y errores
+src/modules/identity/        Identidad y perfiles (acceso)
+src/modules/relationships/   Vínculos y permisos (acceso)
+src/modules/monitoring/      Mediciones y catálogos (clínico)
+src/modules/evaluation/      Alertas (clínico)
+src/modules/notifications/   Notificaciones internas
+src/modules/dashboard/       Resumen de inicio
+src/modules/medical-care/    Presentación pendiente de integración
+src/shared/presentation/     Componentes y tema comunes
+tests/                       Pruebas y fixtures aisladas
+scripts/                     Verificaciones y pruebas específicas
+docs/                        Documentación
+```
+
+Ver [arquitectura](docs/arquitectura.md), [contratos](docs/contratos-api.md) y [notificaciones](docs/notificaciones.md).
+
+## Entorno local
+
+Instalar dependencias con `npm ci`. La versión de Expo declarada en package.json es SDK 57; utilizar un cliente compatible con esa versión. No cambiar el SDK para esta actualización.
+
+Crear `.env.local` a partir de `.env.example` y establecer `EXPO_PUBLIC_API_URL` sin el sufijo `/api/v1`:
+
+| Entorno | URL de ejemplo |
 |---|---|
-| Registro de signos vitales | Presión, glicemia, peso, temperatura, con alertas visuales si están fuera de rango |
-| Recordatorios de medicamentos | Notificaciones de horarios de toma, con confirmación por el paciente o el cuidador |
-| Historial de cambios de medicación | Auditoría de cuándo se ajustó una dosis o tratamiento |
-| Roles y permisos granulares | Cuidador principal, cuidador secundario, médico (solo lectura) |
-| Notas clínicas del médico | El profesional puede comentar sin editar los datos registrados |
-| Modo de emergencia / contacto rápido | Botón para notificar rápidamente a cuidadores o servicios de emergencia |
-| Sincronización offline-first | La app funciona sin conexión y sincroniza al recuperar señal |
-| Geolocalización de servicios de salud | Mapa con consultorios/farmacias cercanas |
+| Web en el mismo computador | `http://localhost:8000` |
+| Emulador Android estándar | `http://10.0.2.2:8000` |
+| Teléfono físico | `http://192.168.X.X:8000` |
 
-##  Arquitectura general
-...
-
-##  Stack tecnológico (App Móvil)
-
-...
-## 📁 Estructura de carpetas
-
-La app sigue **arquitectura limpia por capas**, con un módulo por cada microservicio del backend.
-El detalle, las reglas entre capas y cómo agregar un endpoint están en
-[`docs/arquitectura.md`](docs/arquitectura.md). `npm run check:arch` verifica las reglas.
-
-```
-Taller-de-Integracion-IV/
-├── app/                      # Rutas y composición de pantallas (Expo Router)
-├── composition/              # Conexión de puertos y adaptadores reales
-├── src/
-│   ├── core/                 # Núcleo: cliente HTTP, errores, DTO, tokens, sesión
-│   ├── modules/
-│   │   ├── identity/         #   ↔ identidad      (login, registro, perfil, ficha)
-│   │   ├── relationships/    #   ↔ relaciones     (vínculos, permisos, códigos QR)
-│   │   ├── monitoring/       #   ↔ seguimiento    (lecturas, mediciones, gráficos)
-│   │   ├── evaluation/       #   ↔ evaluacion     (alertas)
-│   │   ├── notifications/    #   ↔ notificaciones
-│   │   ├── dashboard/        #   Inicio
-│   │   └── medical-care/     #   Atención médica y documentos
-│   │       (cada módulo: domain/ application/ infrastructure/ presentation/)
-│   └── shared/presentation/  # UI y tema comunes
-├── tests/                    # Pruebas (npm test), fixtures ficticias aisladas
-├── scripts/                  # Pruebas de línea de comandos y check-architecture
-├── docs/                     # Documentación
-└── assets/                   # Íconos, splash e imágenes
-```
-
-### Carpetas que NO se suben al repositorio
-
-Definidas en `.gitignore`, se generan localmente al correr `npm install`:
-
-- `node_modules/`
-- `.expo/`
-
-##  Cómo levantar el proyecto localmente
-
-```bash
-git clone https://github.com/NatalyHSaez/Taller-de-Integracion-IV.git
-cd Taller-de-Integracion-IV
-git checkout <nombre-de-tu-rama>
-git pull origin main
-npm install
-npm run start
-```
-
-Escanea el código QR con la app **Expo Go** desde tu celular, o presiona `w` para abrirlo en el navegador.
-
-### Conexión con el backend local
-
-La aplicación funciona sin configuración adicional cuando el backend se ejecuta en el mismo computador:
-
-- Expo Web usa `http://localhost:8000`.
-- Android Emulator usa `http://10.0.2.2:8000`.
-
-Para usar **Expo Go en un teléfono físico**, crea un archivo `.env.local` a partir del ejemplo:
+El teléfono debe poder alcanzar el Gateway en la red local. La variable es obligatoria para consumir la API; no se selecciona automáticamente una URL. No incluir secretos en variables `EXPO_PUBLIC_*`, ni versionar `.env.local`.
 
 ```powershell
-Copy-Item .env.example .env.local
+npm ci
+Copy-Item .env.example .env.local # solo si todavía no existe
+# Editar .env.local con la URL correcta
+npx expo start -c
 ```
 
-Ejecuta `ipconfig`, busca la dirección IPv4 del computador que ejecuta el backend y reemplaza el valor del archivo:
-
-```env
-EXPO_PUBLIC_API_URL=http://192.168.X.X:8000
-```
-
-Después reinicia Expo y vuelve a cargar la aplicación:
+## Verificaciones
 
 ```powershell
-npx expo start --clear
+npm run check:arch
+npm test
+npx tsc --noEmit
+npm run test:registration
+npm run test:login
+npm run test:profile
+npm run test:session
+npm run test:onboarding
+npm run test:api-errors
 ```
 
-El teléfono y el computador deben estar en la misma red. El backend debe aceptar conexiones externas (por ejemplo, escuchando en `0.0.0.0`) y el firewall debe permitir el puerto `8000`. El archivo `.env.local` es personal, está ignorado por Git y no debe subirse al repositorio.
-
-> **Nota de compatibilidad:** el proyecto usa **Expo SDK 54** para asegurar compatibilidad con la versión de Expo Go disponible actualmente en las tiendas de aplicaciones.
+Las pruebas automatizadas usan dobles aislados; las pruebas HTTP reales requieren un backend local disponible. Los scripts `smoke-*` y `verify-p7-live.cjs` se mantienen para esas comprobaciones. Los smoke pueden crear cuentas de desarrollo. No ejecutar contra producción.
 
 ##  Equipo
 

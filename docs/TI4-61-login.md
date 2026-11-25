@@ -1,6 +1,8 @@
 # TI4-61 — Login real
 
-## Comportamiento implementado
+> Registro histórico del 3 de noviembre de 2026. La aplicación actual ya no tiene modo demo; los vínculos se consultan en el backend. Las evidencias siguientes corresponden a esa fecha, no certifican el backend nuevo.
+
+## Comportamiento implementado en esa fecha
 
 - El acceso normal llama a `POST /api/v1/auth/login` y después a `GET /api/v1/me`.
 - `/me` se consulta en el servicio; la pantalla no repite la petición.
