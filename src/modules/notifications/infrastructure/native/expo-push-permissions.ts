@@ -1,12 +1,20 @@
 import { canRequestPushPermission, type PushPermission, type PushPermissionPort } from '../../domain/push-permission';
 
 export const PUSH_CHANNEL_ID = 'health-updates';
-type Environment = 'android' | 'ios' | 'web-or-other' | 'expo-go';
+export type PushEnvironment = 'android' | 'ios' | 'web-or-other' | 'expo-go';
 type NotificationsModule = Pick<typeof import('expo-notifications'),
   'getPermissionsAsync' | 'requestPermissionsAsync' | 'setNotificationChannelAsync' |
   'IosAuthorizationStatus' | 'AndroidImportance' | 'AndroidNotificationVisibility'>;
 
 type NativePermission = Awaited<ReturnType<NotificationsModule['getPermissionsAsync']>>;
+
+export async function ensureAndroidPushChannel(sdk: Pick<NotificationsModule, 'setNotificationChannelAsync' | 'AndroidImportance' | 'AndroidNotificationVisibility'>): Promise<void> {
+  await sdk.setNotificationChannelAsync(PUSH_CHANNEL_ID, {
+    name: 'Avisos de salud',
+    importance: sdk.AndroidImportance.DEFAULT,
+    lockscreenVisibility: sdk.AndroidNotificationVisibility.PRIVATE,
+  });
+}
 
 function normalize(raw: NativePermission, sdk: NotificationsModule, platform: 'android' | 'ios'): PushPermission {
   const canAskAgain = raw.canAskAgain === true;
@@ -29,7 +37,7 @@ function normalize(raw: NativePermission, sdk: NotificationsModule, platform: 'a
 }
 
 export function createExpoPushPermissions(
-  environment: () => Promise<Environment>,
+  environment: () => Promise<PushEnvironment>,
   load: () => Promise<NotificationsModule>,
 ): PushPermissionPort {
   async function run(request: boolean): Promise<PushPermission> {
@@ -40,11 +48,7 @@ export function createExpoPushPermissions(
     const sdk = await load();
     // La lectura de permiso no crea canales ni muestra diálogos.
     if (request && platform === 'android') {
-      await sdk.setNotificationChannelAsync(PUSH_CHANNEL_ID, {
-        name: 'Avisos de salud',
-        importance: sdk.AndroidImportance.DEFAULT,
-        lockscreenVisibility: sdk.AndroidNotificationVisibility.PRIVATE,
-      });
+      await ensureAndroidPushChannel(sdk);
     }
     const current = normalize(await sdk.getPermissionsAsync(), sdk, platform);
     if (!request || !canRequestPushPermission(current)) return current;
@@ -55,11 +59,13 @@ export function createExpoPushPermissions(
   return { get: () => run(false), request: () => run(true) };
 }
 
-export const expoPushPermissions = createExpoPushPermissions(async () => {
+export async function pushEnvironment(): Promise<PushEnvironment> {
   const { Platform } = await import('react-native');
   const os = Platform.OS;
   if (os !== 'android' && os !== 'ios') return 'web-or-other';
   const { isRunningInExpoGo } = await import('expo');
   if (isRunningInExpoGo()) return 'expo-go';
   return os;
-}, () => import('expo-notifications'));
+}
+
+export const expoPushPermissions = createExpoPushPermissions(pushEnvironment, () => import('expo-notifications'));
