@@ -5,6 +5,10 @@ import { expoPushPermissions } from '../../src/modules/notifications/infrastruct
 import { configurePushToken } from '../../src/modules/notifications/application/ports/push-token-port';
 import { expoPushToken } from '../../src/modules/notifications/infrastructure/native/expo-push-token';
 
+import { configurePushReception } from '../../src/modules/notifications/application/ports/push-reception-port';
+import { expoPushReception } from '../../src/modules/notifications/infrastructure/native/expo-push-reception';
+
 configureNotifications(backendNotificationsApi);
 configurePushPermissions(expoPushPermissions);
 configurePushToken(expoPushToken);
+configurePushReception(expoPushReception);

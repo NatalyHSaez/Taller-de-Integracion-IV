@@ -4,6 +4,8 @@ import '@/composition/configure/configure-monitoring';
 import '@/composition/configure/configure-relationships';
 import '@/composition/configure/configure-identity';
 import '@/composition/configure/configure-app-state';
+import { useEffect } from "react";
+import { startPushReception } from "@/src/modules/notifications/application/use-cases/push-reception";
 import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
 import { Colors } from "@/src/shared/presentation/theme";
 import { AppStateProvider } from "@/src/core/presentation/session/app-state-context";
@@ -130,6 +132,7 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => startPushReception(), []);
   return (
     <AuthProvider>
       <AppStateProvider>
