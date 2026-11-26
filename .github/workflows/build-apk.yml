@@ -23,14 +23,30 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build APK
-        run: eas build --platform android --profile preview --non-interactive
+      - name: Configure EAS project
+        run: eas init --id $(eas project:info --json --non-interactive | jq -r '.id // empty' || echo "") --non-interactive 2>/dev/null || eas init --account natalys --non-interactive
 
-      - name: Get APK URL
-        id: apk
+      - name: Build APK
+        run: eas build --platform android --profile preview --non-interactive --no-wait
+
+      - name: Wait and get APK URL
         run: |
-          URL=$(eas build:list --platform android --status finished --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Esperando que el build termine..."
+          sleep 30
+          for i in $(seq 1 60); do
+            STATUS=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].status')
+            echo "Intento $i: status=$STATUS"
+            if [ "$STATUS" = "FINISHED" ]; then
+              URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+              echo "url=$URL" >> "$GITHUB_OUTPUT"
+              break
+            elif [ "$STATUS" = "ERRORED" ]; then
+              echo "Build falló en EAS"
+              exit 1
+            fi
+            sleep 60
+          done
+        id: apk
 
       - name: Download APK
         run: curl -L -o app.apk "${{ steps.apk.outputs.url }}"
