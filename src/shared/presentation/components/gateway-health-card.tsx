@@ -2,22 +2,19 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { API_BASE_URL } from '@/src/core/infrastructure/config/api-config';
 import { Colors, StatusColors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
-import { getApiErrorMessage } from '@/src/core/domain/errors';
-import type { HealthResponse } from '@/src/core/domain/contracts';
+import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+import { gatewayService } from '@/src/core/infrastructure/http/gateway';
+import type { HealthResponse } from '@/src/core/infrastructure/http/dto';
 
 type HealthViewState =
   | { kind: 'loading' }
   | { kind: 'ready'; response: HealthResponse }
   | { kind: 'error'; message: string };
 
-export type GatewayHealthProps = {
-  apiBaseUrl: string | null | undefined;
-  check: (options?: { forceRefresh?: boolean; signal?: AbortSignal }) => Promise<HealthResponse>;
-};
-
-export function GatewayHealthCard({ apiBaseUrl, check }: GatewayHealthProps) {
+export function GatewayHealthCard() {
   const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   const [state, setState] = useState<HealthViewState>({ kind: 'loading' });
 
@@ -25,7 +22,7 @@ export function GatewayHealthCard({ apiBaseUrl, check }: GatewayHealthProps) {
     setState({ kind: 'loading' });
 
     try {
-      const response = await check({ forceRefresh, signal });
+      const response = await gatewayService.health({ forceRefresh, signal });
       setState({ kind: 'ready', response });
     } catch (cause) {
       if (signal?.aborted) {
@@ -40,12 +37,13 @@ export function GatewayHealthCard({ apiBaseUrl, check }: GatewayHealthProps) {
         ),
       });
     }
-  }, [check]);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    check({ signal: controller.signal })
+    gatewayService
+      .health({ signal: controller.signal })
       .then((response) => setState({ kind: 'ready', response }))
       .catch((cause: unknown) => {
         if (controller.signal.aborted) {
@@ -62,7 +60,7 @@ export function GatewayHealthCard({ apiBaseUrl, check }: GatewayHealthProps) {
       });
 
     return () => controller.abort();
-  }, [check]);
+  }, []);
 
   const isReady = state.kind === 'ready';
   const isHealthy = isReady && state.response.status === 'ok';
@@ -107,7 +105,7 @@ export function GatewayHealthCard({ apiBaseUrl, check }: GatewayHealthProps) {
       </View>
 
       <Text selectable style={[styles.url, { color: theme.mutedText }]}>
-        {apiBaseUrl ?? 'Configura EXPO_PUBLIC_API_URL para conectarte al Gateway.'}
+        {API_BASE_URL ?? 'Configura EXPO_PUBLIC_API_URL para conectarte al Gateway.'}
       </Text>
 
       {state.kind === 'ready' && state.response.status === 'degradado' && (
