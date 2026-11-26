@@ -122,7 +122,7 @@ export function createPatientAlerts(service: AlertsService, options: { now?: () 
     }
   }
 
-  return {
+  const controller = {
     getState: () => state,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -219,9 +219,14 @@ export function createPatientAlerts(service: AlertsService, options: { now?: () 
       return action;
     },
 
-    /** Detalle con los datos de la lista (el backend no tiene GET individual). */
+    /**
+     * Detalle con los datos de la lista (el backend no tiene GET individual).
+     * Abrir una alerta sin leer la marca como leída (POST .../read). Si falla,
+     * sigue sin leer y el detalle ofrece "Marcar como leída" para reintentar.
+     */
     open(alertId: string): void {
       set({ selectedId: alertId });
+      void controller.markRead(alertId);
     },
     close(): void {
       set({ selectedId: null });
@@ -231,6 +236,7 @@ export function createPatientAlerts(service: AlertsService, options: { now?: () 
       return all.find((a) => a.id === state.selectedId) ?? state.items.find((a) => a.id === state.selectedId) ?? null;
     },
   };
+  return controller;
 }
 
 export type PatientAlertsController = ReturnType<typeof createPatientAlerts>;

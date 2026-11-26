@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Share, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 
-import { Action, Card, Copy } from '@/src/shared/presentation/components/flow-ui';
-import { LinkCodeCountdown } from '@/src/modules/relationships/presentation/components/link-code-countdown';
 import { createPatientLinkCode } from '@/src/modules/relationships/application/use-cases/link-codes';
 import type { LinkCodeResponse } from '@/src/modules/relationships/domain/relationships';
+import {
+  LinkButton,
+  LinkCodeDisplay,
+  Notice,
+  Panel,
+  PanelHeader,
+} from '@/src/modules/relationships/presentation/components/links-ui';
 
 /**
  * Código de vinculación para un médico (tipo DOCTOR). El médico lo ingresa en
@@ -15,13 +18,11 @@ import type { LinkCodeResponse } from '@/src/modules/relationships/domain/relati
 export function DoctorLinkCodeCard({ patientId }: { patientId: string }) {
   const [linkCode, setLinkCode] = useState<LinkCodeResponse | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [showQr, setShowQr] = useState(false);
   const [message, setMessage] = useState('');
 
   async function generate() {
     setMessage('');
     setLinkCode(null);
-    setShowQr(false);
     setGenerating(true);
     try {
       setLinkCode(await createPatientLinkCode(patientId, 'DOCTOR'));
@@ -33,50 +34,37 @@ export function DoctorLinkCodeCard({ patientId }: { patientId: string }) {
   }
 
   return (
-    <Card>
-      <Copy>Invitar médico</Copy>
-      <Copy>
-        Genera un código temporal para que tu médico se vincule desde la web para médicos.
-        El código dura 5 minutos y solo puede usarse una vez.
-      </Copy>
+    <Panel>
+      <PanelHeader
+        role="doctor"
+        icon="stethoscope"
+        title="Invitar médico"
+        description="Tu médico ingresa el código en la web para médicos. Dura 5 minutos y sirve una sola vez."
+      />
 
-      <Action
+      {linkCode && (
+        <LinkCodeDisplay
+          code={linkCode.code}
+          expiresAt={linkCode.expiresAt}
+          onExpired={() => {
+            setLinkCode(null);
+            setMessage('El código para médico venció. Genera uno nuevo.');
+          }}
+          qrHint="El QR contiene solo el código temporal de un solo uso."
+          shareMessage={`Código de vinculación Domicilia para médico: ${linkCode.code}\nVence en 5 minutos y sirve una sola vez.`}
+          onShareError={() => setMessage('No fue posible compartir el código.')}
+        />
+      )}
+
+      <LinkButton
+        variant={linkCode ? 'secondary' : 'primary'}
+        icon={linkCode ? 'refresh' : 'key-plus'}
+        busy={generating}
         label={generating ? 'Generando código...' : linkCode ? 'Generar nuevo código para médico' : 'Generar código para médico'}
         onPress={() => { if (!generating) void generate(); }}
       />
 
-      {linkCode && (
-        <>
-          <Copy>Código: {linkCode.code}</Copy>
-          <LinkCodeCountdown
-            expiresAt={linkCode.expiresAt}
-            onExpired={() => {
-              setLinkCode(null);
-              setShowQr(false);
-              setMessage('El código para médico venció. Genera uno nuevo.');
-            }}
-          />
-          <Action secondary label={showQr ? 'Ocultar QR' : 'Mostrar QR escaneable'} onPress={() => setShowQr((v) => !v)} />
-          {showQr && (
-            <View style={{ alignItems: 'center', paddingVertical: 12, gap: 8 }}>
-              <View style={{ padding: 14, backgroundColor: '#FFFFFF' }}>
-                <QRCode value={linkCode.code} size={220} />
-              </View>
-              <Copy>El QR contiene solo el código temporal de un solo uso.</Copy>
-            </View>
-          )}
-          <Action
-            label="Compartir código"
-            onPress={() => {
-              void Share.share({
-                message: `Código de vinculación Domicilia para médico: ${linkCode.code}\nVence en 5 minutos y sirve una sola vez.`,
-              }).catch(() => setMessage('No fue posible compartir el código.'));
-            }}
-          />
-        </>
-      )}
-
-      {!!message && <Copy>{message}</Copy>}
-    </Card>
+      {!!message && <Notice tone="error" text={message} />}
+    </Panel>
   );
 }

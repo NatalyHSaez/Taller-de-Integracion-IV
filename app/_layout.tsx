@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { startPushNavigation } from "@/src/modules/notifications/application/use-cases/push-navigation";
 import { startPushReception } from "@/src/modules/notifications/application/use-cases/push-reception";
 import { AccessBoundary } from "@/src/modules/identity/presentation/components/access-boundary";
+import { AppHeader } from "@/src/modules/dashboard/presentation/components/app-header";
 import { Colors } from "@/src/shared/presentation/theme";
 import { AppStateProvider } from "@/src/core/presentation/session/app-state-context";
 import { AuthProvider, useAuth } from "@/src/modules/identity/presentation/hooks/use-auth";
@@ -122,6 +123,9 @@ function RootNavigator() {
           options={{
             headerShown: true,
             title: "Programas",
+            header: () => (
+              <AppHeader back title="Programas" subtitle="Qué se mide en cada programa" />
+            ),
           }}
         />
 
@@ -130,6 +134,9 @@ function RootNavigator() {
           options={{
             headerShown: true,
             title: "Perfil",
+            header: () => (
+              <AppHeader back title="Mi perfil" subtitle="Datos personales y red de cuidado" />
+            ),
           }}
         />
       </Stack>

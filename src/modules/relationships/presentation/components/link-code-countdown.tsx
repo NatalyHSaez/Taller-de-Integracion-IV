@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { Copy } from '@/src/shared/presentation/components/flow-ui';
+import { Text } from 'react-native';
+
+import { StatusColors } from '@/src/shared/presentation/theme';
 import { formatCountdown, secondsLeft } from '@/src/modules/relationships/application/use-cases/link-codes';
 
 /**
@@ -31,8 +33,8 @@ export function LinkCodeCountdown({ expiresAt, onExpired }: { expiresAt: string;
   }, [remaining]);
 
   return (
-    <Copy>
+    <Text style={{ color: StatusColors.warning.foreground, fontSize: 14, fontWeight: '700' }}>
       {remaining > 0 ? `Vence en ${formatCountdown(remaining)} (un solo uso).` : 'Código vencido.'}
-    </Copy>
+    </Text>
   );
 }

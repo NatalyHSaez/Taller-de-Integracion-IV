@@ -48,7 +48,8 @@
           "defaultChannel": "health-updates",
           "enableBackgroundRemoteNotifications": false
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
