@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import { createPatientLinkCode, type LinkCodeResponse } from '@/src/modules/relationships/infrastructure/relationships-api';
+import { createPatientLinkCode } from '@/src/modules/relationships/application/use-cases/link-codes';
+import type { LinkCodeResponse } from '@/src/modules/relationships/domain/relationships';
 import {
   LinkButton,
   LinkCodeDisplay,

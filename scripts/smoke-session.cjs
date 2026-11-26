@@ -36,18 +36,19 @@ function load(filename) {
   return exports;
 }
 async function main() {
+  load(path.join(root, 'composition/configure/configure-identity'));
+  load(path.join(root, 'composition/configure/configure-app-state'));
   const { randomUUID } = require('node:crypto');
-  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
-  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
   for (const role of ['PATIENT', 'CAREGIVER']) {
     const email = `ti462.${randomUUID()}@example.com`, password = `Test-${randomUUID()}`;
     const user = await authService.register({ fullName: 'Prueba Sesion', email, password, role,
       ...(role === 'PATIENT' ? { birthDate: '2000-01-01' } : {}) });
     try {
       await authService.login(email, password);
-      authSession.clear(); demo.logout();
+      authSession.clear();
       await authService.restore();
       assert.equal(authSession.user().id, user.id);
       const oldRefresh = tokens.refreshToken;

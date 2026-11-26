@@ -19,6 +19,7 @@ const storage = {
 let refreshCalls = 0;
 let currentAccess = 'access';
 let rejectRefresh = false;
+let malformedRefresh = false;
 let offline = false;
 let holdRefresh = null;
 async function fakeFetch(url, options) {
@@ -31,7 +32,7 @@ async function fakeFetch(url, options) {
     if (holdRefresh) await holdRefresh;
     if (rejectRefresh) return new Response('{}', { status: 401 });
     currentAccess = `renewed-${refreshCalls}`;
-    return Response.json({ accessToken: currentAccess, refreshToken: `refresh-${refreshCalls}`, tokenType: 'bearer', expiresIn: 900 });
+    return Response.json({ accessToken: currentAccess, refreshToken: `refresh-${refreshCalls}`, tokenType: 'bearer', expiresIn: malformedRefresh ? 0 : 900 });
   }
   if (route.endsWith('/login')) {
     currentAccess = 'access';
@@ -58,11 +59,13 @@ function load(filename) {
   return exports;
 }
 async function main() {
-  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  load(path.join(root, 'composition/configure/configure-identity'));
+  load(path.join(root, 'composition/configure/configure-app-state'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
+  const { demo } = load(path.join(root, 'tests/fixtures/demo/demo-store'));
   for (const userRole of ['PATIENT', 'CAREGIVER']) {
     role = userRole;
     await authService.login('real@example.com', 'Test1234');
@@ -90,6 +93,12 @@ async function main() {
   assert.equal(tokens, null);
   assert.equal(authSession.user(), null);
   rejectRefresh = false;
+  await authService.login('real@example.com', 'Test1234');
+  currentAccess = 'expired'; malformedRefresh = true;
+  await assert.rejects(apiClient.get('/me'), error => error.code === 'INVALID_API_RESPONSE');
+  assert.equal(tokens, null, 'Una renovación inválida no se guarda');
+  assert.equal(authSession.user(), null);
+  malformedRefresh = false;
   await authService.login('real@example.com', 'Test1234');
   authSession.clear(); demo.logout(); offline = true;
   await assert.rejects(authService.restore());

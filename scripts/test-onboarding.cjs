@@ -1,9 +1,9 @@
 // Run with npm run test:onboarding. Uses only fictitious data and an isolated store.
 const assert = require('node:assert/strict');
-const { demo } = require('../tmp/onboarding-tests/modules/demo/infrastructure/demo-store.js');
+const { demo } = require('../tests/fixtures/demo/demo-store.ts');
 demo.login('paciente@ejemplo.com', 'Paciente123');
 assert.equal(demo.user().role, 'patient');
-assert.equal(demo.patient().id, 'demo-patient');
+assert.equal(demo.patient().id, demo.user().patientId, 'el paciente corresponde a la cuenta mock autenticada');
 demo.logout();
 const password = 'Prueba123';
 const none = { alerts: false, read: false, write: false };
@@ -29,7 +29,7 @@ const caregiver = demo.user();
 check('Invitation survives logout and registration', () => assert.equal(demo.snapshot().pendingToken, invitation.token));
 check('New caregiver has no patients or permissions', () => { assert.equal(demo.patients().length, 0); assert.deepEqual(demo.permissions(), none); });
 demo.request(invitation.token);
-const request = demo.snapshot().relations[0];
+const request = demo.snapshot().relations.at(-1);
 check('Request grants no clinical access', () => { assert.equal(demo.patients().length, 0); assert.throws(() => demo.select(first.id)); assert.deepEqual(demo.measurements(), []); });
 check('Duplicate request rejected', () => assert.throws(() => demo.request(invitation.token)));
 check('Caregiver cannot approve their own request', () => assert.throws(() => demo.decide(request.id, 'approved', full)));

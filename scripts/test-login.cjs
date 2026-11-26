@@ -9,6 +9,8 @@ const cache = new Map();
 let tokens = null;
 let role = 'PATIENT';
 let failure = null;
+let userId = '12345678-1234-4123-8123-123456789abc';
+let badTokens = false;
 const calls = [];
 const id = '12345678-1234-4123-8123-123456789abc';
 const storage = {
@@ -23,8 +25,8 @@ async function fakeFetch(url, options) {
   if (failure?.path === route) return new Response(JSON.stringify({ detail: 'Error de prueba' }), { status: failure.status, headers: { 'content-type': 'application/json' } });
   if (route.endsWith('/logout')) return new Response(null, { status: 204 });
   const body = route.endsWith('/login')
-    ? { accessToken: 'access', refreshToken: 'refresh', tokenType: 'bearer', expiresIn: 3600 }
-    : { id, fullName: 'Cuenta real', email: 'real@example.com', roles: [role] };
+    ? { accessToken: 'access', refreshToken: 'refresh', tokenType: 'bearer', expiresIn: badTokens ? 0 : 3600 }
+    : { id: userId, fullName: 'Cuenta real', email: 'real@example.com', roles: [role] };
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 function load(filename) {
@@ -45,10 +47,11 @@ function load(filename) {
   return exports;
 }
 async function main() {
-  const { authService } = load(path.join(root, 'src/modules/identity/application/authservice'));
+  load(path.join(root, 'composition/configure/configure-identity'));
+  load(path.join(root, 'composition/configure/configure-app-state'));
+  const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  const { demo } = load(path.join(root, 'src/modules/demo/infrastructure/demo-store'));
   for (const userRole of ['PATIENT', 'CAREGIVER']) {
     role = userRole;
     calls.length = 0;
@@ -59,8 +62,6 @@ async function main() {
     assert.equal(authSession.mode(), 'backend');
     assert.equal(appState.snapshot().user.id, id);
     assert.equal(appState.snapshot().selectedPatient?.id ?? null, role === 'PATIENT' ? id : null);
-    assert.equal(demo.measurements().length, 0);
-    assert.equal(demo.snapshot().relations.filter(r => r.caregiverId === id).length, 0);
     if (role === 'CAREGIVER') assert.equal(appState.snapshot().patients.length, 0);
     assert.equal(tokens.accessToken, 'access');
     await authService.logout();
@@ -79,11 +80,23 @@ async function main() {
     assert.equal(authSession.mode(), null);
     assert.equal(tokens, null);
   }
-  calls.length = 0;
-  await authService.login('paciente@ejemplo.com', 'Paciente123', 'mock');
-  assert.equal(authSession.mode(), 'mock');
-  assert.equal(calls.length, 0);
+  role = 'PATIENT';
+  badTokens = true;
+  await assert.rejects(authService.login('real@example.com', 'Test1234'), e => e.code === 'INVALID_API_RESPONSE');
   assert.equal(tokens, null);
-  console.log('Login aprobado: roles móviles, UUID real, sin copias demo, /me único, errores sin sesión residual y modo demo explícito.');
+  assert.equal(authSession.mode(), null);
+  badTokens = false;
+  calls.length = 0;
+  await authService.login('paciente@ejemplo.com', 'Paciente123');
+  assert.equal(authSession.mode(), 'backend');
+  assert.equal(calls.filter(c => c.route.endsWith('/login')).length, 1);
+  userId = '00000000-0000-4000-8000-00000000b002';
+  await assert.rejects(authService.me(), e => e.code === 'INVALID_API_RESPONSE');
+  assert.equal(authSession.user().id, id, 'GET /me no sustituye al usuario de la sesión');
+  userId = id;
+  await authService.logout();
+  assert.equal(authSession.mode(), null);
+  assert.equal(tokens, null);
+  console.log('Login aprobado: roles móviles, UUID real, /me único, errores sin sesión residual y sin modo demo.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

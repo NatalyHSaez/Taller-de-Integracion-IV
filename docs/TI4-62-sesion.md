@@ -1,6 +1,8 @@
 # TI4-62 — Sesión, renovación y salida
 
-## Implementado
+> Registro histórico del 3 de noviembre de 2026. Actualmente web usa sessionStorage y no existe modo demo; las evidencias siguientes corresponden a esa fecha.
+
+## Implementado en esa fecha
 
 - Al abrir la aplicación, AuthProvider restaura access/refresh desde almacenamiento,
   consulta `/me`, valida identidad/rol y reconstruye el estado compartido. El navegador

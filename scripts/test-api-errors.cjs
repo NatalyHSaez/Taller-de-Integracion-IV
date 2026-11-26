@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {
   apiErrorFromPayload,
   apiErrorFromResponse,
-} = require('../tmp/api-error-tests/errors/api-error.js');
+} = require('../src/core/infrastructure/http/errors/api-error.ts');
 
 async function main() {
   const controlled = apiErrorFromPayload(

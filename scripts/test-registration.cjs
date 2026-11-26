@@ -22,8 +22,9 @@ function load(file, dependencies, extra = {}) {
 }
 
 async function main() {
-  const errors = load('src/core/infrastructure/http/errors/api-error.ts', {});
-  const form = load('src/modules/identity/application/registration.ts', { '../../../core/infrastructure/http/errors': errors });
+  const domainErrors = load('src/core/domain/errors/api-error.ts', {});
+  const errors = load('src/core/infrastructure/http/errors/api-error.ts', { '../../../domain/errors/api-error': domainErrors });
+  const form = load('src/modules/identity/application/use-cases/registration.ts', { '../../../../core/domain/errors': domainErrors });
   const base = { fullName: '  Cuenta Prueba  ', email: ' NUEVA@example.com ',
     password: 'Cuenta123!', confirmation: 'Cuenta123!', privacyAccepted: true,
     role: 'CAREGIVER', birthDate: 'fecha ignorada' };
@@ -43,19 +44,24 @@ async function main() {
     assert.throws(() => form.buildRegistrationRequest({ ...base, ...patch }));
   }
   let responseStatus = 201;
-  let responseBody = { id: 'test-id', fullName: 'Cuenta Prueba', email: base.email.trim().toLowerCase(), roles: ['CAREGIVER'] };
+  let responseBody = { id: '12345678-1234-4123-8123-123456789abc', fullName: 'Cuenta Prueba', email: base.email.trim().toLowerCase(), roles: ['CAREGIVER'] };
   const calls = [];
+  const authContracts = load('src/core/domain/contracts/auth.ts', {});
+  const patientContracts = load('src/modules/identity/domain/patient-profile.ts', {});
   const client = load('src/core/infrastructure/http/api-client.ts', {
     '@/src/core/infrastructure/config/api-config': { API_V1_URL: 'http://test.local/api/v1' },
     '@/src/core/infrastructure/storage/token-storage': new Proxy({}, { get: () => () => { throw new Error('Register must not access tokens'); } }),
     './errors': errors,
+    '@/src/core/domain/contracts/auth': authContracts,
   }, { fetch: async (url, options) => {
     calls.push({ url, options });
     return new Response(JSON.stringify(responseBody), { status: responseStatus, headers: { 'content-type': 'application/json' } });
   } });
   // El registro es un endpoint del microservicio de identidad.
-  const api = load('src/modules/identity/infrastructure/identity-api.ts', {
+  const api = load('src/modules/identity/infrastructure/api/identity-api.ts', {
     '@/src/core/infrastructure/http/api-client': client,
+    '@/src/core/domain/contracts/auth': authContracts,
+    '../../domain/patient-profile': patientContracts,
     '@/src/core/infrastructure/http/errors': errors,
     '@/src/core/infrastructure/storage/token-storage': new Proxy({}, { get: () => () => { throw new Error('Register must not access tokens'); } }),
   });

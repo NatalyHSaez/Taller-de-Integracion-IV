@@ -4,11 +4,11 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { type AppTheme, StatusColors } from '@/src/shared/presentation/theme';
 import type { AppNotification, NotificationFilter } from '@/src/modules/notifications/domain/notification';
-import type { NotificationsState } from '@/src/modules/notifications/application/notifications';
+import type { NotificationsState } from '@/src/modules/notifications/application/use-cases/notifications';
 
 export const NOTIFICATION_STATUS: Record<AppNotification['status'], { label: string; colors: { background: string; foreground: string } }> = {
-  pending: { label: 'Pendiente', colors: StatusColors.warning },
-  sent: { label: 'Enviada', colors: StatusColors.info },
+  pending: { label: 'No leída', colors: StatusColors.info },
+  sent: { label: 'No leída', colors: StatusColors.info },
   read: { label: 'Leída', colors: StatusColors.neutral },
 };
 
@@ -19,9 +19,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const FILTERS: { value: NotificationFilter; label: string }[] = [
-  { value: 'all', label: 'Todas' },
-  { value: 'pending', label: 'Pendientes' },
-  { value: 'sent', label: 'Enviadas' },
+  { value: 'unread', label: 'No leídas' },
   { value: 'read', label: 'Leídas' },
 ];
 
@@ -167,10 +165,8 @@ export function NotificationsEmpty({
       />
     );
   }
-  const title =
-    state.filter === 'all'
-      ? 'No tienes notificaciones.'
-      : `No hay notificaciones ${state.filter === 'read' ? 'leídas' : state.filter === 'sent' ? 'enviadas' : 'pendientes'}.`;
+  const title = state.filter === 'read'
+    ? 'No tienes notificaciones leídas.' : 'No tienes notificaciones sin leer.';
   return <Message theme={theme} icon="bell-outline" title={title} text="Desliza hacia abajo para actualizar." />;
 }
 

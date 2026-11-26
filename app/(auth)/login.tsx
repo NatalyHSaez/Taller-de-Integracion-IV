@@ -327,32 +327,6 @@ export default function LoginScreen() {
               >
                 <MaterialCommunityIcons
                   color={theme.primary}
-                  name="account-heart-outline"
-                  size={18}
-                />
-
-                <Text
-                  style={[styles.accountLinkText, { color: theme.primary }]}
-                >
-                  {demoMode ? 'Activar cuenta de demostración' : 'Crear cuenta de paciente'}
-                </Text>
-              </Pressable>
-
-              <View
-                style={[styles.linkDivider, { backgroundColor: theme.border }]}
-              />
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/(auth)/register")}
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.accountLink,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  color={theme.primary}
                   name="account-plus-outline"
                   size={18}
                 />
@@ -360,7 +334,7 @@ export default function LoginScreen() {
                 <Text
                   style={[styles.accountLinkText, { color: theme.primary }]}
                 >
-                  Crear cuenta de cuidador
+                  {demoMode ? 'Activar cuenta de demostración' : 'Crear cuenta'}
                 </Text>
               </Pressable>
             </View>

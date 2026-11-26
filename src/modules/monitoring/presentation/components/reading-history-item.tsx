@@ -1,9 +1,10 @@
+import { evaluationPresentation } from './evaluation-presentation';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { type AppTheme, StatusColors } from '@/src/shared/presentation/theme';
-import type { ReadingResponse } from '@/src/modules/monitoring/infrastructure/readings-api';
+import type { ReadingResponse } from '@/src/modules/monitoring/domain/reading-query';
 
 /** Texto y color de cada estado de lectura. No interpreta valores clínicos. */
 export const READING_STATUS_BADGES: Record<
@@ -39,11 +40,12 @@ export function describeReading(reading: ReadingResponse): { title: string; valu
     lines.push({ title: 'Presión arterial', value: `${formatNumber(sbp.value)} / ${formatNumber(dbp.value)}${unit('SBP')}` });
   }
   const labels: Record<string, string> = {
-    HEART_RATE: 'Frecuencia cardíaca',
     GLUCOSE: 'Glucosa',
     WEIGHT: 'Peso',
   };
   for (const item of reading.measurements) {
+    // El pulso es un dato complementario de presión; no se muestra como registro independiente.
+    if (item.parameterCode === 'HEART_RATE') continue;
     if ((item.parameterCode === 'SBP' || item.parameterCode === 'DBP') && sbp && dbp) continue;
     lines.push({
       title: labels[item.parameterCode] ?? item.parameterCode,
@@ -70,6 +72,7 @@ export function ReadingHistoryItem({ reading, theme, onOpen }: ReadingHistoryIte
     label: 'Registrada',
     colors: StatusColors.neutral,
   };
+  const evaluation = reading.status === 'EVALUATED' && reading.evaluation ? evaluationPresentation(reading.evaluation) : null;
   const lines = describeReading(reading);
   const context = reading.context ? CONTEXT_LABELS[reading.context] ?? reading.context : null;
 
@@ -78,7 +81,7 @@ export function ReadingHistoryItem({ reading, theme, onOpen }: ReadingHistoryIte
       accessibilityRole="button"
       accessibilityLabel={`Lectura de las ${formatTime(reading.measuredAt)}. ${lines
         .map((line) => `${line.title}: ${line.value}`)
-        .join('. ')}. Estado: ${badge.label}`}
+        .join('. ')}. Estado: ${badge.label}${evaluation ? `. Resultado: ${evaluation.label}` : ''}`}
       accessibilityHint="Abre el detalle de esta lectura"
       onPress={() => onOpen(reading.readingId)}
       style={({ pressed }) => [
@@ -100,6 +103,11 @@ export function ReadingHistoryItem({ reading, theme, onOpen }: ReadingHistoryIte
         </View>
       ))}
 
+      {reading.status === 'EVALUATED' && (
+        <ThemedText style={{ color: evaluation?.colors.foreground ?? theme.mutedText }}>
+          {evaluation ? `Resultado: ${evaluation.label}${evaluation.severity ? ` · Severidad: ${evaluation.severity}` : ''}` : 'Sin resultado clínico disponible'}
+        </ThemedText>
+      )}
       <View style={styles.footer}>
         {context ? (
           <ThemedText style={[styles.context, { color: theme.mutedText }]}>{context}</ThemedText>

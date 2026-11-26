@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/src/shared/presentation/components/themed-text';
 import { type AppTheme, BrandColors, StatusColors } from '@/src/shared/presentation/theme';
 import type { AlertFilter, PatientAlert } from '@/src/modules/evaluation/domain/alert';
-import type { AlertsState } from '@/src/modules/evaluation/application/patient-alerts';
+import type { AlertsState } from '@/src/modules/evaluation/application/use-cases/patient-alerts';
 
 /**
  * Vista de alertas con el mismo lenguaje visual que Seguimiento: cabecera azul

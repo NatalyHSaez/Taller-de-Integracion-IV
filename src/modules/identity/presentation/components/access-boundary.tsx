@@ -14,15 +14,13 @@ export function AccessBoundary({ children }: PropsWithChildren) {
 
   const isAuthRoute = segments[0] === "(auth)";
 
-  const isPublicPage = path === "/invitacion" || path === "/demo";
+  const isPublicPage = path === "/invitacion";
 
   const isSelectPatient = path === "/select-patient";
 
   /*
    * Sin sesión solo pueden utilizarse:
    * - pantallas de autenticación;
-   * - invitación;
-   * - demo.
    *
    * select-patient requiere usuario autenticado.
    */
@@ -82,8 +80,9 @@ export function AccessBoundary({ children }: PropsWithChildren) {
       ["/historial", "/graficos", "/seguimiento"].includes(path) ||
       path.startsWith("/lectura/");
 
-    const alertPage = path.startsWith("/notificaci") || path === "/alertas";
+    const alertPage = path === "/alertas";
 
+    const profilePage = path === '/paciente-vinculado';
     const unavailablePage =
       path.startsWith("/documentos") || path === "/atencion";
 
@@ -91,6 +90,7 @@ export function AccessBoundary({ children }: PropsWithChildren) {
       (readPage && !permissions.read) ||
       (path === "/registrar-medicion" && !permissions.write) ||
       (alertPage && !permissions.alerts) ||
+      (profilePage && !permissions.profile) ||
       unavailablePage
     ) {
       return (

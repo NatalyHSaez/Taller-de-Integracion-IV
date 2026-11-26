@@ -1,13 +1,14 @@
-import { AuthUser } from '@/src/core/infrastructure/http/api-client';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+
+import type { CurrentUserResponse } from '@/src/core/domain/contracts';
 import { authSession } from '@/src/core/application/session/auth-session';
-import { authService } from '@/src/modules/identity/application/authservice';
-import { createContext, PropsWithChildren, useContext, useEffect, useState, } from 'react';
+import { authService } from '@/src/modules/identity/application/use-cases/auth-service';
 
 type AuthContextValue = {
-  user: AuthUser | null;
+  user: CurrentUserResponse | null;
   loading: boolean;
   authenticated: boolean;
-  setUser: (user: AuthUser | null) => void;
+  setUser: (user: CurrentUserResponse | null) => void;
   restoreSession: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -15,55 +16,50 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  // Una fuente observable para toda la app: login, refresh, /me y logout.
+  // useSyncExternalStore recibe snapshots estables hasta el siguiente publish.
+  const session = useSyncExternalStore(
+    authSession.subscribe,
+    authSession.snapshot,
+    authSession.snapshot,
+  );
   const [loading, setLoading] = useState(true);
 
-  // Publica la identidad del login sin depender de que la pantalla siga montada.
-  useEffect(() => authSession.subscribe(() => {
-    setUser(authSession.mode() === 'backend' ? authSession.user() : null);
-  }), []);
-
-  async function restoreSession() {
+  const restoreSession = useCallback(async (): Promise<void> => {
+    setLoading(true);
     try {
       await authService.restore();
     } catch {
-      // El servicio limpia memoria; conserva tokens si solo falla la red.
+      // Un fallo de red no debe dejar el indicador de carga bloqueado.
+      // authService determina si los tokens se deben conservar o invalidar.
     } finally {
       setLoading(false);
     }
-  }
-
-  async function signOut() {
-    await authService.logout();
-  }
-
-  useEffect(() => {
-    // La actualización ocurre después de leer almacenamiento/red de forma asíncrona.
-    void restoreSession();
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        authenticated: user !== null,
-        setUser,
-        restoreSession,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve().then(() => { if (active) void restoreSession(); });
+    return () => { active = false; };
+  }, [restoreSession]);
+
+  // La identidad proviene exclusivamente de /me y del estado de sesión real.
+  const user = session.mode === 'backend' ? session.user : null;
+
+  const value = useMemo<AuthContextValue>(() => ({
+    user,
+    loading,
+    authenticated: user !== null,
+    setUser: (nextUser) => authSession.setUser(nextUser),
+    restoreSession,
+    signOut: () => authService.logout(),
+  }), [user, loading, restoreSession]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth debe utilizarse dentro de AuthProvider.');
-  }
-
-  return context;
+export function useAuth(): AuthContextValue {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error('useAuth debe utilizarse dentro de AuthProvider.');
+  return value;
 }

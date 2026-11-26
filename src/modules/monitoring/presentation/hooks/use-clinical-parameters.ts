@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type ClinicalParameterCatalog,
   clinicalParametersService,
-} from '@/src/modules/monitoring/application/clinical-parameters';
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
+} from '@/src/modules/monitoring/application/use-cases/clinical-parameters';
+import { getApiErrorMessage } from '@/src/core/domain/errors';
 
 type State = {
   catalog: ClinicalParameterCatalog | null;
@@ -42,10 +42,10 @@ export function useClinicalParameters() {
 
   useEffect(() => {
     mounted.current = true;
-    load();
-    return () => {
-      mounted.current = false;
-    };
+    void Promise.resolve().then(() => {
+      if (mounted.current) void load();
+    });
+    return () => { mounted.current = false; };
   }, [load]);
 
   const retry = useCallback(() => load(true), [load]);

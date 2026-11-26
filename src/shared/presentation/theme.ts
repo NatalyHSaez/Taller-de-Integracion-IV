@@ -104,11 +104,15 @@ export const MeasurementColors = {
     blood_pressure: { accent: Palette.rose500, background: Palette.rose50 },
     glucose: { accent: Palette.blue500, background: Palette.blue100 },
     weight: { accent: Palette.purple500, background: Palette.purple50 },
+    heart_rate: { accent: Palette.rose500, background: Palette.rose50 },
+    single_pressure: { accent: Palette.rose500, background: Palette.rose50 },
   },
   dark: {
     blood_pressure: { accent: Palette.rose400, background: Palette.rose900 },
     glucose: { accent: Palette.blueDarkAccent, background: Palette.slate700 },
     weight: { accent: Palette.purple400, background: Palette.purple900 },
+    heart_rate: { accent: Palette.rose400, background: Palette.rose900 },
+    single_pressure: { accent: Palette.rose400, background: Palette.rose900 },
   },
 } as const;
 

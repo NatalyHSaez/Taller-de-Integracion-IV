@@ -19,6 +19,13 @@ export default function DocumentosLayout() {
           header: () => <AppHeader back title="Documento" subtitle="Detalle del archivo" />,
         }}
       />
+      <Stack.Screen
+        name="subir"
+        options={{
+          title: 'Subir documento',
+          header: () => <AppHeader back title="Subir documento" subtitle="Adjuntar archivo clínico" />,
+        }}
+      />
     </Stack>
   );
 }

@@ -1,16 +1,15 @@
 import { API_V1_URL } from "@/src/core/infrastructure/config/api-config";
+import { isAuthTokensResponse } from "@/src/core/domain/contracts/auth";
+import type {
+  AuthTokensResponse,
+  UUID,
+} from "@/src/core/domain/contracts";
 import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
   saveTokens,
 } from "@/src/core/infrastructure/storage/token-storage";
-import type {
-  AuthTokensResponse,
-  CurrentUserResponse,
-  RegisterRequest,
-  UUID,
-} from "@/src/core/infrastructure/http/dto";
 import { ApiError, apiErrorFromResponse, normalizeApiError } from "./errors";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -60,13 +59,9 @@ export type AccessTokenProvider = () =>
  * Alias para mantener compatibilidad con
  * componentes agregados por Sebastián.
  */
-export type AuthTokens = AuthTokensResponse;
 
-export type AuthUser = CurrentUserResponse;
 
-export type RegisterData = RegisterRequest;
 
-export type RegisterResponse = CurrentUserResponse;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const API_PREFIX = "/api/v1";
@@ -308,83 +303,156 @@ async function parseSuccessfulResponse<T>(response: Response): Promise<T> {
   return text as T;
 }
 
-/*
- * Renovación del access token utilizando el
- * refresh token almacenado con SecureStore.
+/**
+ * La revisión identifica la sesión activa: login/logout invalidan respuestas
+ * pendientes; una rotación de tokens NO cambia de sesión.
+ * auth-session instala el proveedor de tokens y authservice registra handlers.
  */
 let sessionRevision = 0;
-let refreshFlight: { revision: number; promise: Promise<string | null> } | null = null;
+let refreshFlight: {
+  revision: number;
+  promise: Promise<string | null>;
+} | null = null;
 let sessionHandlers = {
   refreshed: (_tokens: AuthTokensResponse) => {},
   expired: () => {},
 };
-export function setApiSessionHandlers(handlers: typeof sessionHandlers) { sessionHandlers = handlers; }
-export function invalidateApiSession() { sessionRevision += 1; }
-export function apiSessionRevision() { return sessionRevision; }
 
-async function expireSession(revision: number) {
+export function setApiSessionHandlers(handlers: typeof sessionHandlers): void {
+  sessionHandlers = handlers;
+}
+
+export function invalidateApiSession(): void {
+  sessionRevision += 1;
+}
+
+export function apiSessionRevision(): number {
+  return sessionRevision;
+}
+
+async function expireSession(revision: number): Promise<void> {
   if (revision !== sessionRevision) return;
+  // El handler borra la sesión observable e invalida la revisión anterior.
   sessionHandlers.expired();
   await clearTokens();
 }
 
-export function refreshAccessToken(): Promise<string | null> {
+/**
+ * Una sola renovación por sesión. Si otro HTTP ya rotó el access token desde
+ * que salió una solicitud, reutilizamos ese token en lugar de refrescar otra vez.
+ *
+ * El argumento es opcional por compatibilidad con authService.restore/refresh.
+ */
+export function refreshAccessToken(
+  failedAccessToken?: string | null,
+): Promise<string | null> {
   const revision = sessionRevision;
   if (refreshFlight?.revision === revision) return refreshFlight.promise;
-  const promise = (async () => {
+
+  const promise = (async (): Promise<string | null> => {
+    if (failedAccessToken) {
+      const current = await resolveAccessToken(undefined);
+      if (revision !== sessionRevision) return null;
+      if (current && current !== failedAccessToken) return current;
+    }
+
     const refreshToken = await getRefreshToken();
     if (revision !== sessionRevision) return null;
     if (!refreshToken || !API_V1_URL) {
       await expireSession(revision);
       return null;
     }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
     try {
       const response = await fetch(`${API_V1_URL}/auth/refresh`, {
-        method: 'POST', signal: controller.signal,
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Correlation-ID': createCorrelationId() },
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Correlation-ID": createCorrelationId(),
+        },
         body: JSON.stringify({ refreshToken }),
       });
-      if (revision !== sessionRevision && !response.ok) return null;
+
+      if (revision !== sessionRevision) return null;
       if (response.status === 401 || response.status === 403) {
         await expireSession(revision);
         return null;
       }
+      // 5xx / fallos de red no eliminan un refresh token potencialmente válido.
       if (!response.ok) throw await apiErrorFromResponse(response);
-      const tokens = await parseSuccessfulResponse<AuthTokensResponse>(response);
-      if (typeof tokens?.accessToken !== 'string' || !tokens.accessToken || typeof tokens?.refreshToken !== 'string' || !tokens.refreshToken) {
-        throw new ApiError({ code: 'INVALID_API_RESPONSE', message: 'El servidor no pudo renovar la sesion.' });
+
+      const tokens =
+        await parseSuccessfulResponse<AuthTokensResponse>(response);
+      if (!isAuthTokensResponse(tokens)) {
+        await expireSession(revision);
+        throw new ApiError({
+          code: "INVALID_API_RESPONSE",
+          message: "El servidor devolvió una renovación inválida.",
+        });
       }
+
       if (revision !== sessionRevision) {
-        // El servidor pudo rotar el token mientras se cerraba la sesion.
-        await apiClient.post('/auth/logout', { refreshToken: tokens.refreshToken }, { auth: false }).catch(() => {});
+        // El backend puede haber rotado el token mientras se cerraba sesión.
+        // Revocar el nuevo token no modifica las credenciales de la cuenta actual.
+        await apiClient
+          .post<void>(
+            "/auth/logout",
+            { refreshToken: tokens.refreshToken },
+            {
+              auth: false,
+              timeoutMs: 5_000,
+            },
+          )
+          .catch(() => {});
         return null;
       }
       try {
         await saveTokens(tokens.accessToken, tokens.refreshToken);
-      } catch (error) {
-        await expireSession(revision);
-        await apiClient.post('/auth/logout', { refreshToken: tokens.refreshToken }, { auth: false }).catch(() => {});
-        throw error;
+      } catch (cause) {
+        if (revision === sessionRevision) await expireSession(revision);
+        throw cause;
       }
+      // Nunca publicar una renovación perteneciente a otra cuenta.
       if (revision !== sessionRevision) {
-        await apiClient.post('/auth/logout', { refreshToken: tokens.refreshToken }, { auth: false }).catch(() => {});
+        await apiClient
+          .post<void>(
+            "/auth/logout",
+            { refreshToken: tokens.refreshToken },
+            {
+              auth: false,
+              timeoutMs: 5_000,
+            },
+          )
+          .catch(() => {});
         return null;
       }
       sessionHandlers.refreshed(tokens);
       return tokens.accessToken;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new ApiError({ code: 'REQUEST_TIMEOUT', message: 'La renovación de sesión tardó demasiado. Intenta nuevamente.' });
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") {
+        throw new ApiError({
+          code: "REQUEST_TIMEOUT",
+          message:
+            "La renovación de sesión tardó demasiado. Intenta nuevamente.",
+        });
       }
-      throw error;
-    } finally { clearTimeout(timer); }
+      throw cause;
+    } finally {
+      clearTimeout(timer);
+    }
   })();
+
   refreshFlight = { revision, promise };
-  void promise.finally(() => {
-    if (refreshFlight?.promise === promise) refreshFlight = null;
-  }).catch(() => {});
+  // No generar un rechazo sin observar al liberar el vuelo.
+  void promise
+    .finally(() => {
+      if (refreshFlight?.promise === promise) refreshFlight = null;
+    })
+    .catch(() => {});
   return promise;
 }
 
@@ -458,21 +526,35 @@ export async function apiRequest<T>(
 
   try {
     const revision = sessionRevision;
-    const originalToken = options.auth === false ? null : await resolveAccessToken(options.accessToken);
-    let response = await executeFetch(method, path, options, controller.signal, originalToken);
+    const originalToken =
+      options.auth === false
+        ? null
+        : await resolveAccessToken(options.accessToken);
+    if (options.auth !== false && revision !== sessionRevision) {
+      throw new ApiError({
+        code: "SESSION_CHANGED",
+        message: "La sesión cambió.",
+      });
+    }
 
-    /*
-     * Si expira el access token:
-     * 1. renovamos;
-     * 2. almacenamos tokens nuevos;
-     * 3. repetimos una sola vez.
-     */
-    if (response.status === 401 && options.auth !== false) {
-      if (revision !== sessionRevision) throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesion cambio.' });
-      const currentToken = await resolveAccessToken(undefined);
-      const refreshedAccessToken = currentToken && currentToken !== originalToken
-        ? currentToken : await refreshAccessToken();
+    let response = await executeFetch(
+      method,
+      path,
+      options,
+      controller.signal,
+      originalToken,
+    );
 
+    // Un 401 con token real se reintenta una sola vez: o ya hay token nuevo,
+    // o todas las solicitudes concurrentes comparten la misma renovación.
+    if (response.status === 401 && options.auth !== false && originalToken) {
+      if (revision !== sessionRevision) {
+        throw new ApiError({
+          code: "SESSION_CHANGED",
+          message: "La sesión cambió.",
+        });
+      }
+      const refreshedAccessToken = await refreshAccessToken(originalToken);
       if (refreshedAccessToken) {
         response = await executeFetch(
           method,
@@ -485,19 +567,24 @@ export async function apiRequest<T>(
     }
 
     if (options.auth !== false && revision !== sessionRevision) {
-      throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesion cambio. Vuelve a ingresar.' });
+      throw new ApiError({
+        code: "SESSION_CHANGED",
+        message: "La sesión cambió. Vuelve a ingresar.",
+      });
     }
-    if (response.status === 401 && options.auth !== false) await expireSession(revision);
-    if (
-      !response.ok &&
-      !options.acceptedStatuses?.includes(response.status)
-    ) {
+    if (response.status === 401 && options.auth !== false && originalToken) {
+      await expireSession(revision);
+    }
+    if (!response.ok && !options.acceptedStatuses?.includes(response.status)) {
       throw await apiErrorFromResponse(response);
     }
 
     const result = await parseSuccessfulResponse<T>(response);
     if (options.auth !== false && revision !== sessionRevision) {
-      throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesión cambió. Vuelve a ingresar.' });
+      throw new ApiError({
+        code: "SESSION_CHANGED",
+        message: "La sesión cambió. Vuelve a ingresar.",
+      });
     }
     return result;
   } catch (cause) {
@@ -594,54 +681,51 @@ export async function fetchWithAuth(
   options: RequestInit = {},
 ): Promise<Response> {
   const url = `${requireApiBaseUrl()}${normalizePath(endpoint)}`;
-
   const revision = sessionRevision;
-  let accessToken = await resolveAccessToken(undefined);
-  const originalToken = accessToken;
-
-  const headers = new Headers(options.headers ?? {});
-
-  if (!headers.has("Accept")) {
-    headers.set("Accept", "application/json");
+  const originalToken = await resolveAccessToken(undefined);
+  if (revision !== sessionRevision) {
+    throw new ApiError({
+      code: "SESSION_CHANGED",
+      message: "La sesión cambió.",
+    });
   }
 
+  const headers = new Headers(options.headers ?? {});
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (!headers.has("Content-Type") && options.body !== undefined) {
     headers.set("Content-Type", "application/json");
   }
-
   if (!headers.has("X-Correlation-ID")) {
     headers.set("X-Correlation-ID", createCorrelationId());
   }
+  if (originalToken) headers.set("Authorization", `Bearer ${originalToken}`);
 
-  if (accessToken) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
+  let response = await fetch(url, { ...options, headers });
+  if (revision !== sessionRevision) {
+    throw new ApiError({
+      code: "SESSION_CHANGED",
+      message: "La sesión cambió.",
+    });
   }
+  if (response.status !== 401 || !originalToken) return response;
 
-  let response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (revision !== sessionRevision) throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesion cambio.' });
-  if (response.status !== 401) {
-    return response;
+  const updatedToken = await refreshAccessToken(originalToken);
+  if (revision !== sessionRevision) {
+    throw new ApiError({
+      code: "SESSION_CHANGED",
+      message: "La sesión cambió.",
+    });
   }
+  if (!updatedToken) return response;
 
-  const currentToken = await resolveAccessToken(undefined);
-  accessToken = currentToken && currentToken !== originalToken ? currentToken : await refreshAccessToken();
-
-  if (!accessToken) {
-    return response;
+  headers.set("Authorization", `Bearer ${updatedToken}`);
+  response = await fetch(url, { ...options, headers });
+  if (revision !== sessionRevision) {
+    throw new ApiError({
+      code: "SESSION_CHANGED",
+      message: "La sesión cambió.",
+    });
   }
-
-  headers.set("Authorization", `Bearer ${accessToken}`);
-
-  response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (revision !== sessionRevision) throw new ApiError({ code: 'SESSION_CHANGED', message: 'La sesion cambio.' });
   if (response.status === 401) await expireSession(revision);
   return response;
 }

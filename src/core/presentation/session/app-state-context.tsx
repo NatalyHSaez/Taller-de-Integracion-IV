@@ -9,7 +9,10 @@ import {
 import { appState, type GlobalAppState } from '@/src/core/application/session/app-state';
 
 type AppStateContextValue = GlobalAppState & {
+  // En la arquitectura de main la selección es sincrónica y valida el vínculo.
   selectPatient: (patientId: string) => void;
+  // Equivalente al refreshPatients de Cristian, usando GET /me/patients de main.
+  refreshPatients: () => Promise<void>;
 };
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -25,6 +28,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     () => ({
       ...state,
       selectPatient: appState.selectPatient,
+      refreshPatients: appState.loadRealPatients,
     }),
     [state],
   );
@@ -34,10 +38,8 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
 export function useAppStateContext(): AppStateContextValue {
   const context = useContext(AppStateContext);
-
   if (!context) {
     throw new Error('useAppState debe utilizarse dentro de AppStateProvider.');
   }
-
   return context;
 }

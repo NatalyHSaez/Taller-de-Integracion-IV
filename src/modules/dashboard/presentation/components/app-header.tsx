@@ -4,40 +4,33 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 import { Colors } from '@/src/shared/presentation/theme';
 
 /**
- * Encabezado superior de la app: fecha, título, subtítulo, campana de
- * notificaciones y avatar. Las pestañas lo usan sin título (lo calcula según la
- * ruta); las secciones del menú le pasan su título y `back` para mostrar la
+ * Encabezado superior de la app: fecha, titulo, subtitulo, campana de
+ * notificaciones y avatar. Las pestanas lo usan sin titulo (lo calcula segun la
+ * ruta); las secciones del menu le pasan su titulo y `back` para mostrar la
  * flecha que vuelve a la pantalla anterior.
  */
 export function AppHeader({ title, subtitle, back = false }: { title?: string; subtitle?: string; back?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { user: demoUser, patient: demoPatient, relations } = useDemo();
-  const { user: globalUser, selectedPatient, sessionMode } = useAppState();
+  const { user, selectedPatient, sessionMode } = useAppState();
 
-  const isRealSession = sessionMode === 'backend';
-  const user = isRealSession ? globalUser : demoUser;
-  const patientName = isRealSession ? selectedPatient?.name : demoPatient?.name;
+  const patientName = selectedPatient?.name;
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-  const pendingCount = isRealSession
-    ? 0
-    : relations.filter((relation) => relation.status === 'pending' && relation.patientId === demoUser?.patientId).length;
   const date = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'long' }).format(new Date());
   const isCaregiver = user?.role === 'caregiver';
 
   let heading = `Hola, ${user?.name.split(' ')[0] ?? ''}`;
   let description =
     isCaregiver && patientName
-      ? `Acompañas a ${patientName}`
-      : isRealSession && isCaregiver
+      ? `Acompanas a ${patientName}`
+      : isCaregiver
         ? 'Sin paciente seleccionado'
         : 'Resumen de salud';
   if (pathname === '/seguimiento') {
@@ -47,7 +40,7 @@ export function AppHeader({ title, subtitle, back = false }: { title?: string; s
     heading = 'Alertas';
     description = isCaregiver && patientName ? `Avisos de ${patientName}` : 'Avisos importantes';
   } else if (pathname === '/menu') {
-    heading = 'Menú';
+    heading = 'Menu';
     description = 'Opciones de tu cuenta';
   }
   if (title) heading = title;
@@ -88,7 +81,6 @@ export function AppHeader({ title, subtitle, back = false }: { title?: string; s
           onPress={() => { if (pathname !== '/notificaciones') router.push('/notificaciones'); }}
           style={styles.notificationButton}>
           <MaterialCommunityIcons name="bell-outline" size={23} color={theme.primary} />
-          {pendingCount > 0 && <View style={[styles.notificationDot, { backgroundColor: theme.danger }]} />}
         </Pressable>
         <Pressable
           accessibilityLabel="Abrir perfil"

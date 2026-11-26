@@ -1,0 +1,22 @@
+/* global projectRequire, mockModule */
+const test = require('node:test');
+const assert = require('node:assert/strict');
+let generation = 1, mode = 'backend', userId = 'u', patientId = 'p', read = true;
+let calls = [], response;
+mockModule('src/core/application/session/auth-session.ts', { authSession: { generation: () => generation, mode: () => mode, user: () => ({ id: userId }) } });
+mockModule('src/core/application/session/app-state.ts', { appState: { snapshot: () => ({ sessionMode: mode, user: { id: userId }, selectedPatient: { id: patientId }, permissions: { read } }) } });
+mockModule("src/core/infrastructure/http/api-client.ts", { apiClient: {} });
+mockModule('src/core/infrastructure/http/data/index.ts', { dataClient: { get: async (path, options) => { calls.push({path, options}); return await response; } } });
+const { monitoringApi } = projectRequire('src/modules/monitoring/infrastructure/api/monitoring-api.ts');
+projectRequire('src/modules/monitoring/application/ports/monitoring-port.ts').configureMonitoring(monitoringApi);
+const { listPatientConditions, parsePatientConditions } = projectRequire('src/modules/monitoring/application/use-cases/patient-conditions.ts');
+const item = { conditionCode: 'HTA', name: 'Hipertensión arterial', startedAt: '2026-11-25', status: 'active' };
+const reset = () => { generation++; mode = 'backend'; userId = 'u'; patientId = 'p'; read = true; calls = []; response = [item]; };
+test('condiciones: conserva el contrato real y consulta sin caché por paciente', async () => { reset(); assert.deepEqual(await listPatientConditions('p'), [item]); assert.deepEqual(calls, [{path:'/patients/p/conditions',options:{cache:false}}]); });
+test('condiciones: lista vacía, fecha nula y estado desconocido se conservan', () => { assert.deepEqual(parsePatientConditions([]), []); const entry = {...item, startedAt:null, status:'inactive'}; assert.deepEqual(parsePatientConditions([entry]), [entry]); });
+test('condiciones: rechaza campos ausentes, fechas imposibles, duplicados y objetos paginados', () => { for (const bad of [null, {items:[]}, [{...item,startedAt:undefined}], [{...item,startedAt:'2026-02-30'}], [{...item,status:''}], [{...item,conditionCode:''}], [item,item]]) assert.throws(() => parsePatientConditions(bad), {code:'INVALID_API_RESPONSE'}); });
+test('condiciones: sin sesión o permiso no solicita información', async () => { reset(); mode = null; await assert.rejects(listPatientConditions('p'), {status:401}); mode = 'backend'; read = false; await assert.rejects(listPatientConditions('p'), {status:403}); assert.equal(calls.length,0); });
+test('condiciones: no consulta otro paciente', async () => { reset(); await assert.rejects(listPatientConditions('other'), {status:403}); assert.equal(calls.length,0); });
+test('condiciones: descarta respuesta tardía tras cambio de sesión', async () => { reset(); let finish; response = new Promise(r => { finish=r; }); const pending=listPatientConditions('p'); generation++; finish([item]); await assert.rejects(pending,{code:'SESSION_CHANGED'}); });
+test('condiciones: descarta respuesta tardía tras cambio de paciente o revocación', async () => { for (const change of [()=>{patientId='other';},()=>{read=false;}]) { reset(); let finish; response=new Promise(r=>{finish=r;}); const pending=listPatientConditions('p'); change(); finish([item]); await assert.rejects(pending,{code:'SESSION_CHANGED'}); } });
+test('condiciones: un 403 real se propaga sin sustituir datos', async () => { reset(); const {ApiError}=projectRequire('src/core/domain/errors/index.ts'); response=Promise.reject(new ApiError({code:'FORBIDDEN',status:403,message:'Sin permiso'})); await assert.rejects(listPatientConditions('p'),{status:403}); });

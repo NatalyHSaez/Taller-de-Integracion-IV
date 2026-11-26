@@ -2,6 +2,7 @@
  * Endpoints del microservicio de relaciones (a través del API Gateway):
  *   GET /me/patients, GET /patients/{id}/caregivers y /doctors,
  *   PUT /caregiver-relationships/{id}/permissions,
+ *   PUT /doctor-relationships/{id}/permissions,
  *   DELETE /caregiver-relationships/{id} y /doctor-relationships/{id},
  *   POST /patients/{id}/link-codes y POST /link-codes/consume
  */
@@ -69,6 +70,16 @@ export async function revokeCaregiverRelationship(
 ): Promise<void> {
   return apiClient.delete<void>(
     `/caregiver-relationships/${encodeURIComponent(relationshipId)}`,
+  );
+}
+
+export async function updateDoctorPermissions(
+  relationshipId: string,
+  permissions: string[],
+): Promise<LinkedUserResponse> {
+  return apiClient.put<LinkedUserResponse>(
+    `/doctor-relationships/${encodeURIComponent(relationshipId)}/permissions`,
+    { permissions },
   );
 }
 

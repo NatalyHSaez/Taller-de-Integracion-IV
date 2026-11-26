@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Text } from 'react-native';
 
 import { StatusColors } from '@/src/shared/presentation/theme';
-import { formatCountdown, secondsLeft } from '@/src/modules/relationships/application/link-codes';
+import { formatCountdown, secondsLeft } from '@/src/modules/relationships/application/use-cases/link-codes';
 
 /**
  * Cuenta regresiva del código de vinculación ("Vence en 4:32").

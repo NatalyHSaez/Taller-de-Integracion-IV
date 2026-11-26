@@ -10,7 +10,7 @@ const CLINICAL_PARAMETERS = [
   { code: 'GLUCOSE', name: 'Glucosa capilar', valueType: 'NUMBER', unit: 'mg/dL', technicalMin: 20, technicalMax: 800 },
   { code: 'WEIGHT', name: 'Peso corporal', valueType: 'NUMBER', unit: 'kg', technicalMin: 1, technicalMax: 400 },
 ];
-const PARAMETER_LIMITS = [{ parameterCode: 'SBP', minValue: 60, maxValue: 280, unit: 'mmHg' }];
+const PARAMETER_LIMITS = [{ parameterCode: 'SBP', technicalMin: 60, technicalMax: 280, unit: 'mmHg' }];
 /** Respuesta real de GET /health-conditions en domicilia (sin conditionId ni active). */
 const HEALTH_CONDITIONS = [
   { code: 'DM2', name: 'Diabetes mellitus tipo 2', parameters: [{ code: 'GLUCOSE', required: true }, { code: 'WEIGHT', required: false }] },
@@ -52,7 +52,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
   mockModule('src/core/application/session/app-state.ts', {
     appState: { snapshot: () => ({ selectedPatient: selection.selectedPatient }) },
   });
-  mockModule('src/modules/demo/infrastructure/demo-store.ts', {
+  mockModule('tests/fixtures/demo/demo-store.ts', {
     demo: {
       save: () => { calls.demoSave += 1; },
       patient: () => ({ id: 'demo-patient', name: 'Demo', email: 'd@x.cl' }),
@@ -72,7 +72,7 @@ function installFakes({ mode = 'backend', role = 'PATIENT', userId = '11111111-1
       invalidate() {},
     },
   });
-  mockModule('src/modules/demo/infrastructure/mocks/index.ts', { mockApi: {} });
+  mockModule('tests/fixtures/demo/mocks/index.ts', { mockApi: {} });
 
   return {
     calls,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
-import { type HealthProgram, healthConditionsService } from '@/src/modules/monitoring/application/health-conditions';
+import { getApiErrorMessage } from '@/src/core/domain/errors';
+import { type HealthProgram, healthConditionsService } from '@/src/modules/monitoring/application/use-cases/health-conditions';
 
 type State = {
   programs: HealthProgram[] | null;

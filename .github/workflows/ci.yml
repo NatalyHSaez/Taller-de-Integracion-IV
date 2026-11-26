@@ -1,0 +1,60 @@
+# Integración continua (CI) de la app.
+# Se ejecuta en cada push y en cada Pull Request hacia main.
+# Si un paso falla, el commit o el PR queda marcado en rojo (✗) en GitHub.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+# Si se suben dos commits seguidos a la misma rama, se cancela la revisión anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Tipos, pruebas y arquitectura
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias (versiones exactas de package-lock.json)
+        run: npm ci
+
+      - name: Revisar tipos de TypeScript
+        run: npx tsc --noEmit
+
+      - name: Pruebas (npm test)
+        run: npm test
+
+      - name: Reglas de arquitectura por capas
+        run: npm run check:arch
+
+      - name: Pruebas de registro, login, perfil, sesión y errores
+        run: |
+          npm run test:registration
+          npm run test:login
+          npm run test:profile
+          npm run test:session
+          npm run test:api-errors
+
+      # El lint todavía tiene avisos heredados (react-hooks/set-state-in-effect).
+      # Se ejecuta para verlos, pero no bloquea hasta que se corrijan.
+      - name: Lint (informativo)
+        run: npm run lint
+        continue-on-error: true

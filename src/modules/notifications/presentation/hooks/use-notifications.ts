@@ -1,29 +1,22 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import { authSession } from '@/src/core/application/session/auth-session';
+import { notificationsStore, selectNotificationOwner } from '@/src/modules/notifications/application/use-cases/notifications';
 
-import { useAppState } from '@/src/core/presentation/session/use-app-state';
-import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
-import { backendNotificationsApi } from '@/src/modules/notifications/infrastructure/notifications-api';
-import { notificationsStore } from '@/src/modules/notifications/application/notifications';
-import { demoNotificationsApi } from '@/src/modules/notifications/infrastructure/notifications-demo';
-
-/**
- * Conecta una pantalla al almacén de notificaciones del usuario actual.
- * Sesión real: notificaciones del usuario autenticado. Sesión demo: ejemplos.
- */
+/** Vincula las notificaciones exclusivamente a la sesión autenticada. */
 export function useNotifications() {
-  const { sessionMode } = useAppState();
-  const { user } = useAuth();
-  const isBackend = sessionMode === 'backend';
-  const ownerId = isBackend ? (user?.id ?? null) : 'demo';
+  const session = useSyncExternalStore(authSession.subscribe, authSession.snapshot, authSession.snapshot);
+  const sessionRevision = authSession.generation();
+  const ownerId = session.mode === 'backend' ? (session.user?.id ?? null) : null;
 
   useEffect(() => {
-    void notificationsStore.setOwner(ownerId, isBackend ? backendNotificationsApi : demoNotificationsApi);
-  }, [ownerId, isBackend]);
+    void selectNotificationOwner(ownerId, sessionRevision);
+  }, [ownerId, sessionRevision]);
 
   const state = useSyncExternalStore(
     notificationsStore.subscribe,
     notificationsStore.getState,
     notificationsStore.getState,
   );
-  return { state, store: notificationsStore };
+  const ownerReady = notificationsStore.isOwner(ownerId, sessionRevision);
+  return { state, store: notificationsStore, ownerId, ownerReady, sessionRevision };
 }

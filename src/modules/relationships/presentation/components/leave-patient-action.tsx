@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { Action, Copy } from '@/src/shared/presentation/components/flow-ui';
 import { confirmAction } from '@/src/modules/relationships/presentation/confirm-dialog';
-import { leaveCaregiverRelationship } from '@/src/modules/relationships/application/relationship-actions';
+import { leaveCaregiverRelationship } from '@/src/modules/relationships/application/use-cases/relationship-actions';
 
 /**
  * El cuidador deja de acompañar a un paciente (DELETE de su propio vínculo).
