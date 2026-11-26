@@ -1,1 +1,16 @@
-export { default } from "@/src/modules/medical-care/presentation/screens/medical-care-screen";
+import { StyleSheet } from 'react-native';
+
+import { ThemedText } from '@/src/shared/presentation/components/themed-text';
+import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+
+export default function AtencionScreen() {
+  return (
+    <ThemedView style={styles.container}>
+      <ThemedText type="title">Atención</ThemedText>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+});
