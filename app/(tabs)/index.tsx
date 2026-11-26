@@ -12,6 +12,7 @@ import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme
 import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 import { getDemoAlerts } from '@/src/modules/evaluation/infrastructure/demo-alerts';
 import { generateMeasurementsPdf } from '@/src/modules/dashboard/infrastructure/generate-pdf';
+import { Alert as CrossPlatformAlert } from '@/src/modules/relationships/presentation/confirm-dialog';
 import type { Measurement, MeasurementType } from '@/src/modules/monitoring/domain/measurement';
 
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
@@ -133,14 +134,14 @@ export default function ResumenScreen() {
 
   
   const handleEmergencyPress = () => {
-    Alert.alert(
+    CrossPlatformAlert.alert(
       '¿Necesitas ayuda?',
       'Selecciona a quién deseas llamar.',
       [
         {
           text: 'Servicio de emergencias (131)',
           onPress: () => {
-            Alert.alert(
+            CrossPlatformAlert.alert(
               'Confirmar llamada',
               '¿Deseas abrir el teléfono para llamar al SAMU (131)?',
               [
@@ -149,7 +150,7 @@ export default function ResumenScreen() {
                   text: 'Abrir teléfono',
                   onPress: () => {
                     Linking.openURL('tel:131').catch(() => {
-                      Alert.alert(
+                      CrossPlatformAlert.alert(
                         'No se pudo abrir el teléfono',
                         'Tu dispositivo no pudo abrir el marcador telefónico.'
                       );
@@ -165,7 +166,7 @@ export default function ResumenScreen() {
           text: 'Contacto de emergencia',
           onPress: async () => {
             if (!emergencyPatientId) {
-              Alert.alert(
+              CrossPlatformAlert.alert(
                 'Sin paciente',
                 'No hay un paciente seleccionado.'
               );
@@ -176,7 +177,7 @@ export default function ResumenScreen() {
               const contact = await getEmergencyContact(emergencyPatientId);
 
               if (!contact) {
-                Alert.alert(
+                CrossPlatformAlert.alert(
                   'Contacto no configurado',
                   'Todavía no tienes un contacto de emergencia registrado.',
                   [
@@ -190,7 +191,7 @@ export default function ResumenScreen() {
                 return;
               }
 
-              Alert.alert(
+              CrossPlatformAlert.alert(
                 'Confirmar llamada',
                 `¿Deseas abrir el teléfono para llamar a ${contact.name} (${contact.phone})?`,
                 [
@@ -203,7 +204,7 @@ export default function ResumenScreen() {
                     text: 'Abrir teléfono',
                     onPress: () => {
                       Linking.openURL(`tel:${contact.phone}`).catch(() => {
-                        Alert.alert(
+                        CrossPlatformAlert.alert(
                           'No se pudo abrir el teléfono',
                           'Tu dispositivo no pudo abrir el marcador telefónico.'
                         );
@@ -213,7 +214,7 @@ export default function ResumenScreen() {
                 ]
               );
             } catch {
-              Alert.alert(
+              CrossPlatformAlert.alert(
                 'Error',
                 'No se pudo consultar el contacto de emergencia.'
               );
@@ -380,7 +381,7 @@ export default function ResumenScreen() {
               const patientName = isRealSession
                 ? (user?.name ?? selectedPatient?.name ?? 'Paciente')
                 : (selectedPatient?.name ?? 'Paciente');
-              Alert.alert(
+              CrossPlatformAlert.alert(
                 'Generar resumen PDF',
                 'Se generará un documento PDF con el resumen de todas tus mediciones registradas.',
                 [
