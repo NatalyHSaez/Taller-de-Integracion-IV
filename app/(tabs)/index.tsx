@@ -11,9 +11,11 @@ import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 import { getDemoAlerts } from '@/src/modules/evaluation/infrastructure/demo-alerts';
-import { generateMeasurementsPdf } from '@/src/modules/dashboard/infrastructure/generate-pdf';
+import { generateMeasurementsPdf, type MedicationInfo } from '@/src/modules/dashboard/infrastructure/generate-pdf';
 import { Alert as CrossPlatformAlert } from '@/src/modules/relationships/presentation/confirm-dialog';
 import type { Measurement, MeasurementType } from '@/src/modules/monitoring/domain/measurement';
+import type { PatientAlert } from '@/src/modules/evaluation/domain/alert';
+import type { PatientCondition } from '@/src/modules/monitoring/domain/patient-condition';
 
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
 import {
@@ -134,14 +136,14 @@ export default function ResumenScreen() {
 
   
   const handleEmergencyPress = () => {
-    CrossPlatformAlert.alert(
+    Alert.alert(
       '¿Necesitas ayuda?',
       'Selecciona a quién deseas llamar.',
       [
         {
           text: 'Servicio de emergencias (131)',
           onPress: () => {
-            CrossPlatformAlert.alert(
+            Alert.alert(
               'Confirmar llamada',
               '¿Deseas abrir el teléfono para llamar al SAMU (131)?',
               [
@@ -150,7 +152,7 @@ export default function ResumenScreen() {
                   text: 'Abrir teléfono',
                   onPress: () => {
                     Linking.openURL('tel:131').catch(() => {
-                      CrossPlatformAlert.alert(
+                      Alert.alert(
                         'No se pudo abrir el teléfono',
                         'Tu dispositivo no pudo abrir el marcador telefónico.'
                       );
@@ -166,7 +168,7 @@ export default function ResumenScreen() {
           text: 'Contacto de emergencia',
           onPress: async () => {
             if (!emergencyPatientId) {
-              CrossPlatformAlert.alert(
+              Alert.alert(
                 'Sin paciente',
                 'No hay un paciente seleccionado.'
               );
@@ -177,7 +179,7 @@ export default function ResumenScreen() {
               const contact = await getEmergencyContact(emergencyPatientId);
 
               if (!contact) {
-                CrossPlatformAlert.alert(
+                Alert.alert(
                   'Contacto no configurado',
                   'Todavía no tienes un contacto de emergencia registrado.',
                   [
@@ -191,7 +193,7 @@ export default function ResumenScreen() {
                 return;
               }
 
-              CrossPlatformAlert.alert(
+              Alert.alert(
                 'Confirmar llamada',
                 `¿Deseas abrir el teléfono para llamar a ${contact.name} (${contact.phone})?`,
                 [
@@ -204,7 +206,7 @@ export default function ResumenScreen() {
                     text: 'Abrir teléfono',
                     onPress: () => {
                       Linking.openURL(`tel:${contact.phone}`).catch(() => {
-                        CrossPlatformAlert.alert(
+                        Alert.alert(
                           'No se pudo abrir el teléfono',
                           'Tu dispositivo no pudo abrir el marcador telefónico.'
                         );
@@ -214,7 +216,7 @@ export default function ResumenScreen() {
                 ]
               );
             } catch {
-              CrossPlatformAlert.alert(
+              Alert.alert(
                 'Error',
                 'No se pudo consultar el contacto de emergencia.'
               );
@@ -389,10 +391,26 @@ export default function ResumenScreen() {
                   {
                     text: 'Generar PDF',
                     onPress: () => {
+                      // Recopilar datos clínicos para el informe
+                      const pdfMedications: MedicationInfo[] = [
+                        { name: 'Losartán', dose: '50 mg', frequencyHours: 12 },
+                      ];
+                      const pdfConditions: PatientCondition[] = [
+                        { conditionCode: 'HYPERTENSION', name: 'Hipertensión arterial', startedAt: null, status: 'ACTIVE' },
+                        { conditionCode: 'DIABETES_T2', name: 'Diabetes tipo 2', startedAt: null, status: 'ACTIVE' },
+                      ];
+                      const pdfRealAlerts: PatientAlert[] = homeReady && home.alert
+                        ? [home.alert]
+                        : [];
+
                       void generateMeasurementsPdf({
                         patientName,
+                        patientRut: (selectedPatient as any)?.rut,
                         measurements: summaryMeasurements,
                         alerts: [],
+                        realAlerts: pdfRealAlerts,
+                        conditions: pdfConditions,
+                        medications: pdfMedications,
                       }).then(() => {
                         router.navigate('/documentos');
                       });

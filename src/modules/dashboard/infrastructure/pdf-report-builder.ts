@@ -1,5 +1,7 @@
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
-import type { AlertaItem } from './generate-pdf';
+import type { AlertaItem, MedicationInfo } from './generate-pdf';
+import type { PatientAlert } from '@/src/modules/evaluation/domain/alert';
+import type { PatientCondition } from '@/src/modules/monitoring/domain/patient-condition';
 
 type PatientInfo = {
   name: string;
@@ -12,6 +14,9 @@ type ReportData = {
   patient: PatientInfo;
   measurements: Measurement[];
   alerts: AlertaItem[];
+  realAlerts: PatientAlert[];
+  conditions: PatientCondition[];
+  medications: MedicationInfo[];
   generatedAt: Date;
 };
 
@@ -36,10 +41,16 @@ function formatShortDate(dateStr: string): string {
 function getSeverityColor(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'ALERTA':
+    case 'HIGH':
+    case 'CRITICAL':
       return '#DC2626';
     case 'ADVERTENCIA':
+    case 'MEDIUM':
+    case 'WARNING':
       return '#D97706';
     case 'NORMAL':
+    case 'LOW':
+    case 'INFO':
       return '#059669';
     default:
       return '#6B7280';
@@ -49,14 +60,30 @@ function getSeverityColor(severity: string): string {
 function getSeverityLabel(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'ALERTA':
+    case 'HIGH':
+    case 'CRITICAL':
       return '🔴 Alerta';
     case 'ADVERTENCIA':
+    case 'MEDIUM':
+    case 'WARNING':
       return '🟡 Advertencia';
     case 'NORMAL':
+    case 'LOW':
+    case 'INFO':
       return '🟢 Normal';
     default:
       return severity;
   }
+}
+
+function formatFrequency(hours: number): string {
+  if (hours === 24) return 'Una vez al día';
+  if (hours === 12) return 'Cada 12 horas';
+  if (hours === 8) return 'Cada 8 horas';
+  if (hours === 6) return 'Cada 6 horas';
+  if (hours === 4) return 'Cada 4 horas';
+  if (hours < 1) return `Cada ${Math.round(hours * 60)} minutos`;
+  return `Cada ${hours} horas`;
 }
 
 function groupMeasurementsByType(measurements: Measurement[]) {
@@ -186,9 +213,108 @@ function buildMeasurementTable(
     </div>`;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Sección de condiciones de salud                                    */
+/* ------------------------------------------------------------------ */
+function buildConditionsSection(conditions: PatientCondition[]): string {
+  if (conditions.length === 0) return '';
+
+  const items = conditions
+    .map((c) => {
+      const statusColor = c.status === 'ACTIVE' ? '#DC2626' : '#059669';
+      const statusLabel = c.status === 'ACTIVE' ? 'Activa' : c.status;
+      const since = c.startedAt ? ` · Desde ${formatShortDate(c.startedAt)}` : '';
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F3F4F6;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;"></span>
+          <div>
+            <p style="font-size:12px;font-weight:600;color:#1F2937;margin:0;">${c.name}</p>
+            <p style="font-size:10px;color:#6B7280;margin:2px 0 0 0;">Código: ${c.conditionCode} · Estado: ${statusLabel}${since}</p>
+          </div>
+        </div>`;
+    })
+    .join('');
+
+  return `
+    <div style="page-break-inside:avoid;">
+      <h2 style="font-size:16px;color:#1E3A5F;border-bottom:2px solid #E5E7EB;padding-bottom:6px;margin:24px 0 12px 0;">🏥 Condiciones de salud</h2>
+      <div style="border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;">
+        ${items}
+      </div>
+    </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sección de medicamentos                                            */
+/* ------------------------------------------------------------------ */
+function buildMedicationsSection(medications: MedicationInfo[]): string {
+  if (medications.length === 0) return '';
+
+  const headerCells = ['Medicamento', 'Dosis', 'Frecuencia']
+    .map((h) => `<th style="padding:8px 12px;text-align:left;font-size:11px;color:#6B7280;border-bottom:2px solid #0EA5E9;">${h}</th>`)
+    .join('');
+
+  const rows = medications
+    .map(
+      (m) => `
+      <tr>
+        <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#1F2937;border-bottom:1px solid #F3F4F6;">💊 ${m.name}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#374151;border-bottom:1px solid #F3F4F6;">${m.dose}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#374151;border-bottom:1px solid #F3F4F6;">${formatFrequency(m.frequencyHours)}</td>
+      </tr>`,
+    )
+    .join('');
+
+  return `
+    <div style="page-break-inside:avoid;">
+      <h2 style="font-size:16px;color:#1E3A5F;border-bottom:2px solid #E5E7EB;padding-bottom:6px;margin:24px 0 12px 0;">💊 Medicamentos</h2>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;">
+        <thead><tr style="background:#F0F9FF;">${headerCells}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sección de alertas reales del backend                              */
+/* ------------------------------------------------------------------ */
+function buildRealAlertsSection(realAlerts: PatientAlert[]): string {
+  const open = realAlerts.filter((a) => a.status === 'OPEN');
+  if (open.length === 0) return '';
+
+  const items = open
+    .map((a) => {
+      const color = getSeverityColor(a.severity);
+      const label = getSeverityLabel(a.severity);
+      const date = formatShortDate(a.createdAt);
+      return `
+        <div style="border-left:4px solid ${color};background:#FAFAFA;border-radius:6px;padding:10px 14px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:${color};">${label}</span>
+            <span style="font-size:10px;color:#9CA3AF;">${date}</span>
+          </div>
+          <p style="font-size:11px;color:#374151;margin:0;">${a.explanation}</p>
+          <p style="font-size:9px;color:#D1D5DB;margin:4px 0 0 0;">Código: ${a.ruleCode}</p>
+        </div>`;
+    })
+    .join('');
+
+  return `
+    <div style="page-break-inside:avoid;">
+      <h2 style="font-size:16px;color:#1E3A5F;border-bottom:2px solid #E5E7EB;padding-bottom:6px;margin:24px 0 12px 0;">🚨 Alertas clínicas abiertas (${open.length})</h2>
+      ${items}
+    </div>`;
+}
+
 export function buildReportHtml(data: ReportData): string {
-  const { patient, measurements, alerts, generatedAt } = data;
+  const { patient, measurements, alerts, realAlerts, conditions, medications, generatedAt } = data;
   const { bp, glucose, weight } = groupMeasurementsByType(measurements);
+
+  // --- Conditions section ---
+  const conditionsSection = buildConditionsSection(conditions);
+
+  // --- Medications section ---
+  const medicationsSection = buildMedicationsSection(medications);
 
   // --- Charts ---
   const bpChart =
@@ -306,11 +432,11 @@ export function buildReportHtml(data: ReportData): string {
       ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;">${stats.join('')}</div>`
       : '';
 
-  // --- Alerts ---
+  // --- Legacy demo alerts ---
   const significantAlerts = alerts.filter(
     (a) => a.severidad.toUpperCase() !== 'NORMAL',
   );
-  const alertsSection =
+  const legacyAlertsSection =
     significantAlerts.length > 0
       ? `<div style="page-break-inside:avoid;">
            <h2 style="font-size:16px;color:#1E3A5F;border-bottom:2px solid #E5E7EB;padding-bottom:6px;margin:24px 0 12px 0;">⚠️ Alertas significativas</h2>
@@ -320,16 +446,21 @@ export function buildReportHtml(data: ReportData): string {
              <div style="border-left:4px solid ${getSeverityColor(a.severidad)};background:#FAFAFA;border-radius:6px;padding:10px 14px;margin-bottom:8px;">
                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                  <span style="font-size:12px;font-weight:600;color:${getSeverityColor(a.severidad)};">${getSeverityLabel(a.severidad)} — ${a.parametro}</span>
-                 <span style="font-size:10px;color:#9CA3AF;">${a.fecha} ${a.hora}</span>
+                 <span style="font-size:10px;color:#9CA3AF;">${a.fecha}</span>
                </div>
                <p style="font-size:11px;color:#374151;margin:0;">${a.mensaje}</p>
                ${a.comparacion ? `<p style="font-size:10px;color:#6B7280;margin:4px 0 0 0;">${a.comparacion}</p>` : ''}
-               <p style="font-size:9px;color:#D1D5DB;margin:4px 0 0 0;">Regla: ${a.regla}</p>
              </div>`,
              )
              .join('')}
          </div>`
       : '';
+
+  // --- Real alerts from backend ---
+  const realAlertsSection = buildRealAlertsSection(realAlerts);
+
+  // Combined alert count for header
+  const totalAlertCount = significantAlerts.length + realAlerts.filter((a) => a.status === 'OPEN').length;
 
   // --- Full HTML ---
   return `<!DOCTYPE html>
@@ -337,7 +468,7 @@ export function buildReportHtml(data: ReportData): string {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Resumen de mediciones — ${patient.name}</title>
+  <title>Informe Clínico — ${patient.name}</title>
   <style>
     @page { margin: 20mm 15mm; size: A4; }
     * { box-sizing: border-box; }
@@ -350,8 +481,8 @@ export function buildReportHtml(data: ReportData): string {
   <div style="background:linear-gradient(135deg,#1E3A5F,#2563EB);color:white;padding:24px 28px;border-radius:0 0 16px 16px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <h1 style="margin:0;font-size:22px;font-weight:700;">Resumen de Mediciones</h1>
-        <p style="margin:4px 0 0 0;font-size:12px;opacity:0.85;">Reporte generado por Domicilia</p>
+        <h1 style="margin:0;font-size:22px;font-weight:700;">Informe Clínico del Paciente</h1>
+        <p style="margin:4px 0 0 0;font-size:12px;opacity:0.85;">Reporte integral generado por Domicilia</p>
       </div>
       <div style="text-align:right;">
         <p style="margin:0;font-size:11px;opacity:0.75;">Generado el</p>
@@ -370,16 +501,27 @@ export function buildReportHtml(data: ReportData): string {
           <p style="font-size:13px;font-weight:600;color:#1F2937;margin:2px 0 0 0;">${patient.name}</p>
         </div>
         ${patient.rut ? `<div><p style="font-size:10px;color:#6B7280;margin:0;">RUT</p><p style="font-size:13px;font-weight:600;color:#1F2937;margin:2px 0 0 0;">${patient.rut}</p></div>` : ''}
+        ${patient.age ? `<div><p style="font-size:10px;color:#6B7280;margin:0;">Edad</p><p style="font-size:13px;font-weight:600;color:#1F2937;margin:2px 0 0 0;">${patient.age} años</p></div>` : ''}
         <div>
           <p style="font-size:10px;color:#6B7280;margin:0;">Total de registros</p>
           <p style="font-size:13px;font-weight:600;color:#1F2937;margin:2px 0 0 0;">${measurements.length}</p>
         </div>
         <div>
           <p style="font-size:10px;color:#6B7280;margin:0;">Alertas activas</p>
-          <p style="font-size:13px;font-weight:600;color:${significantAlerts.length > 0 ? '#DC2626' : '#059669'};margin:2px 0 0 0;">${significantAlerts.length}</p>
+          <p style="font-size:13px;font-weight:600;color:${totalAlertCount > 0 ? '#DC2626' : '#059669'};margin:2px 0 0 0;">${totalAlertCount}</p>
+        </div>
+        <div>
+          <p style="font-size:10px;color:#6B7280;margin:0;">Medicamentos</p>
+          <p style="font-size:13px;font-weight:600;color:#0EA5E9;margin:2px 0 0 0;">${medications.length}</p>
         </div>
       </div>
     </div>
+
+    <!-- Conditions -->
+    ${conditionsSection}
+
+    <!-- Medications -->
+    ${medicationsSection}
 
     <!-- Stats -->
     ${statsSection}
@@ -390,14 +532,17 @@ export function buildReportHtml(data: ReportData): string {
     <!-- Tables -->
     ${tablesSection}
 
-    <!-- Alerts -->
-    ${alertsSection}
+    <!-- Real alerts -->
+    ${realAlertsSection}
+
+    <!-- Legacy alerts -->
+    ${legacyAlertsSection}
 
     <!-- Footer -->
     <div style="margin-top:32px;padding-top:12px;border-top:1px solid #E5E7EB;text-align:center;">
       <p style="font-size:9px;color:#D1D5DB;margin:0;">
-        Este documento es un resumen informativo generado automáticamente por la aplicación Domicilia.
-        No reemplaza una evaluación médica profesional.
+        Este documento es un informe clínico informativo generado automáticamente por la aplicación Domicilia.
+        No reemplaza una evaluación médica profesional. Fecha de generación: ${formatDate(generatedAt)}.
       </p>
     </div>
   </div>
