@@ -23,15 +23,12 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Configure EAS project
-        run: eas init --id $(eas project:info --json --non-interactive | jq -r '.id // empty' || echo "") --non-interactive 2>/dev/null || eas init --account natalys --non-interactive
-
       - name: Build APK
         run: eas build --platform android --profile preview --non-interactive --no-wait
 
-      - name: Wait and get APK URL
+      - name: Wait for build
         run: |
-          echo "Esperando que el build termine..."
+          echo "Esperando build en EAS..."
           sleep 30
           for i in $(seq 1 60); do
             STATUS=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].status')
@@ -39,13 +36,15 @@ jobs:
             if [ "$STATUS" = "FINISHED" ]; then
               URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
               echo "url=$URL" >> "$GITHUB_OUTPUT"
-              break
+              exit 0
             elif [ "$STATUS" = "ERRORED" ]; then
               echo "Build falló en EAS"
               exit 1
             fi
             sleep 60
           done
+          echo "Timeout esperando build"
+          exit 1
         id: apk
 
       - name: Download APK
