@@ -29,10 +29,10 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Linking from 'expo-linking';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 // Agregado: mismas funciones con manejo de errores del vínculo y un Alert que también funciona en la web.
 import { Alert } from '@/src/modules/relationships/presentation/confirm-dialog';
-import { onStaleRelationship, revokeCaregiverRelationship, revokeDoctorRelationship, updateCaregiverPermissions } from '@/src/modules/relationships/application/relationship-actions';
+import { onStaleRelationship, revokeCaregiverRelationship, revokeDoctorRelationship, updateCaregiverPermissions, updateDoctorPermissions } from '@/src/modules/relationships/application/relationship-actions';
 const DEMO_PERMISSIONS: { key: keyof Permissions; label: string; icon: IconName }[] = [
   { key: 'alerts', label: 'Recibir alertas', icon: 'bell-alert-outline' },
   { key: 'read', label: 'Consultar mediciones', icon: 'chart-line' },
@@ -70,6 +70,13 @@ const CAREGIVER_PERMISSIONS = [
   { code: 'MEASUREMENT_CREATE', label: 'Registrar mediciones' },
   { code: 'MEASUREMENT_VIEW', label: 'Consultar mediciones' },
   { code: 'ALERT_VIEW', label: 'Consultar alertas' },
+] as const;
+
+const DOCTOR_PERMISSIONS = [
+  { code: 'PATIENT_PROFILE_VIEW', label: 'Ver perfil del paciente' },
+  { code: 'MEASUREMENT_VIEW', label: 'Consultar mediciones' },
+  { code: 'ALERT_VIEW', label: 'Consultar alertas' },
+  { code: 'MEDICAL_NOTES_CREATE', label: 'Crear notas médicas' },
 ] as const;
 
 /** Agregado: fecha de vinculación, permisos e identificador real del vínculo. */
@@ -142,8 +149,23 @@ function RealDoctorCard({ doctor, onChanged }: {
   doctor: LinkedUserResponse;
   onChanged: () => Promise<void>;
 }) {
+  const [selected, setSelected] = useState<string[]>(doctor.permissions);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  useEffect(() => { setSelected(doctor.permissions); }, [doctor.permissions.join('|')]);
+  const changed = selected.length !== doctor.permissions.length ||
+    selected.some(permission => !doctor.permissions.includes(permission));
+
+  async function save() {
+    setBusy(true); setMessage('');
+    try {
+      await updateDoctorPermissions(doctor.relationshipId, selected);
+      await onChanged();
+      setMessage('Permisos actualizados.');
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : 'No se pudieron guardar los permisos.');
+    } finally { setBusy(false); }
+  }
   function confirmRevoke() {
     Alert.alert('Retirar acceso', `¿Quieres revocar el acceso de ${doctor.fullName}?`, [
       { text: 'Cancelar', style: 'cancel' },
@@ -158,9 +180,25 @@ function RealDoctorCard({ doctor, onChanged }: {
   return <Panel>
     <PersonHeader name={doctor.fullName} role="doctor" />
     <LinkDetails link={doctor} />
-    <PermissionChips codes={doctor.permissions} />
+    <Divider />
+    <Paragraph muted>Qué puede hacer</Paragraph>
+    <View>
+      {DOCTOR_PERMISSIONS.map(({ code, label }) => (
+        <PermissionToggle
+          key={code}
+          icon={PERMISSION_ICONS[code]}
+          label={label}
+          disabled={busy}
+          value={selected.includes(code)}
+          onChange={enabled => setSelected(current => enabled
+            ? (current.includes(code) ? current : [...current, code])
+            : current.filter(item => item !== code))}
+        />
+      ))}
+    </View>
+    {changed && <LinkButton icon="content-save-outline" busy={busy} label={busy ? 'Guardando...' : 'Guardar permisos'} onPress={() => { if (!busy) void save(); }} />}
     <LinkButton variant="danger" icon="account-remove-outline" disabled={busy} label={busy ? 'Procesando...' : 'Retirar acceso del médico'} onPress={() => { if (!busy) confirmRevoke(); }} />
-    {!!message && <Notice tone="error" text={message} />}
+    {!!message && <Notice tone={message === 'Permisos actualizados.' ? 'success' : 'error'} text={message} />}
   </Panel>;
 }
 
@@ -291,6 +329,13 @@ export default function Links() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      {/* Botón de volver */}
+      <View style={styles.backRow}>
+        <Pressable style={styles.backButton} onPress={() => router.back()} hitSlop={8}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={theme.text} />
+          <Text style={[styles.backLabel, { color: theme.text }]}>Volver</Text>
+        </Pressable>
+      </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <LinksHero
           subtitle={subtitle}
@@ -512,6 +557,9 @@ export default function Links() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 2 },
+  backButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 4 },
+  backLabel: { fontSize: 15, fontWeight: '500' },
   content: { gap: 14, paddingBottom: 36, paddingHorizontal: 16, paddingTop: 12 },
   details: { gap: 4 },
   demoCode: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 4, padding: 14 },

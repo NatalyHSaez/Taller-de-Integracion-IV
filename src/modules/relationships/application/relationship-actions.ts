@@ -1,4 +1,4 @@
-import { getMePatients, revokeCaregiverRelationship as apiRevokeCaregiverRelationship, revokeDoctorRelationship as apiRevokeDoctorRelationship, updateCaregiverPermissions as apiUpdateCaregiverPermissions, type LinkedUserResponse } from '../infrastructure/relationships-api';
+import { getMePatients, revokeCaregiverRelationship as apiRevokeCaregiverRelationship, revokeDoctorRelationship as apiRevokeDoctorRelationship, updateCaregiverPermissions as apiUpdateCaregiverPermissions, updateDoctorPermissions as apiUpdateDoctorPermissions, type LinkedUserResponse } from '../infrastructure/relationships-api';
 import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/errors';
 
 /**
@@ -17,6 +17,13 @@ import { ApiError, normalizeApiError } from '../../../core/infrastructure/http/e
  *   (onStaleRelationship) para recargar la lista.
  * - El DELETE responde 204 sin cuerpo: el cliente HTTP (api-client.ts) no intenta leer JSON.
  */
+
+export const DOCTOR_PERMISSION_CODES = [
+  'PATIENT_PROFILE_VIEW',
+  'MEASUREMENT_VIEW',
+  'ALERT_VIEW',
+  'MEDICAL_NOTES_CREATE',
+] as const;
 
 export const CAREGIVER_PERMISSION_CODES = [
   'PATIENT_PROFILE_VIEW',
@@ -81,6 +88,21 @@ export async function updateCaregiverPermissions(
   const complete = Array.from(new Set(permissions));
   try {
     return await apiUpdateCaregiverPermissions(relationshipId, complete);
+  } catch (error) {
+    const info = describeRelationshipError(error);
+    if (info.stale) staleListeners.forEach((listener) => listener());
+    throw friendlyError(info);
+  }
+}
+
+/** PUT reemplaza: se envía siempre el conjunto completo (sin repetidos). */
+export async function updateDoctorPermissions(
+  relationshipId: string,
+  permissions: string[],
+): Promise<LinkedUserResponse> {
+  const complete = Array.from(new Set(permissions));
+  try {
+    return await apiUpdateDoctorPermissions(relationshipId, complete);
   } catch (error) {
     const info = describeRelationshipError(error);
     if (info.stale) staleListeners.forEach((listener) => listener());

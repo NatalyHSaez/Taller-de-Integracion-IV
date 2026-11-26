@@ -9,6 +9,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   MEASUREMENT_CREATE: 'registrar mediciones',
   MEASUREMENT_VIEW: 'consultar mediciones',
   ALERT_VIEW: 'consultar alertas',
+  MEDICAL_NOTES_CREATE: 'crear notas médicas',
 };
 
 /** "consultar mediciones, consultar alertas" o "ninguno". Códigos desconocidos se muestran tal cual. */

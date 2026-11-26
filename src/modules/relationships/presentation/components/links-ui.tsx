@@ -33,6 +33,7 @@ export const PERMISSION_ICONS: Record<string, IconName> = {
   MEASUREMENT_CREATE: 'pencil-plus-outline',
   MEASUREMENT_VIEW: 'chart-line',
   ALERT_VIEW: 'bell-alert-outline',
+  MEDICAL_NOTES_CREATE: 'file-document-edit-outline',
 };
 
 export function initialsOf(name: string | null | undefined): string {
