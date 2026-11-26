@@ -11,6 +11,7 @@ import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
 import { useDemo } from '@/src/modules/demo/presentation/use-demo';
 import { getDemoAlerts } from '@/src/modules/evaluation/infrastructure/demo-alerts';
+import { generateMeasurementsPdf } from '@/src/modules/dashboard/infrastructure/generate-pdf';
 import type { Measurement, MeasurementType } from '@/src/modules/monitoring/domain/measurement';
 
 import { useAuth } from '@/src/modules/identity/presentation/hooks/use-auth';
@@ -376,6 +377,9 @@ export default function ResumenScreen() {
             accessibilityLabel="Generar resumen PDF de mediciones"
             accessibilityRole="button"
             onPress={() => {
+              const patientName = isRealSession
+                ? (user?.name ?? selectedPatient?.name ?? 'Paciente')
+                : (selectedPatient?.name ?? 'Paciente');
               Alert.alert(
                 'Generar resumen PDF',
                 'Se generará un documento PDF con el resumen de todas tus mediciones registradas.',
@@ -384,11 +388,13 @@ export default function ResumenScreen() {
                   {
                     text: 'Generar PDF',
                     onPress: () => {
-                      Alert.alert(
-                        'Funcionalidad en desarrollo',
-                        'La generación del PDF estará disponible próximamente.',
-                        [{ text: 'Entendido' }],
-                      );
+                      void generateMeasurementsPdf({
+                        patientName,
+                        measurements: summaryMeasurements,
+                        alerts: [],
+                      }).then(() => {
+                        router.navigate('/documentos');
+                      });
                     },
                   },
                 ],
