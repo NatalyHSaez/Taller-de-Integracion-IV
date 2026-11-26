@@ -370,6 +370,50 @@ export default function ResumenScreen() {
           </Pressable>}
         </View>}
 
+        {/* Generar PDF de mediciones */}
+        {summaries.length > 0 && (
+          <Pressable
+            accessibilityLabel="Generar resumen PDF de mediciones"
+            accessibilityRole="button"
+            onPress={() => {
+              Alert.alert(
+                'Generar resumen PDF',
+                'Se generará un documento PDF con el resumen de todas tus mediciones registradas.',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Generar PDF',
+                    onPress: () => {
+                      Alert.alert(
+                        'Funcionalidad en desarrollo',
+                        'La generación del PDF estará disponible próximamente.',
+                        [{ text: 'Entendido' }],
+                      );
+                    },
+                  },
+                ],
+              );
+            }}
+            style={({ pressed }) => [
+              styles.pdfButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              pressed && styles.pressed,
+            ]}>
+            <View style={[styles.pdfIcon, { backgroundColor: StatusColors.danger.background }]}>
+              <MaterialCommunityIcons name="file-pdf-box" size={22} color={StatusColors.danger.foreground} />
+            </View>
+            <View style={styles.pdfCopy}>
+              <ThemedText style={styles.pdfTitle}>Resumen de mediciones</ThemedText>
+              <ThemedText style={[styles.pdfSubtitle, { color: theme.mutedText }]}>
+                Generar PDF con tu historial completo
+              </ThemedText>
+            </View>
+            <View style={[styles.pdfChevron, { backgroundColor: theme.primarySoft }]}>
+              <MaterialCommunityIcons name="download-outline" size={20} color={theme.primary} />
+            </View>
+          </Pressable>
+        )}
+
         {priorityAlert && (
           <Pressable
             accessibilityLabel="Ver alerta activa"
@@ -444,5 +488,11 @@ const styles = StyleSheet.create({
   alertCopy: { flex: 1, gap: 1 },
   alertTitle: { fontSize: 13, fontWeight: '800', lineHeight: 18 },
   alertMessage: { fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  pdfButton: { alignItems: 'center', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 68, padding: 14, shadowColor: BrandColors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  pdfIcon: { alignItems: 'center', borderRadius: 12, height: 44, justifyContent: 'center', width: 44 },
+  pdfCopy: { flex: 1, gap: 2 },
+  pdfTitle: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
+  pdfSubtitle: { fontSize: 13, lineHeight: 18 },
+  pdfChevron: { alignItems: 'center', borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
   pressed: { opacity: 0.76 },
 });

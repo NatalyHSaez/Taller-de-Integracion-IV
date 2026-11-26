@@ -1,6 +1,7 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   countByKind,
@@ -16,6 +17,7 @@ import {
   SectionTitle,
 } from '@/src/modules/care/presentation/components/documents-ui';
 import { ThemedView } from '@/src/shared/presentation/components/themed-view';
+import { BrandColors } from '@/src/shared/presentation/theme';
 
 const SECTION_TITLES: Record<DocumentFilter, string> = {
   ALL: 'Todos tus documentos',
@@ -56,13 +58,42 @@ export default function DocumentosScreen() {
           <DocumentCard document={item} onOpen={() => router.push(`/documentos/${item.id}`)} />
         )}
       />
+
+      {/* FAB — Subir documento (visible para profesionales) */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Subir documento"
+        onPress={() => router.push('/documentos/subir')}
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}>
+        <MaterialCommunityIcons name="plus" size={26} color={BrandColors.onPrimary} />
+        <Text style={styles.fabLabel}>Subir</Text>
+      </Pressable>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { paddingBottom: 32, paddingHorizontal: 16, paddingTop: 18 },
+  list: { paddingBottom: 90, paddingHorizontal: 16, paddingTop: 18 },
   header: { gap: 16, marginBottom: 12 },
   separator: { height: 12 },
+  fab: {
+    alignItems: 'center',
+    backgroundColor: BrandColors.primary,
+    borderRadius: 28,
+    bottom: 24,
+    elevation: 6,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    position: 'absolute',
+    right: 20,
+    shadowColor: BrandColors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  fabPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
+  fabLabel: { color: BrandColors.onPrimary, fontSize: 15, fontWeight: '700' },
 });
