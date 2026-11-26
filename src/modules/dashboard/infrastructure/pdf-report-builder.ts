@@ -1,5 +1,5 @@
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
-import type { AlertaItem } from '@/src/modules/demo/infrastructure/data/alerts-mock';
+import type { AlertaItem } from './generate-pdf';
 
 type PatientInfo = {
   name: string;

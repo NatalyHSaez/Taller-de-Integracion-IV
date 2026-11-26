@@ -4,7 +4,16 @@ import { Alert, Platform } from 'react-native';
 
 import { buildReportHtml } from './pdf-report-builder';
 import type { Measurement } from '@/src/modules/monitoring/domain/measurement';
-import type { AlertaItem } from '@/src/modules/demo/infrastructure/data/alerts-mock';
+/** Tipo de alerta para el reporte PDF. */
+export type AlertaItem = {
+  id: string;
+  severidad: string;
+  parametro: string;
+  mensaje: string;
+  comparacion: string | null;
+  fecha: string;
+  leida: boolean;
+};
 
 type GenerateOptions = {
   patientName: string;
