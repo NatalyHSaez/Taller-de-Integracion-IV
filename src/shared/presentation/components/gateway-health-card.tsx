@@ -2,19 +2,23 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { API_BASE_URL } from '@/src/core/infrastructure/config/api-config';
+import type { HealthResponse } from '@/src/core/domain/contracts';
+import { normalizeApiError } from '@/src/core/domain/errors';
 import { Colors, StatusColors } from '@/src/shared/presentation/theme';
 import { useColorScheme } from '@/src/shared/presentation/hooks/use-color-scheme';
-import { getApiErrorMessage } from '@/src/core/infrastructure/http/errors';
-import { gatewayService } from '@/src/core/infrastructure/http/gateway';
-import type { HealthResponse } from '@/src/core/infrastructure/http/dto';
+
+type HealthRequestOptions = { forceRefresh?: boolean; signal?: AbortSignal };
+export type GatewayHealthProps = {
+  apiBaseUrl: string | null;
+  check: (options?: HealthRequestOptions) => Promise<HealthResponse>;
+};
 
 type HealthViewState =
   | { kind: 'loading' }
   | { kind: 'ready'; response: HealthResponse }
   | { kind: 'error'; message: string };
 
-export function GatewayHealthCard() {
+export function GatewayHealthCard({ apiBaseUrl, check }: GatewayHealthProps) {
   const theme = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   const [state, setState] = useState<HealthViewState>({ kind: 'loading' });
 
@@ -22,7 +26,7 @@ export function GatewayHealthCard() {
     setState({ kind: 'loading' });
 
     try {
-      const response = await gatewayService.health({ forceRefresh, signal });
+      const response = await check({ forceRefresh, signal });
       setState({ kind: 'ready', response });
     } catch (cause) {
       if (signal?.aborted) {
@@ -31,19 +35,15 @@ export function GatewayHealthCard() {
 
       setState({
         kind: 'error',
-        message: getApiErrorMessage(
-          cause,
-          'No fue posible comprobar la conexión con el servidor.',
-        ),
+        message: normalizeApiError(cause, 'No fue posible comprobar la conexión con el servidor.').message,
       });
     }
-  }, []);
+  }, [check]);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    gatewayService
-      .health({ signal: controller.signal })
+    check({ signal: controller.signal })
       .then((response) => setState({ kind: 'ready', response }))
       .catch((cause: unknown) => {
         if (controller.signal.aborted) {
@@ -52,15 +52,12 @@ export function GatewayHealthCard() {
 
         setState({
           kind: 'error',
-          message: getApiErrorMessage(
-            cause,
-            'No fue posible comprobar la conexión con el servidor.',
-          ),
+          message: normalizeApiError(cause, 'No fue posible comprobar la conexión con el servidor.').message,
         });
       });
 
     return () => controller.abort();
-  }, []);
+  }, [check]);
 
   const isReady = state.kind === 'ready';
   const isHealthy = isReady && state.response.status === 'ok';
@@ -105,7 +102,7 @@ export function GatewayHealthCard() {
       </View>
 
       <Text selectable style={[styles.url, { color: theme.mutedText }]}>
-        {API_BASE_URL ?? 'Configura EXPO_PUBLIC_API_URL para conectarte al Gateway.'}
+        {apiBaseUrl ?? 'Configura EXPO_PUBLIC_API_URL para conectarte al Gateway.'}
       </Text>
 
       {state.kind === 'ready' && state.response.status === 'degradado' && (

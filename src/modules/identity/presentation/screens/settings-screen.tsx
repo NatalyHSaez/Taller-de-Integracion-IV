@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
-import { authService } from '@/src/modules/identity/application/use-cases/auth-service';
+import { appState } from '@/src/core/application/session/app-state';
+import { authSession } from '@/src/core/application/session/auth-session';
 import type { P7Report, P7CheckContext } from '@/src/core/domain/integration-check';
+import { authService } from '@/src/modules/identity/application/use-cases/auth-service';
+import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
 
 type VerifyIntegration = (context: P7CheckContext) => Promise<P7Report>;
-import { authSession } from '@/src/core/application/session/auth-session';
-import { appState } from '@/src/core/application/session/app-state';
 
 /** P7: comprobación manual desde el dispositivo que ejecuta Expo. */
 function IntegrationCheck({ verifyP7Integration }: { verifyP7Integration: VerifyIntegration }) {
@@ -53,14 +53,29 @@ function IntegrationCheck({ verifyP7Integration }: { verifyP7Integration: Verify
 
 export default function Configuracion({ verifyP7Integration }: { verifyP7Integration: VerifyIntegration }) {
   const router = useRouter();
+  const [closing, setClosing] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
+
+  async function logout() {
+    if (closing) return;
+    setClosing(true);
+    setLogoutError('');
+    try {
+      await authService.logout();
+      router.replace('/(auth)/login');
+    } catch {
+      setLogoutError('No fue posible limpiar la sesión de este dispositivo. Intenta nuevamente.');
+      setClosing(false);
+    }
+  }
+
   return (
     <FlowPage title="Configuración" subtitle="Configuración de tu cuenta real.">
       <Card><Copy>El backend permite editar tu nombre desde Perfil. El correo, la contraseña y las preferencias no se pueden modificar aquí mientras la API no lo permita.</Copy></Card>
       <IntegrationCheck verifyP7Integration={verifyP7Integration} />
       <Action secondary label="Ir a mi perfil" onPress={() => router.push('/perfil')} />
-      <Action label="Cerrar sesión" onPress={() => void authService.logout()
-        .then(() => router.replace('/(auth)/login'))
-        .catch(() => console.error('No se pudo cerrar la sesión.'))} />
+      {!!logoutError && <Copy>{logoutError}</Copy>}
+      <Action disabled={closing} label={closing ? 'Cerrando sesión...' : 'Cerrar sesión'} onPress={() => { void logout(); }} />
     </FlowPage>
   );
 }

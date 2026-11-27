@@ -313,13 +313,20 @@ let refreshFlight: {
   revision: number;
   promise: Promise<string | null>;
 } | null = null;
-let sessionHandlers = {
-  refreshed: (_tokens: AuthTokensResponse) => {},
-  expired: () => {},
+type SessionHandlers = {
+  refreshed: (tokens: AuthTokensResponse) => void;
+  expired: () => void;
+  cleared: () => void;
 };
 
-export function setApiSessionHandlers(handlers: typeof sessionHandlers): void {
-  sessionHandlers = handlers;
+let sessionHandlers: SessionHandlers = {
+  refreshed: (_tokens: AuthTokensResponse) => {},
+  expired: () => {},
+  cleared: () => {},
+};
+
+export function setApiSessionHandlers(handlers: Partial<SessionHandlers>): void {
+  sessionHandlers = { ...sessionHandlers, ...handlers };
 }
 
 export function invalidateApiSession(): void {
@@ -734,6 +741,6 @@ export async function fetchWithAuth(
  * Cierre local de la sesión real.
  */
 export async function logoutLocal(): Promise<void> {
-  sessionHandlers.expired();
+  sessionHandlers.cleared();
   await clearTokens();
 }

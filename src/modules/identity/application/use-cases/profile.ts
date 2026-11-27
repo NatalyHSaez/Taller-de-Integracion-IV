@@ -1,9 +1,31 @@
-import type { CurrentUserResponse } from "@/src/core/domain/contracts";
+import type { CurrentUserResponse, DoctorStatus } from "@/src/core/domain/contracts";
+import type { UserRole } from "@/src/core/domain/contracts/common";
 import type { UpdateMeRequest } from "@/src/modules/identity/domain/account-requests";
 import { identityDependencies } from '../ports/identity-port';
 import { authSession } from '../../../../core/application/session/auth-session';
 import { ApiError, normalizeApiError } from '../../../../core/domain/errors';
 import { validateLoginUser } from '../validation/login-validation';
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  PATIENT: 'Paciente',
+  CAREGIVER: 'Cuidador',
+  DOCTOR: 'Médico',
+  ADMIN: 'Administrador',
+};
+
+const DOCTOR_STATUS_LABELS: Record<DoctorStatus, string> = {
+  VERIFIED: 'Verificado',
+  PENDING: 'Pendiente de verificación',
+  REJECTED: 'Verificación rechazada',
+};
+
+export function formatUserRoles(roles: readonly UserRole[]): string {
+  return roles.map((role) => ROLE_LABELS[role]).join(' · ');
+}
+
+export function formatDoctorStatus(status: DoctorStatus | null | undefined): string | null {
+  return status ? DOCTOR_STATUS_LABELS[status] : null;
+}
 
 export function buildProfileUpdate(name: string): UpdateMeRequest {
   const fullName = name.trim();

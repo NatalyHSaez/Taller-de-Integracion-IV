@@ -16,20 +16,26 @@ export function clearLocalSession(): void {
   identityDependencies().clearCache();
 }
 
+/** Conserva el motivo para que Login pueda explicar por qué terminó la sesión. */
+export function expireLocalSession(): void {
+  authSession.clear('expired');
+  identityDependencies().clearCache();
+}
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** La aplicación móvil solo admite pacientes y cuidadores. */
+/** La cuenta móvil admite los tres roles que expone TI4-81. */
 function ensureMobileRole(user: CurrentUserResponse): void {
   validateLoginUser(user);
-  if (user.roles.includes("PATIENT") || user.roles.includes("CAREGIVER"))
+  if (user.roles.some((role) => role === "PATIENT" || role === "CAREGIVER" || role === "DOCTOR"))
     return;
   throw new ApiError({
     code: "FLOW_NOT_AVAILABLE",
     status: 409,
     message:
-      "El acceso médico y administrador se realiza desde la aplicación web.",
+      "Esta cuenta no tiene un rol disponible en la aplicación móvil.",
     details: { roles: user.roles },
   });
 }
@@ -225,9 +231,8 @@ export const authService = {
   async logout(): Promise<void> {
     const token =
       authSession.mode() === "backend" ? authSession.refreshToken() : null;
-    clearLocalSession();
-    // Invalidar memoria primero y borrar tokens incluso cuando el servidor esté caído.
-    await Promise.all([identityDependencies().clearTokens(), revokeBackendSession(token)]);
+    // logoutLocal invalida memoria y borra SecureStore; la revocación remota es best-effort.
+    await Promise.all([identityDependencies().logoutLocal(), revokeBackendSession(token)]);
   },
 
   async register(data: RegisterRequest): Promise<CurrentUserResponse> {

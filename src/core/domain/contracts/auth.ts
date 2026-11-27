@@ -1,5 +1,7 @@
 import type { UUID, UserRole } from './common';
 
+export type DoctorStatus = 'VERIFIED' | 'PENDING' | 'REJECTED';
+
 /** Respuesta real de POST /api/v1/auth/login y /auth/refresh. */
 export type AuthTokensResponse = {
   accessToken: string;
@@ -19,7 +21,7 @@ export type CurrentUserResponse = {
   email: string;
   roles: UserRole[];
   /** Estado de verificación profesional; null para cuentas sin perfil médico. */
-  doctorStatus?: string | null;
+  doctorStatus?: DoctorStatus | null;
 };
 
 /** Validación de respuestas externas; no se aplica a tokens parciales de restauración local. */
@@ -40,5 +42,5 @@ export function isCurrentUserResponse(value: unknown): value is CurrentUserRespo
     Array.isArray(u.roles) && u.roles.length > 0 &&
     u.roles.every(role => ['PATIENT', 'CAREGIVER', 'DOCTOR', 'ADMIN'].includes(role)) &&
     (u.doctorStatus === undefined || u.doctorStatus === null ||
-      (typeof u.doctorStatus === 'string' && !!u.doctorStatus.trim()));
+      ['VERIFIED', 'PENDING', 'REJECTED'].includes(u.doctorStatus));
 }

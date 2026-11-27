@@ -4,7 +4,7 @@ import { ApiError } from '../../domain/errors';
 
 
 export type Permissions = { alerts: boolean; read: boolean; write: boolean };
-export type GlobalUser = { id: string; name: string; email: string; role: 'patient' | 'caregiver'; source: 'backend' };
+export type GlobalUser = { id: string; name: string; email: string; role: 'patient' | 'caregiver' | 'doctor'; source: 'backend' };
 export type GlobalPatient = { id: string; name: string; email: string };
 export type GlobalAppState = {
   user: GlobalUser | null;
@@ -12,6 +12,7 @@ export type GlobalAppState = {
   patients: GlobalPatient[];
   permissions: Permissions & { profile: boolean };
   sessionMode: AuthSessionMode | null;
+  sessionExpired: boolean;
   isAuthenticated: boolean;
   hasSelectedPatient: boolean;
 };
@@ -107,7 +108,8 @@ export function permissionsFromCodes(codes: readonly string[] | null | undefined
 function deriveState(): GlobalAppState {
   const user = authSession.mode() === 'backend' ? authSession.user() : null;
   const role = user?.roles.includes('PATIENT') ? 'patient'
-    : user?.roles.includes('CAREGIVER') ? 'caregiver' : null;
+    : user?.roles.includes('CAREGIVER') ? 'caregiver'
+      : user?.roles.includes('DOCTOR') ? 'doctor' : null;
   const belongsToCurrentUser = Boolean(user && role === 'caregiver' &&
     realPatientsUserId === user.id && realPatientsGeneration === authSession.generation());
   const patients: GlobalPatient[] = belongsToCurrentUser
@@ -130,6 +132,7 @@ function deriveState(): GlobalAppState {
     patients,
     permissions,
     sessionMode: user && role ? 'backend' : null,
+    sessionExpired: authSession.snapshot().endReason === 'expired',
     isAuthenticated: Boolean(user && role),
     hasSelectedPatient: Boolean(selectedPatient),
   };

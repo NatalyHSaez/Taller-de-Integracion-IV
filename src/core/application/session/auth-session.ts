@@ -4,15 +4,17 @@ import type {
 } from "@/src/core/domain/contracts";
 
 export type AuthSessionMode = "backend";
+export type SessionEndReason = "expired" | null;
 
 export type SessionState = {
   mode: AuthSessionMode | null;
   tokens: AuthTokensResponse | null;
   user: CurrentUserResponse | null;
+  endReason: SessionEndReason;
 };
 
 /** Estado observable. Las credenciales reales se persisten por separado en SecureStore. */
-let state: SessionState = { mode: null, tokens: null, user: null };
+let state: SessionState = { mode: null, tokens: null, user: null, endReason: null };
 let sessionGeneration = 0;
 const listeners = new Set<() => void>();
 let invalidateTransport: () => void = () => {};
@@ -65,7 +67,7 @@ export const authSession = {
     tokens: AuthTokensResponse,
     user: CurrentUserResponse | null = null,
   ): void {
-    replaceSession({ mode: "backend", tokens, user });
+    replaceSession({ mode: "backend", tokens, user, endReason: null });
   },
 
 
@@ -86,8 +88,8 @@ export const authSession = {
     publish({ ...state, user });
   },
 
-  clear(): void {
-    replaceSession({ mode: null, tokens: null, user: null });
+  clear(endReason: SessionEndReason = null): void {
+    replaceSession({ mode: null, tokens: null, user: null, endReason });
   },
 };
 

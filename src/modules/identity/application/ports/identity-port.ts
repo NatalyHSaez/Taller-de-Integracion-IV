@@ -12,6 +12,7 @@ export type IdentityDependencies = {
   updateMe: (data: UpdateMeRequest) => Promise<CurrentUserResponse>;
   revoke: (refreshToken: string) => Promise<void>;
   refresh: () => Promise<string | null>;
+  logoutLocal: () => Promise<void>;
   clearCache: () => void;
   clearTokens: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;

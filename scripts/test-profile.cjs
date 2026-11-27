@@ -27,7 +27,7 @@ async function fakeFetch(url, options) {
   if (options.method === 'PATCH') savedName = JSON.parse(options.body).fullName;
   const body = route.endsWith('/login')
     ? { accessToken: 'access', refreshToken: 'refresh', tokenType: 'bearer', expiresIn: 3600 }
-    : { id: wrongIdentity ? '87654321-1234-4123-8123-123456789abc' : id, fullName: savedName, email: 'real@example.com', roles: [role] };
+    : { id: wrongIdentity ? '87654321-1234-4123-8123-123456789abc' : id, fullName: savedName, email: 'real@example.com', roles: [role], doctorStatus: role === 'DOCTOR' ? 'VERIFIED' : null };
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 function load(filename) {
@@ -52,10 +52,10 @@ async function main() {
   const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  const { buildProfileUpdate, updateMyProfile, profileErrorMessage } = load(path.join(root, 'src/modules/identity/application/use-cases/profile'));
+  const { buildProfileUpdate, formatDoctorStatus, formatUserRoles, updateMyProfile, profileErrorMessage } = load(path.join(root, 'src/modules/identity/application/use-cases/profile'));
   for (const invalid of ['', '  ', 'ab', 'x'.repeat(201)]) assert.throws(() => buildProfileUpdate(invalid));
   assert.equal(buildProfileUpdate('  Ana  ').fullName, 'Ana');
-  for (const userRole of ['PATIENT', 'CAREGIVER']) {
+  for (const userRole of ['PATIENT', 'CAREGIVER', 'DOCTOR']) {
     role = userRole;
     await authService.login('real@example.com', 'Test1234');
     calls.length = 0;
@@ -88,6 +88,10 @@ async function main() {
   }
   const { ApiError } = load(path.join(root, 'src/core/infrastructure/http/errors'));
   assert.match(profileErrorMessage(new ApiError({ code: 'VALIDATION_ERROR', status: 422, message: 'Error' })), /rechazó el nombre/);
-  console.log('Perfil aprobado: validación, PATCH autenticado, solo fullName, ambos roles, sincronización, persistencia simulada y errores sin modificar identidad local.');
+  assert.equal(formatDoctorStatus('VERIFIED'), 'Verificado');
+  assert.equal(formatDoctorStatus('PENDING'), 'Pendiente de verificación');
+  assert.equal(formatDoctorStatus('REJECTED'), 'Verificación rechazada');
+  assert.equal(formatUserRoles(['PATIENT', 'CAREGIVER', 'DOCTOR']), 'Paciente · Cuidador · Médico');
+  console.log('Perfil aprobado: validación, PATCH autenticado, roles reales, estado profesional, sincronización y errores sin modificar identidad local.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

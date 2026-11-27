@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { appState } from "@/src/core/application/session/app-state";
+import { useAppState } from "@/src/core/presentation/session/use-app-state";
 import { authService } from "@/src/modules/identity/application/use-cases/auth-service";
 import { loginErrorMessage } from "@/src/modules/identity/application/validation/login-validation";
 import { GatewayHealthCard, type GatewayHealthProps } from "@/src/shared/presentation/components/gateway-health-card";
@@ -23,6 +24,7 @@ import { BrandColors, Colors } from "@/src/shared/presentation/theme";
 
 export default function LoginScreen({ gateway }: { gateway: GatewayHealthProps }) {
   const router = useRouter();
+  const { sessionExpired } = useAppState();
   const submitting = useRef(false);
   const theme = Colors[useColorScheme() === "dark" ? "dark" : "light"];
 
@@ -35,7 +37,9 @@ export default function LoginScreen({ gateway }: { gateway: GatewayHealthProps }
     null,
   );
 
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    sessionExpired ? "Sesión expirada. Vuelve a iniciar sesión." : "",
+  );
   const [loading, setLoading] = useState(false);
 
   async function submit() {
@@ -67,7 +71,7 @@ export default function LoginScreen({ gateway }: { gateway: GatewayHealthProps }
       }
 
       setPassword("");
-      router.replace("/(tabs)");
+      router.replace(state.user?.role === "doctor" ? "/perfil" : "/(tabs)");
     } catch (cause) {
       setError(loginErrorMessage(cause));
     } finally {

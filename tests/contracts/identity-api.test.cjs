@@ -25,7 +25,7 @@ test('identidad: doctorStatus admite null y estados reales sin transformar el ro
   assert.ok(isCurrentUserResponse(user));
   assert.ok(isCurrentUserResponse({ ...user, roles: ['DOCTOR'], doctorStatus: 'PENDING' }));
   assert.ok(isCurrentUserResponse({ ...user, doctorStatus: undefined }));
-  for (const patch of [{ doctorStatus: 1 }, { id: '' }, { roles: ['paciente'] }, { roles: [] }, { email: '' }, { fullName: ' ' }]) {
+  for (const patch of [{ doctorStatus: 1 }, { doctorStatus: 'UNKNOWN' }, { id: '' }, { roles: ['paciente'] }, { roles: [] }, { email: '' }, { fullName: ' ' }]) {
     assert.equal(isCurrentUserResponse({ ...user, ...patch }), false);
   }
 });

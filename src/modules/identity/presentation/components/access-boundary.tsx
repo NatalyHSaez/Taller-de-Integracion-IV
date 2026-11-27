@@ -38,7 +38,13 @@ export function AccessBoundary({ children }: PropsWithChildren) {
    * por ella.
    */
   if (user && isAuthRoute && !isSelectPatient) {
-    return <Redirect href={selectedPatient ? '/(tabs)' : '/(auth)/select-patient'} />;
+    return <Redirect href={
+      user.role === 'doctor'
+        ? '/perfil'
+        : selectedPatient
+          ? '/(tabs)'
+          : '/(auth)/select-patient'
+    } />;
   }
 
   /*
@@ -54,8 +60,12 @@ export function AccessBoundary({ children }: PropsWithChildren) {
   const isRealCaregiver =
     sessionMode === "backend" && user?.role === "caregiver";
 
+  const isRealDoctor =
+    sessionMode === "backend" && user?.role === "doctor";
+
   const canAccessWithoutPatient =
     isRealPatient ||
+    (isRealDoctor && (path === "/" || path === "/menu" || path === "/configuracion")) ||
     (isRealCaregiver &&
       (path === "/" ||
         path === "/menu" ||

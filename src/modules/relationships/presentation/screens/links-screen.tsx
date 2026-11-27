@@ -1,7 +1,14 @@
 import { Action, Card, Copy, FlowPage } from '@/src/shared/presentation/components/flow-ui';
 import { useAppState } from '@/src/core/presentation/session/use-app-state';
 import { createPatientLinkCode } from '@/src/modules/relationships/application/use-cases/link-codes';
-import { getPatientCaregivers, getPatientDoctors } from '@/src/modules/relationships/application/use-cases/relationship-actions';
+import {
+  getPatientCaregivers,
+  getPatientDoctors,
+  onStaleRelationship,
+  revokeCaregiverRelationship,
+  revokeDoctorRelationship,
+  updateCaregiverPermissions,
+} from '@/src/modules/relationships/application/use-cases/relationship-actions';
 import type { LinkCodeResponse, LinkedUserResponse } from '@/src/modules/relationships/domain/relationships';
 import { describePermissions, formatLinkedAt, shortRelationshipId } from '@/src/modules/relationships/presentation/link-format';
 import { DoctorLinkCodeCard } from '@/src/modules/relationships/presentation/components/doctor-link-code-card';
@@ -11,7 +18,6 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Share, Switch, View } from 'react-native';
 // Agregado: mismas funciones con manejo de errores del vínculo y un Alert que también funciona en la web.
 import { Alert } from '@/src/modules/relationships/presentation/confirm-dialog';
-import { onStaleRelationship, revokeCaregiverRelationship, revokeDoctorRelationship, updateCaregiverPermissions } from '@/src/modules/relationships/application/use-cases/relationship-actions';
 import QRCode from 'react-native-qrcode-svg';
 const CAREGIVER_PERMISSIONS = [
   { code: 'PATIENT_PROFILE_VIEW', label: 'Ver perfil del paciente' },

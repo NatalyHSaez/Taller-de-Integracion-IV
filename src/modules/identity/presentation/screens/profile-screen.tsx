@@ -11,7 +11,12 @@ import { getPatient } from "@/src/modules/identity/application/ports/identity-po
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { updateMyProfile, profileErrorMessage } from "@/src/modules/identity/application/use-cases/profile";
+import {
+  formatDoctorStatus,
+  formatUserRoles,
+  updateMyProfile,
+  profileErrorMessage,
+} from "@/src/modules/identity/application/use-cases/profile";
 
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, } from "react-native";
 
@@ -52,9 +57,8 @@ const theme = Colors[colorScheme === "dark" ? "dark" : "light"];
 const isRealSession = sessionMode === 'backend';
 const displayName = authLoading ? 'Cargando...' : (authUser?.fullName ?? 'Usuario');
 const displayEmail = authLoading ? '' : (authUser?.email ?? '');
-const realRole = authUser?.roles?.[0];
-const displayRole = realRole === 'PATIENT' ? 'Paciente'
-  : realRole === 'CAREGIVER' ? 'Cuidador' : 'Usuario';
+const displayRole = authUser ? formatUserRoles(authUser.roles) : 'Usuario';
+const professionalStatus = formatDoctorStatus(authUser?.doctorStatus);
 
   // ==========================================================
   // EDICIÓN DEL PERFIL
@@ -88,6 +92,7 @@ const [birthDateError, setBirthDateError] = useState(false);
 const backendUserId = authUser?.id;
 const isPatientAccount = Boolean(authUser?.roles.includes("PATIENT"));
 const isCaregiverAccount = Boolean(authUser?.roles.includes("CAREGIVER"));
+const isDoctorAccount = Boolean(authUser?.roles.includes("DOCTOR"));
 useEffect(() => {
   let cancelled = false;
   // El componente tiene una key por sesión; no conserva fechas del usuario anterior.
@@ -384,19 +389,51 @@ const activeSelectedId = selectedPatient?.id ?? null;
               />
 
               <Divider color={theme.border} />
-              
+
               <InfoRow
-                icon="calendar-outline"
-                label="Fecha de nacimiento"
-                value={
-                  birthDateLoading
-                    ? "Cargando..."
-                    : birthDateError
-                      ? "No se pudo obtener la fecha"
-                      : birthDate
-                }
+                icon="badge-account-outline"
+                label="Roles"
+                value={displayRole}
                 color={theme.primary}
               />
+
+              {isDoctorAccount && (
+                <>
+                  <Divider color={theme.border} />
+                  <InfoRow
+                    icon="shield-check-outline"
+                    label="Estado profesional"
+                    value={professionalStatus ?? "No informado por el servidor"}
+                    color={theme.primary}
+                  />
+                  <Divider color={theme.border} />
+                  <InfoRow
+                    icon="card-account-details-outline"
+                    label="RUT"
+                    value="Dato protegido por el servidor (no editable)"
+                    color={theme.primary}
+                  />
+                </>
+              )}
+
+              {isPatientAccount && (
+                <>
+                  <Divider color={theme.border} />
+
+                  <InfoRow
+                    icon="calendar-outline"
+                    label="Fecha de nacimiento"
+                    value={
+                      birthDateLoading
+                        ? "Cargando..."
+                        : birthDateError
+                          ? "No se pudo obtener la fecha"
+                          : birthDate
+                    }
+                    color={theme.primary}
+                  />
+                </>
+              )}
 
               <Pressable
                 accessibilityRole="button"
@@ -471,7 +508,9 @@ const activeSelectedId = selectedPatient?.id ?? null;
                 />
               </FormField>
 
-              <ThemedText>Solo puedes editar tu nombre. El correo y la fecha de nacimiento no se modifican desde este perfil.</ThemedText>
+              <ThemedText>
+                Solo puedes editar tu nombre. El correo, el RUT y los demás datos de identidad son de solo lectura.
+              </ThemedText>
 
               <Pressable
                 accessibilityRole="button"
@@ -527,7 +566,7 @@ const activeSelectedId = selectedPatient?.id ?? null;
         </View>
 
         {/* INFORMACIÓN DE SALUD */}
-        {displayRole === "Paciente" && (
+        {isPatientAccount && (
           <>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>
@@ -562,7 +601,7 @@ const activeSelectedId = selectedPatient?.id ?? null;
         )}
 
         {/* PACIENTES DEL CUIDADOR */}
-        {displayRole === "Cuidador" && (
+        {isCaregiverAccount && (
           <>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>

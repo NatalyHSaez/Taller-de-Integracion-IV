@@ -39,7 +39,7 @@ async function fakeFetch(url, options) {
     return Response.json({ accessToken: currentAccess, refreshToken: 'refresh', tokenType: 'bearer', expiresIn: 900 });
   }
   if (options.headers.get('Authorization') !== `Bearer ${currentAccess}`) return new Response('{}', { status: 401 });
-  return Response.json({ id, fullName: 'Cuenta real', email: 'real@example.com', roles: [role] });
+  return Response.json({ id, fullName: 'Cuenta real', email: 'real@example.com', roles: [role], doctorStatus: role === 'DOCTOR' ? 'VERIFIED' : null });
 }
 function load(filename) {
   let file = filename;
@@ -66,7 +66,7 @@ async function main() {
   const { apiClient } = load(path.join(root, 'src/core/infrastructure/http/api-client'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
   const { demo } = load(path.join(root, 'tests/fixtures/demo/demo-store'));
-  for (const userRole of ['PATIENT', 'CAREGIVER']) {
+  for (const userRole of ['PATIENT', 'CAREGIVER', 'DOCTOR']) {
     role = userRole;
     await authService.login('real@example.com', 'Test1234');
     authSession.clear(); demo.logout(); // Simula reiniciar memoria conservando almacenamiento.
@@ -92,12 +92,14 @@ async function main() {
   await assert.rejects(apiClient.get('/me'));
   assert.equal(tokens, null);
   assert.equal(authSession.user(), null);
+  assert.equal(appState.snapshot().sessionExpired, true);
   rejectRefresh = false;
   await authService.login('real@example.com', 'Test1234');
   currentAccess = 'expired'; malformedRefresh = true;
   await assert.rejects(apiClient.get('/me'), error => error.code === 'INVALID_API_RESPONSE');
   assert.equal(tokens, null, 'Una renovación inválida no se guarda');
   assert.equal(authSession.user(), null);
+  assert.equal(appState.snapshot().sessionExpired, true);
   malformedRefresh = false;
   await authService.login('real@example.com', 'Test1234');
   authSession.clear(); demo.logout(); offline = true;
@@ -124,6 +126,7 @@ async function main() {
   await authService.logout(); offline = false;
   assert.equal(tokens, null);
   assert.equal(authSession.mode(), null);
-  console.log('Sesion: restauracion ambos roles, refresh concurrente unico, rotacion, rechazo, red temporal, logout offline y respuesta tardia aprobados.');
+  assert.equal(appState.snapshot().sessionExpired, false, 'El cierre manual no se presenta como expiración.');
+  console.log('Sesion: restauración de tres roles, refresh concurrente, rotación, expiración visible, red temporal y logout offline aprobados.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -26,7 +26,7 @@ async function fakeFetch(url, options) {
   if (route.endsWith('/logout')) return new Response(null, { status: 204 });
   const body = route.endsWith('/login')
     ? { accessToken: 'access', refreshToken: 'refresh', tokenType: 'bearer', expiresIn: badTokens ? 0 : 3600 }
-    : { id: userId, fullName: 'Cuenta real', email: 'real@example.com', roles: [role] };
+    : { id: userId, fullName: 'Cuenta real', email: 'real@example.com', roles: [role], doctorStatus: role === 'DOCTOR' ? 'PENDING' : null };
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 function load(filename) {
@@ -52,7 +52,7 @@ async function main() {
   const { authService } = load(path.join(root, 'src/modules/identity/application/use-cases/auth-service'));
   const { authSession } = load(path.join(root, 'src/core/application/session/auth-session'));
   const { appState } = load(path.join(root, 'src/core/application/session/app-state'));
-  for (const userRole of ['PATIENT', 'CAREGIVER']) {
+  for (const userRole of ['PATIENT', 'CAREGIVER', 'DOCTOR']) {
     role = userRole;
     calls.length = 0;
     // Un correo también presente en mocks debe ir al backend por defecto.
@@ -61,6 +61,7 @@ async function main() {
     assert.equal(calls.filter(c => c.route.endsWith('/me')).length, 1);
     assert.equal(authSession.mode(), 'backend');
     assert.equal(appState.snapshot().user.id, id);
+    assert.equal(appState.snapshot().user.role, userRole.toLowerCase());
     assert.equal(appState.snapshot().selectedPatient?.id ?? null, role === 'PATIENT' ? id : null);
     if (role === 'CAREGIVER') assert.equal(appState.snapshot().patients.length, 0);
     assert.equal(tokens.accessToken, 'access');
@@ -74,7 +75,7 @@ async function main() {
     assert.equal(appState.snapshot().isAuthenticated, false);
   }
   failure = null;
-  for (const unsupported of ['DOCTOR', 'ADMIN', 'paciente']) {
+  for (const unsupported of ['ADMIN', 'paciente']) {
     role = unsupported;
     await assert.rejects(authService.login('real@example.com', 'Test1234'));
     assert.equal(authSession.mode(), null);
@@ -97,6 +98,6 @@ async function main() {
   await authService.logout();
   assert.equal(authSession.mode(), null);
   assert.equal(tokens, null);
-  console.log('Login aprobado: roles móviles, UUID real, /me único, errores sin sesión residual y sin modo demo.');
+  console.log('Login aprobado: PATIENT/CAREGIVER/DOCTOR, UUID real, /me único, errores sin sesión residual y sin modo demo.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
